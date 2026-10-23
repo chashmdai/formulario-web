@@ -2,6 +2,8 @@
 
 # Sandbox real con HTTPS y resolución local
 
+**Actualización Linux/WSL 23-10-2026:** [proxy Docker, autorización hosts/CA y flujo real verificado](SANDBOX_HTTPS_WSL_2026-10-23.md). Para DDN-TEST-SIGER se utiliza esa variante y el puerto 18080; los pasos Windows originales siguientes se conservan como referencia.
+
 Perfil exclusivo de pruebas, 14 de octubre de 2026. Dominio confirmado por el usuario para esta prueba: `claveunica.formularioadulto.defensorianinez.gob.cl`. Es distinto del `.ddn.gob.cl` documentado en la iteración inicial. No se cambia el registro en ClaveÚnica; el proveedor comprobará que corresponda realmente al par Sandbox.
 
 **Estado comprobado:** dos ingresos reales completados contra Sandbox, identidad visible de solo lectura, vista previa y logout con nuevo ingreso. [Evidencia de la ejecución](evidencias/SANDBOX_REAL_2026-10-14.md).

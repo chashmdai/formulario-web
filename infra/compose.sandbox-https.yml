@@ -1,0 +1,31 @@
+name: siger-sandbox-https
+services:
+  caddy:
+    image: siger-caddy-sandbox:2.11.7
+    build:
+      context: ./sandbox
+    init: true
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports: ["127.0.0.1:443:8443"]
+    volumes:
+      - ./sandbox/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${SANDBOX_TLS_DIR:?Preparar TLS local}/site.pem:/run/siger/site.pem:ro
+      - ${SANDBOX_TLS_DIR:?Preparar TLS local}/site-key.pem:/run/siger/site-key.pem:ro
+    tmpfs:
+      - /data:size=16m,mode=0700,uid=1000,gid=1000
+      - /config:size=4m,mode=0700,uid=1000,gid=1000
+      - /tmp:size=8m,mode=1777
+    networks: [app]
+    cpus: 0.5
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: none
+networks:
+  app:
+    external: true
+    name: siger-app-lab_default
