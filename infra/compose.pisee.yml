@@ -1,0 +1,34 @@
+name: siger-pisee-dev
+services:
+  pisee:
+    build:
+      context: ./pisee
+    init: true
+    restart: unless-stopped
+    user: "1000:1000"
+    working_dir: /var/lib/pisee
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - ${PISEE_PRIVATE_DIR:?Preparar directorio privado}/runtime:/opt/pisee:ro
+      - ${PISEE_PRIVATE_DIR:?Preparar directorio privado}/state:/var/lib/pisee:rw
+      - ${PISEE_PRIVATE_DIR:?Preparar directorio privado}/runtime/config.json:/var/lib/pisee/config.json:ro
+    # Sin ports: ni 8084 ni 8489 se publican al host.
+    networks: [pisee]
+    healthcheck:
+      test: [CMD-SHELL, "curl -s --max-time 3 -o /dev/null http://127.0.0.1:8084/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    logging:
+      driver: none
+networks:
+  # Necesita salida a central/catálogo. El nodo no ofrece un puerto del host.
+  pisee: {}

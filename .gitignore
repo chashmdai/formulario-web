@@ -39,3 +39,13 @@ docs/evidencias/
 # La otra aplicación se conecta localmente, no pertenece a este repositorio.
 /siger-institucional/
 
+# Material institucional reservado: siempre fuera de Git.
+**/DefensoriadelaNinez.txt
+**/NodoV2
+**/sqlitedb*
+**/certsX509/
+**/_srcei_pem/
+**/_backup_X509_original/
+**/__pycache__/
+*.py[cod]
+
