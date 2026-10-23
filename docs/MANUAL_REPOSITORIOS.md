@@ -12,17 +12,28 @@ No se suben `.local`, contraseñas, TXT institucional, claves privadas, certific
 
 ## Requisitos Windows
 
-Instalar Git, PowerShell 7.4+, Eclipse Temurin JDK 25, Maven 3.9+ y Node.js 24 con npm. Comprobar desde `pwsh`:
+Instalar en **Windows x64** Git, PowerShell 7.4+, Eclipse Temurin JDK 25, Maven 3.9.x y Node.js 24 con npm. Instalar también **Microsoft Visual C++ v14 Redistributable x64**, requerido por el MySQL portable. Instalar estas herramientas puede requerir UAC y autorización del dueño del equipo. Esta guía no cubre Windows ARM, Linux o macOS.
+
+Descargas oficiales: [Git](https://git-scm.com/downloads/win), [PowerShell](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows), [Temurin](https://adoptium.net/temurin/releases/?version=25), [Maven](https://maven.apache.org/download.cgi), [Node.js](https://nodejs.org/en/download), [runtime Visual C++ x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist). Microsoft documenta la compatibilidad del runtime v14 con aplicaciones compiladas con las herramientas Visual Studio 2017/2019/2022.
+
+Si Maven se instala desde ZIP, extraer su distribución **binaria**, por ejemplo a `C:\Dev\apache-maven-3.9.x`, y añadir su directorio `bin` al `PATH` de usuario. Configurar `JAVA_HOME` hacia la raíz del JDK 25 —no a `bin`— y añadir `%JAVA_HOME%\bin` al `PATH`. `mvn -version` debe indicar Java 25, aunque `java -version` ya lo indique. Véase [instalación oficial de Maven](https://maven.apache.org/install.html).
+
+Cerrar y abrir la terminal después de instalar o cambiar variables. Abrir **PowerShell 7 (`pwsh`)**, no Windows PowerShell 5.1. Comprobar:
 
 ```powershell
 git --version
 java -version
+javac --version
 mvn -version
 node --version
 npm --version
 ```
 
 No se requiere WSL ni Docker. El helper descarga MySQL portable 8.4.11 fijado por hash; no utiliza ni modifica un servidor institucional. Maven/npm necesitan acceso a sus repositorios de dependencias. No instalar dependencias con una cuenta de producción.
+
+Los comandos normales se ejecutan **sin elevación**, siempre con el mismo usuario Windows. Solo la edición de hosts y los instaladores que lo requieran se ejecutan elevados. Usar otro usuario para confiar la CA o generar DPAPI haría que el usuario cotidiano no pudiera reutilizarlos.
+
+Si Windows bloquea scripts, revisar primero `Get-ExecutionPolicy -List`. Cuando la política de la organización lo permita, el usuario puede establecer `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`; no usar `Bypass` ni cambiar políticas de equipo para sortear una política institucional. Si se descargó un ZIP, comprobar su procedencia y desbloquear ese ZIP antes de extraerlo; preferir `git clone`.
 
 ## Clonar y compilar por separado
 
@@ -31,6 +42,9 @@ mkdir C:\Dev\SIGER2026
 cd C:\Dev\SIGER2026
 git clone https://github.com/chashmdai/formulario-web.git
 git clone https://github.com/chashmdai/sistema-de-requerimientos.git
+
+cd C:\Dev\SIGER2026\sistema-de-requerimientos
+.\scripts\Comprobar-Instalacion.ps1 -SoloHerramientas
 
 cd C:\Dev\SIGER2026\formulario-web
 pwsh -NoProfile -File .\formulario-publico\scripts\Build-Formulario.ps1
@@ -70,6 +84,8 @@ En el equipo original ya existe la raíz `C:\Users\Benja\Desktop\pisee-claveunic
 
 No repetir estos pasos en el equipo ya preparado. No cambiar DNS público, certificados institucionales ni firewall.
 
+**Desde este punto ejecutar todos los comandos en `C:\Dev\SIGER2026\sistema-de-requerimientos`, con ambos clones conectados.** No volver a preparar HTTPS desde la raíz del otro clon: generaría otra `.local`/CA. Se recomienda Edge o Chrome con la confianza de Windows del usuario actual. Firefox puede requerir su propia gestión de confianza; no omitir alertas TLS.
+
 ```powershell
 # Descarga herramientas fijadas por hash y genera certificado local. No instala confianza.
 .\formulario-publico\scripts\Prepare-LocalSandboxTools.ps1
@@ -84,6 +100,17 @@ Revisar y ejecutar **expresamente** las dos operaciones locales siguientes cuand
 # Ejecutar en PowerShell elevado (o sudo disponible) desde la misma raíz:
 .\formulario-publico\scripts\Set-LocalSandboxHosts.ps1
 ```
+
+Para el último paso, abrir PowerShell 7 **como administrador** con el mismo usuario y volver a la raíz operativa mediante `cd C:\Dev\SIGER2026\sistema-de-requerimientos`. Ejecutar únicamente el script de hosts y cerrar esa consola elevada. La confianza de CA, builds y arranque se ejecutan en la consola normal. No se necesita que `sudo` esté habilitado.
+
+Antes de iniciar, en la consola normal:
+
+```powershell
+cd C:\Dev\SIGER2026\sistema-de-requerimientos
+.\scripts\Comprobar-Instalacion.ps1
+```
+
+El comprobador es de solo lectura: revisa herramientas/versiones, runtime Visual C++, JAR, archivos HTTPS, confianza local, resolución Windows y separación del origen funcionario. No descarga ni instala nada, no inicia servicios y no realiza peticiones de autenticación. Las bases, claves de comprobante y certificado funcionario se preparan automáticamente al arrancar si aún no existen; no es necesario copiar los del equipo original.
 
 Hosts debe resolver `claveunica.formularioadulto.defensorianinez.gob.cl` exclusivamente a loopback. HTTPS público sigue en 443 y funcionario en `https://localhost:8443`. El certificado funcionario es separado y se genera con la CA local ya confiada; no reemplaza el certificado público. No usar el dominio público con `:8443`: los hosts, no los puertos, aíslan cookies. No usar `-SkipCertificateCheck` ni desactivar CSRF/Secure/HttpOnly.
 
@@ -142,6 +169,43 @@ $env:CU_SANDBOX_CREDENTIALS_PATH='C:\CredencialesPrivadas\DefensoriadelaNinez.tx
 Si ya está iniciado, detener primero con el script madre. En el equipo original se conserva la ruta externa anterior como fallback. El arranque comprueba resolver Windows, HTTPS confiable, cookies y rutas antes de habilitar `CU_CALLBACK_APPROVED` **solo en los procesos locales**. No cambia las URI registradas: `/redirect` y `/logout` bajo el origen HTTPS público. Un 503 “Callback pendiente” indica que ese proceso no superó/habilitó esta comprobación; no editar YAML para forzarlo ni entrar por localhost:8080/5173. Consultar los logs privados `.local/nna`, sin publicarlos.
 
 Iniciar sesión realmente en Sandbox es una acción aparte en el sitio del proveedor, solo con identidades oficiales admitidas. El preflight local no acredita autenticación real. No usar producción ni ejecutar llamadas gubernamentales en pruebas automatizadas.
+
+El TXT puede contener **solo** las dos líneas Sandbox; no es necesario entregar QA ni Producción al equipo nuevo. No rellenar valores de ejemplo como si fueran credenciales válidas. Guardarlo en una carpeta privada del usuario, con ACL restringida, no en Descargas compartidas, OneDrive público ni dentro del repositorio. Puede comprobarse su formato sin imprimirlo mediante `Comprobar-Instalacion.ps1 -ConClaveUnica`.
+
+## Después de apagar o reiniciar Windows
+
+Los scripts inician procesos locales, no servicios Windows ni tareas de autoarranque. Hosts y confianza del usuario permanecen, pero los procesos deben iniciarse otra vez. No reinstalar herramientas, borrar `.local`, regenerar certificados ni recompilar si no cambió el código.
+
+```powershell
+cd C:\Dev\SIGER2026\sistema-de-requerimientos
+# Esta variable de proceso debe indicarse de nuevo en cada consola nueva:
+$env:CU_SANDBOX_CREDENTIALS_PATH='C:\CredencialesPrivadas\DefensoriadelaNinez.txt'
+.\scripts\Comprobar-Instalacion.ps1 -ConClaveUnica
+.\scripts\Nucleo-Local.ps1 iniciar
+.\scripts\Nucleo-Local.ps1 estado
+```
+
+Para NNA/SIGER sin CU, omitir la variable y usar `iniciar -SinClaveUnica`. Abrir las direcciones HTTPS de la tabla anterior; `localhost:5173`, `localhost:8080` o el dominio público con puerto 8443 no son equivalentes.
+
+## Diagnóstico de instalación
+
+| Síntoma | Qué comprobar |
+|---|---|
+| `mvn`/`java`/`npm` no reconocido | PATH, terminal nueva y `Comprobar-Instalacion.ps1 -SoloHerramientas`. No sustituir Java 25 por otro JDK. |
+| MySQL no inicia; faltan DLL `VCRUNTIME`/`MSVCP` | Instalar runtime Visual C++ x64 oficial. Revisar logs privados `.local/robustez/mysql`; no borrar datadir. |
+| Descarga de MySQL/Caddy/mkcert falla o hash no coincide | Acceso a las URLs oficiales del script y posibles proxy/antivirus corporativos. No omitir el hash ni descargar un ejecutable alternativo sin revisión. |
+| Puerto 443/8443/8080/8081/13306 ocupado | Consultar `Nucleo-Local.ps1 estado` y `Get-NetTCPConnection -State Listen`. Detener solo la instancia propia con el script. No matar procesos ajenos ni cambiar callback para sortearlo. |
+| Advertencia HTTPS | CA de **esta** raíz operativa confiada por **este** usuario, fechas/nombre del certificado y reloj Windows correctos. No aceptar certificados inválidos. |
+| NXDOMAIN o página institucional en lugar del formulario local | `([Net.Dns]::GetHostAddresses('claveunica.formularioadulto.defensorianinez.gob.cl')).IPAddressToString` debe mostrar solo loopback. Revisar hosts y caché local. No cambiar DNS público. |
+| 503 de callback | Haber arrancado sin `-SinClaveUnica`, TXT privado válido y preflight local correcto. Detener y volver a iniciar con el script, no activar el gate manualmente. |
+| Acceso funcionario no disponible | Usar `https://localhost:8443/`, núcleo iniciado con el script madre, contraseña generada en este PC consultada con `acceso`. No usar una contraseña copiada del equipo anterior. |
+| Una Comunicación queda pendiente | SIGER encendido, controles habilitados por el arranque, confianza HTTPS y recuperación saliente. Conservar bases y revisar logs privados de ambos backends; no reenviar inventando otra identidad. |
+
+Si aparece “Arranque incompleto”, ejecutar primero `Nucleo-Local.ps1 detener` para retirar únicamente los procesos propios que alcanzaron a iniciarse, corregir la causa y reintentar. No publicar logs completos ni pasarlos a Git.
+
+**Alcance de la reproducción:** el manual permite instalar el código y crear un laboratorio nuevo con datos sintéticos. No traslada los datos del PC original ni otorga acceso institucional nuevo. La aceptación del login Sandbox depende de credenciales autorizadas y disponibilidad del proveedor. Todavía no se ha ejecutado esta guía completa en un segundo PC limpio; los pasos locales y builds desde clones separados se verificaron en el equipo original. Las dos baterías de GitHub Actions iniciales también terminaron correctamente en runners Windows independientes, pero no prueban hosts/CA ni el login Sandbox.
+
+Comprobador añadido el 23-10-2026: ejecución positiva de herramientas desde ambos clones y comprobación completa con Sandbox en el workspace preparado; casos negativos de clon sin HTTPS y TXT Sandbox inexistente detectados correctamente. No se modificaron hosts, confianza, servicios ni credenciales durante estas comprobaciones.
 
 ## Recorrido de extremo a extremo
 
