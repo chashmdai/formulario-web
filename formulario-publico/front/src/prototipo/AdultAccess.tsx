@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import { ClaveUnicaButton } from '../ClaveUnicaButton';
-export function AdultAccess({dialogRef, onClose, onManual, manualUnavailable}: {dialogRef: RefObject<HTMLDialogElement | null>; onClose: () => void; onManual: () => void; manualUnavailable: boolean}) { return <dialog
+export function AdultAccess({dialogRef, onClose, onManual, onCu, manualUnavailable}: {dialogRef: RefObject<HTMLDialogElement | null>; onClose: () => void; onManual: () => void; onCu: () => void; manualUnavailable: boolean}) { return <dialog
       aria-describedby="adult-access-desc"
       aria-labelledby="adult-access-title"
       className="dialog adult-access-dialog"
@@ -32,7 +32,7 @@ export function AdultAccess({dialogRef, onClose, onManual, manualUnavailable}: {
           <p>
             Este acceso permite identificarte con el mecanismo oficial del Estado de Chile. Continuarás al sitio oficial de ClaveÚnica.
           </p>
-          <ClaveUnicaButton />
+          <ClaveUnicaButton onClick={event => { event.preventDefault(); onCu(); }} />
           <p className="access-footnote">
             El acceso oficial utiliza la sesión validada por el servidor.
           </p>

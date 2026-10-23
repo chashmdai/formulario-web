@@ -10,6 +10,7 @@ Autorización expresa del responsable en este chat: hosts Windows/WSL, CA de des
 - Preflight Windows con validación TLS normal: HTTP 200, HSTS, sesión anónima SANDBOX, cookie Secure/HttpOnly/SameSite=Lax, callback negativo rechazado, logout y redirección oficial correctos. Ejecutado primero bloqueado y después habilitado.
 - Tras el login, `/api/session` indicó `authenticated=true`, `environment=SANDBOX` e identidad con RUN y componentes de nombres/apellidos. El backend emitió `CU_AUTHENTICATION_COMPLETED environment=SANDBOX source=userinfo`.
 - Tras pulsar Cerrar sesión, `/api/session` indicó `authenticated=false` y ausencia de identidad. No se enviaron Comunicaciones durante esta prueba.
+- Se repitió el recorrido real completo después de empaquetar `PrivacyDialog` en el JAR: elección explícita del canal → autorización oficial → sesión autenticada con identidad → cierre → sesión anónima sin identidad. Ambos ingresos concluyeron correctamente.
 - No se guardaron HAR, tokens, cookies, códigos, capturas autenticadas ni respuestas de identidad. La captura de evidencia muestra solo el inicio tras cerrar sesión. Los JSON privados de preflight contienen únicamente estado técnico y huellas públicas.
 
 Esto verifica este cliente y ambiente Sandbox. No certifica aceptación productiva, envío SIGER ni migración completa del mockup. SRCeI es una integración independiente.

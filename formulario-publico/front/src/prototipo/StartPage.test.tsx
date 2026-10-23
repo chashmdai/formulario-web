@@ -24,10 +24,33 @@ describe('Inicio institucional en migración', () => {
     render(<StartPage />);
     await userEvent.click(screen.getByRole('button', {name: /Soy una persona adulta/}));
     await userEvent.click(screen.getByRole('button', {name: /No tengo ClaveÚnica/}));
+    expect(screen.getByRole('heading', {name: 'Antes de continuar, conoce cómo cuidaremos tus datos'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'Continuar'}).hasAttribute('disabled')).toBe(true);
+    await userEvent.click(screen.getByRole('radio', {name: /^Acepto/}));
+    await userEvent.click(screen.getByRole('button', {name: 'Continuar'}));
     expect(screen.getByText('Este acceso todavía no está disponible. Puedes volver al inicio.')).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', {name: 'Cerrar y volver al inicio'}));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  it('ofrece otros canales al rechazar, permite cambiar respuesta y reinicia la elección al volver', async () => {
+    const fetch = vi.spyOn(window, 'fetch');
+    render(<StartPage />);
+    await userEvent.click(screen.getByRole('button', {name: /Soy una persona adulta/}));
+    await userEvent.click(screen.getByRole('link', {name: 'Iniciar sesión con ClaveÚnica'}));
+    await userEvent.click(screen.getByRole('radio', {name: /^No acepto/}));
+    await userEvent.click(screen.getByRole('button', {name: 'Continuar'}));
+    expect(screen.getByRole('heading', {name: 'Otras formas de comunicarte'})).toBeTruthy();
+    expect(screen.getByRole('link', {name: /Atención de usuarios/}).getAttribute('href')).toBe('tel:+56224979602');
+    expect(document.activeElement).toBe(screen.getByRole('button', {name: 'Volver al inicio'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Cambiar mi respuesta'}));
+    expect(screen.getByRole('button', {name: 'Continuar'}).hasAttribute('disabled')).toBe(true);
+    await userEvent.click(screen.getByRole('button', {name: 'Volver'}));
+    await userEvent.click(screen.getByRole('button', {name: /Soy una persona adulta/}));
+    await userEvent.click(screen.getByRole('button', {name: /No tengo ClaveÚnica/}));
+    expect((screen.getByRole('radio', {name: /^Acepto/}) as HTMLInputElement).checked).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(Object.keys(localStorage).sort()).toEqual(['siger:font-scale', 'siger:theme']);
   });
   it('aplica apariencia y escala acotada sin almacenar datos de personas', async () => {
     render(<StartPage />);
