@@ -1,0 +1,60 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { vi, describe, it, expect } from 'vitest';
+import { DeliveryPanel } from './DeliveryPanel';
+import * as api from './api';
+vi.mock('./api', () => ({ getCapabilities: vi.fn(), sendCommunication: vi.fn(), getDelivery: vi.fn() }));
+describe('Recepción pública e incorporación institucional', () => {
+  it('no restaura operaciones desde almacenamiento ni después de una nueva carga', async () => {
+    vi.mocked(api.getCapabilities).mockResolvedValue({recepcionDisponible:true,aviso:'Prueba',avisoVersion:'lab'});
+    const storageRead = vi.spyOn(Storage.prototype, 'getItem');
+    const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
+    const before = vi.mocked(api.getDelivery).mock.calls.length;
+    const first = render(<DeliveryPanel mensaje="Sin restauración" />);
+    await screen.findByRole('checkbox'); first.unmount();
+    render(<DeliveryPanel mensaje="Sin restauración" />); await screen.findByRole('checkbox');
+    expect(storageRead).not.toHaveBeenCalled(); expect(storageWrite).not.toHaveBeenCalled();
+    expect(api.getDelivery).toHaveBeenCalledTimes(before);
+    storageRead.mockRestore(); storageWrite.mockRestore();
+  });
+  it('una confirmación técnica antigua no presenta folio ni comprobante definitivo', async () => {
+    vi.mocked(api.getCapabilities).mockResolvedValue({recepcionDisponible:true,aviso:'Prueba',avisoVersion:'laboratorio-v1'});
+    vi.mocked(api.sendCommunication).mockResolvedValueOnce({id:'legacy-id',estado:'CONFIRMADA_SIGER',confirmacion:null});
+    render(<DeliveryPanel mensaje="Ingreso legado" />);const user=userEvent.setup();
+    const send=await screen.findByRole('button',{name:'Enviar Comunicación de prueba'});
+    await user.click(screen.getByRole('checkbox'));await user.click(send);
+    expect(await screen.findByText(/pendiente de confirmación de registro/)).toBeTruthy();
+    expect(screen.queryByRole('link',{name:/comprobante definitivo/})).toBeNull();
+    expect(screen.queryByText('Folio institucional')).toBeNull();
+  });
+  it('no ofrece envío cuando la recepción está deshabilitada', async () => {
+    vi.mocked(api.getCapabilities).mockResolvedValue({ recepcionDisponible: false, aviso: '', avisoVersion: 'demo-local-v1' });
+    render(<DeliveryPanel mensaje="Mensaje" />);
+    expect(await screen.findByText(/recepción de Comunicaciones está deshabilitada/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Enviar Comunicación de prueba' })).toBeNull();
+  });
+  it('exige aviso, conserva clave al reintentar y distingue custodia pública de confirmación SIGER', async () => {
+    vi.mocked(api.getCapabilities).mockResolvedValue({ recepcionDisponible: true, aviso: 'Aviso de prueba', avisoVersion: 'demo-local-v1' });
+    vi.mocked(api.sendCommunication).mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce({ id: 'test-id', estado: 'PENDIENTE_REGISTRO_SIGER', confirmacion: null });
+    const receipt = { algoritmo: 'Ed25519', keyId: 'synthetic', payload: 'synthetic', firma: 'synthetic' };
+    vi.mocked(api.getDelivery).mockResolvedValue({ id: 'test-id', estado: 'REGISTRADA_SIGER', confirmacion: null, comprobante: receipt, registroInstitucional: { registro: { comunicacionId: 'communication-id', operacionPublicaId: 'test-id', numeroFolio: 1, folio: 'COM-000001', registradaEn: '2026-10-14T23:00:00Z', canalOrigen: 'FORMULARIO_WEB_PUBLICO' }, comprobante: receipt } });
+    render(<DeliveryPanel mensaje="Mensaje de prueba" />);
+    const user = userEvent.setup();
+    const send = await screen.findByRole('button', { name: 'Enviar Comunicación de prueba' });
+    expect((send as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole('checkbox'));
+    await user.click(send);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    await user.click(send);
+    await waitFor(() => expect(api.sendCommunication).toHaveBeenCalledTimes(2));
+    const calls = vi.mocked(api.sendCommunication).mock.calls;
+    expect(calls[0]).toEqual(calls[1]); expect(calls[0][0]).toBe('Mensaje de prueba'); expect(calls[0][2]).toBe('demo-local-v1');
+    expect(await screen.findByText(/Recepción técnica pendiente de confirmación/)).toBeTruthy();
+    expect(screen.queryByRole('link', {name: /comprobante definitivo/})).toBeNull();
+    expect(screen.queryByText('COM-000001')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Consultar recepción en SIGER' }));
+    expect(await screen.findByText('Comunicación registrada en SIGER.')).toBeTruthy();
+    expect(screen.getByText('COM-000001')).toBeTruthy();
+    expect(screen.getByRole('link', {name: /comprobante definitivo/})).toBeTruthy();
+  });
+});

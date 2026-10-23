@@ -1,0 +1,21 @@
+# Used only by scripts/Start-LocalSandbox.ps1; never imported by default.
+server:
+  address: 127.0.0.1
+  port: 8080
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: '127\.0\.0\.1'
+      protocol-header: x-forwarded-proto
+      remote-ip-header: x-forwarded-for
+  servlet:
+    session:
+      cookie:
+        secure: true
+siger:
+  claveunica:
+    environment: SANDBOX
+    redirect-uri: https://claveunica.formularioadulto.defensorianinez.gob.cl/redirect
+    logout-uri: https://claveunica.formularioadulto.defensorianinez.gob.cl/logout
+    public-origin: https://claveunica.formularioadulto.defensorianinez.gob.cl
+    callback-approved: ${CU_CALLBACK_APPROVED:false}

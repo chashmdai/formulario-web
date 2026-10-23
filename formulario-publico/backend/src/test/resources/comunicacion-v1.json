@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "id": "11111111-1111-4111-8111-111111111111",
+  "recibidaEn": "2026-10-14T12:00:00Z",
+  "identidad": {
+    "run": "44444444-4",
+    "nombres": "Ciudadana",
+    "apellidos": "Prueba"
+  },
+  "mensaje": "Mensaje de prueba",
+  "avisoPrivacidadVersion": "demo-local-v1",
+  "sha256": "f3726415c9fd5a12875c2e2a7772451e8c1ad1f95bbcbecef50c4e5209fa1671"
+}

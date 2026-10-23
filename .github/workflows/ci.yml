@@ -1,0 +1,23 @@
+name: Compilación y pruebas aisladas
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: formulario-publico/front/package-lock.json
+      - name: React y Spring Boot (H2, sin proveedores externos)
+        shell: pwsh
+        run: ./formulario-publico/scripts/Build-Formulario.ps1

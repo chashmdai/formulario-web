@@ -1,0 +1,23 @@
+{
+  "version": "1.1",
+  "id": "bc92b5be-d1c8-4936-a30f-128975f18df0",
+  "recibidaEn": "2026-10-14T23:00:00Z",
+  "identidad": {
+    "run": "44444444-4",
+    "nombres": "  María José   De los ángeles Tercero Cuarto",
+    "apellidos": "Del Río González de la Fuente",
+    "nombresComponentes": [
+      "  María José  ",
+      "De los ángeles",
+      "Tercero",
+      "Cuarto"
+    ],
+    "apellidosComponentes": [
+      "Del Río",
+      "González de la Fuente"
+    ]
+  },
+  "mensaje": "Prueba sintética de componentes",
+  "avisoPrivacidadVersion": "laboratorio-v1",
+  "sha256": "6419a1f86fd4ed25238425ae090e883578673219aa8c0580b49ae1417d552bd0"
+}

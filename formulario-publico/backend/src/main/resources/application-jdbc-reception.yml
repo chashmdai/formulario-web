@@ -1,0 +1,22 @@
+# Perfil opt-in. Migraciones se ejecutan explícitamente con una cuenta separada.
+publico:
+  db:
+    url: ${PUBLIC_DB_URL:}
+    user: ${PUBLIC_DB_USER:}
+    password: ${PUBLIC_DB_PASSWORD:}
+    pool: ${PUBLIC_DB_POOL:12}
+  recepcion:
+    habilitada: ${PUBLIC_RECEPTION_ENABLED:false}
+    aviso-validado: ${PUBLIC_PRIVACY_APPROVED:false}
+    aviso-version: ${PUBLIC_PRIVACY_VERSION:}
+    lease-ms: ${PUBLIC_LEASE_MS:300000}
+  comprobante:
+    institutional-trusted-keys: ${SIGER_RECEIPT_TRUSTED_KEYS_PATH:}
+    key-id: ${RECEIPT_KEY_ID:}
+    private-key: ${RECEIPT_PRIVATE_KEY_PATH:}
+    trusted-keys: ${RECEIPT_TRUSTED_KEYS_PATH:}
+
+datos:
+  mysql-local: ${LOCAL_DB_ALLOWED:false}
+
+# Local HTTP se habilita solo explícitamente y con bind loopback.

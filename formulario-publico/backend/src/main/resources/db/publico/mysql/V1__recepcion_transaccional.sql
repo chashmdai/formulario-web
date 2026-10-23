@@ -1,0 +1,10 @@
+CREATE TABLE operational_event(seq BIGINT AUTO_INCREMENT PRIMARY KEY,at_ms BIGINT NOT NULL,category VARCHAR(40) NOT NULL,aggregate_id VARCHAR(64) NOT NULL,code VARCHAR(64) NOT NULL) ENGINE=InnoDB;
+CREATE INDEX ix_event_time ON operational_event(at_ms,seq);
+CREATE TABLE operation_control(id INT PRIMARY KEY,revision BIGINT NOT NULL,accept_new BOOLEAN NOT NULL,pull_enabled BOOLEAN NOT NULL,contingency VARCHAR(20) NOT NULL) ENGINE=InnoDB;
+INSERT INTO operation_control VALUES(1,0,FALSE,FALSE,'SOLO_CONSULTA');
+CREATE TABLE external_operation(id VARCHAR(36) PRIMARY KEY,kind VARCHAR(32) NOT NULL,state VARCHAR(32) NOT NULL,provider_ref VARCHAR(120),last_code VARCHAR(40) NOT NULL,updated_ms BIGINT NOT NULL,revision BIGINT NOT NULL) ENGINE=InnoDB;
+CREATE INDEX ix_external_state ON external_operation(state,updated_ms,id);
+CREATE TABLE public_delivery(id VARCHAR(36) PRIMARY KEY,owner_run VARCHAR(10) NOT NULL,request_hash CHAR(64) NOT NULL,body TEXT NOT NULL,state VARCHAR(20) NOT NULL,created_ms BIGINT NOT NULL,next_attempt_ms BIGINT NOT NULL,attempts INT NOT NULL,lease_id VARCHAR(36),lease_until_ms BIGINT NOT NULL,ack TEXT,last_error VARCHAR(40)) ENGINE=InnoDB;
+CREATE INDEX ix_delivery_ready ON public_delivery(state,next_attempt_ms,created_ms,id);
+CREATE INDEX ix_delivery_lease ON public_delivery(state,lease_until_ms,id);
+CREATE INDEX ix_delivery_owner ON public_delivery(owner_run,id);

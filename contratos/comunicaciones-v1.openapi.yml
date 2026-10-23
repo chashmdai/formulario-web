@@ -1,0 +1,184 @@
+openapi: 3.1.0
+info:
+  title: Formulario Público — entrega de Comunicaciones a SIGER
+  version: 1.0.0
+  description: >-
+    Contrato propuesto y verificable localmente. SIGER inicia HTTPS saliente hacia el
+    componente público. No requiere conectividad entrante hacia la VM institucional.
+    Recepción productiva deshabilitada; ver README.md para garantías y pendientes.
+servers:
+  - url: https://claveunica.formularioadulto.defensorianinez.gob.cl
+    description: Origen de prueba local mediante hosts; no afirma publicación pública.
+paths:
+  /api/comunicaciones/capacidades:
+    get:
+      operationId: capacidadesRecepcion
+      security: [{ sesionCiudadana: [] }]
+      responses:
+        '200':
+          description: Disponibilidad y aviso provisional de la demostración.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recepcionDisponible, avisoVersion, aviso]
+                properties:
+                  recepcionDisponible: { type: boolean }
+                  avisoVersion: { type: string }
+                  aviso: { type: string }
+        '401': { description: Sesión ciudadana ausente o expirada. }
+  /api/comunicaciones:
+    post:
+      operationId: recibirComunicacionPublica
+      security: [{ sesionCiudadana: [] }]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, format: uuid }
+        - in: header
+          name: X-CSRF-TOKEN
+          required: true
+          description: Obtener nombre y valor vigentes mediante GET /api/csrf.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mensaje, avisoPrivacidadLeido]
+              properties:
+                mensaje: { type: string, minLength: 1, maxLength: 2000, pattern: '\S' }
+                avisoPrivacidadLeido: { type: boolean, const: true }
+      responses:
+        '202':
+          description: Custodia pública completada; NO equivale a ingreso institucional. Repetir clave y contenido retorna el mismo registro.
+          headers:
+            Location: { schema: { type: string }, description: Ruta del estado, accesible solo por el titular. }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Estado' }
+        '400': { description: Datos o clave inválidos; atributos adicionales rechazados. }
+        '401': { description: Sesión requerida. }
+        '403': { description: CSRF inválido. }
+        '409': { description: La clave ya se usó con otra identidad o mensaje. }
+        '503': { description: Recepción deshabilitada o persistencia no completada; no se debe afirmar recepción al ciudadano. }
+  /api/comunicaciones/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: consultarRecepcionPropia
+      security: [{ sesionCiudadana: [] }]
+      responses:
+        '200':
+          description: Estado público con confirmación institucional, cuando exista.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Estado' }
+        '401': { description: Sesión requerida. }
+        '404': { description: No existe o pertenece a otra identidad; no se distinguen los casos. }
+        '503': { description: Repositorio no disponible. }
+  /integracion/v1/comunicaciones/pendientes:
+    get:
+      operationId: recuperarPendientes
+      security: [{ credencialIntegracion: [] }]
+      parameters:
+        - in: query
+          name: limite
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Lectura no destructiva. Vacío significa que no hay pendientes. Cache-Control no-store.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [comunicaciones]
+                properties:
+                  comunicaciones:
+                    type: array
+                    maxItems: 100
+                    items: { $ref: '#/components/schemas/Comunicacion' }
+        '400': { description: Límite inválido. }
+        '401': { description: Credencial máquina ausente o incorrecta; una sesión ciudadana no autoriza. }
+        '403': { description: Se exige HTTPS; excepción solo loopback en el perfil explícito de demostración. }
+        '503': { description: Exportación deshabilitada o repositorio no disponible. }
+  /integracion/v1/comunicaciones/{id}/confirmacion:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: confirmarIncorporacionInstitucional
+      security: [{ credencialIntegracion: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Confirmacion' }
+      responses:
+        '204': { description: Confirmación almacenada. Repetir la misma confirmación también retorna 204. }
+        '400': { description: Confirmación mal formada. }
+        '401': { description: Credencial inválida. }
+        '403': { description: Transporte no permitido. }
+        '404': { description: Identificador desconocido. }
+        '409': { description: Huella distinta o confirmación incompatible con la existente. }
+        '503': { description: Confirmación no persistida; SIGER debe reintentar conservando su recibo original. }
+components:
+  securitySchemes:
+    sesionCiudadana:
+      type: apiKey
+      in: cookie
+      name: SIGERSESSION
+      description: Sesión exclusiva del backend público; nombre conservado por compatibilidad.
+    credencialIntegracion:
+      type: http
+      scheme: bearer
+      description: Credencial externa exclusiva entre backends. No es el access_token de ClaveÚnica. Mínimo 32 caracteres.
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Identidad:
+      type: object
+      additionalProperties: false
+      required: [run, nombres, apellidos]
+      properties:
+        run: { type: string, pattern: '^[1-9][0-9]{0,7}-[0-9K]$' }
+        nombres: { type: string, minLength: 1, maxLength: 500 }
+        apellidos: { type: string, minLength: 1, maxLength: 500 }
+    Comunicacion:
+      type: object
+      additionalProperties: false
+      required: [version, id, recibidaEn, identidad, mensaje, avisoPrivacidadVersion, sha256]
+      properties:
+        version: { type: string, const: '1.0' }
+        id: { type: string, format: uuid, description: Identificador público estable; en v1 equivale a Idempotency-Key. }
+        recibidaEn: { type: string, format: date-time, description: Fecha UTC asignada por el backend público. }
+        identidad: { $ref: '#/components/schemas/Identidad' }
+        mensaje: { type: string, minLength: 1, maxLength: 2000 }
+        avisoPrivacidadVersion: { type: string, minLength: 1, maxLength: 100 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$', description: Huella de contenido según README; no es una firma digital. }
+    Confirmacion:
+      type: object
+      additionalProperties: false
+      required: [recepcionInstitucionalId, registradaEn, sha256]
+      properties:
+        recepcionInstitucionalId: { type: string, format: uuid }
+        registradaEn: { type: string, format: date-time }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+    Estado:
+      type: object
+      additionalProperties: false
+      required: [id, estado, confirmacion]
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, enum: [PENDIENTE_SIGER, CONFIRMADA_SIGER] }
+        confirmacion:
+          oneOf:
+            - $ref: '#/components/schemas/Confirmacion'
+            - { type: 'null' }

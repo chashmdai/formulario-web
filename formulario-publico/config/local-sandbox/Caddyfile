@@ -1,0 +1,27 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+	servers {
+		protocols h1 h2
+		strict_sni_host on
+	}
+	log {
+		output discard
+	}
+}
+
+https://claveunica.formularioadulto.defensorianinez.gob.cl {
+	bind 127.0.0.1
+	tls {$SIGER_TLS_CERT} {$SIGER_TLS_KEY} {
+		protocols tls1.2 tls1.3
+	}
+	reverse_proxy 127.0.0.1:8080 {
+		# Overwrite untrusted client-supplied forwarding headers.
+		header_up -Forwarded
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host claveunica.formularioadulto.defensorianinez.gob.cl
+		header_up X-Forwarded-Port 443
+	}
+	# No access log: callback query, tokens, identity and cookies are not recorded.
+}

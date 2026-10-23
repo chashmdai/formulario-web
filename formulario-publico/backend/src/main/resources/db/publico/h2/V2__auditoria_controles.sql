@@ -1,0 +1,1 @@
+CREATE TABLE control_audit (revision BIGINT PRIMARY KEY, at_ms BIGINT NOT NULL, actor VARCHAR(64) NOT NULL, before_accept BOOLEAN NOT NULL, before_pull BOOLEAN NOT NULL, before_mode VARCHAR(32) NOT NULL, after_accept BOOLEAN NOT NULL, after_pull BOOLEAN NOT NULL, after_mode VARCHAR(32) NOT NULL, reason VARCHAR(40) NOT NULL);
