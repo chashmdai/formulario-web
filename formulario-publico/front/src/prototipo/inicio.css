@@ -1,0 +1,7 @@
+/* El isotipo se mantiene como SVG local. El botón conserva la guía oficial CU. */
+.icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.btn-cu { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 8px 14px; min-height: calc(2rem + 16px); line-height: 2rem; font-family: Roboto, sans-serif; font-size: 1rem; font-weight: 700; color: #fff; background: #0f69c4; text-decoration: none; border: 0; border-radius: 0; white-space: nowrap; }
+.btn-cu img { width: 24px; height: 24px; flex-shrink: 0; }
+.btn-cu:hover { background: #0b4e91; color: #fff; }
+.btn-cu:active { background: #07305a; color: #fff; }
+.btn-cu:focus { background: #0b4e91; outline: 4px solid #ffbe5c; outline-offset: 0; color: #fff; }

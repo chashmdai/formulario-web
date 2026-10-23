@@ -5,6 +5,7 @@ import type { Csrf, Preview, Session } from './api';
 import { ClaveUnicaButton } from './ClaveUnicaButton';
 import { DeliveryPanel } from './DeliveryPanel';
 import { NnaForm } from './nna/NnaForm';
+import './styles.css';
 
 export default function App() {
   const nna = new URLSearchParams(window.location.search).get("formulario") === "nna";
