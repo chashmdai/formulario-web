@@ -1,0 +1,31 @@
+name: siger-app-lab
+services:
+  app:
+    image: siger-formulario:linux-20261023
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=128m,mode=1777"]
+    environment:
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/run/siger/application.properties
+    volumes:
+      - ${APP_PRIVATE_DIR:?Preparar configuración privada cerrada}:/run/siger:ro
+    ports: ["127.0.0.1:${APP_LAB_PORT:-18080}:8080"]
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, "3", http://127.0.0.1:8080/api/session]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    cpus: 2.0
+    mem_limit: 1024m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "3"}

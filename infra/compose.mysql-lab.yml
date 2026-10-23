@@ -1,0 +1,50 @@
+name: siger-mysql-lab
+services:
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/root-password
+    ports: ["127.0.0.1:13306:3306"]
+    command: ["--mysqlx=OFF", "--skip-name-resolve"]
+    volumes:
+      - mysql-lab:/var/lib/mysql
+      - ${MYSQL_PRIVATE_DIR:?Preparar secretos privados}:/run/secrets:ro
+      - ${MYSQL_PRIVATE_DIR:?Preparar secretos privados}/laboratorio.sql:/docker-entrypoint-initdb.d/10-laboratorio.sql:ro
+    healthcheck:
+      test: [CMD, mysqladmin, ping, --host=localhost, --silent]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 40s
+    cpus: 2.0
+    mem_limit: 1536m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "3"}
+  mysql-restore:
+    image: mysql:8.4.11
+    profiles: [restore]
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/root-password
+      MYSQL_DATABASE: robust_public_test
+    command: ["--mysqlx=OFF", "--skip-name-resolve"]
+    volumes:
+      - mysql-restore:/var/lib/mysql
+      - ${MYSQL_PRIVATE_DIR:?Preparar secretos privados}:/run/secrets:ro
+    healthcheck:
+      test: [CMD, mysqladmin, ping, --host=localhost, --silent]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 40s
+    cpus: 1.0
+    mem_limit: 1024m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "3"}
+volumes:
+  mysql-lab: {}
+  mysql-restore: {}

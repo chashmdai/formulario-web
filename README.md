@@ -2,6 +2,10 @@
 
 Código vigente de laboratorio de SIGER 2026, desarrollado por Nexbyte para validación de la Defensoría de la Niñez. No es habilitación productiva.
 
+- **[Linux/Docker: build, laboratorios y restauración verificada](docs/LINUX_DOCKER.md)**.
+- [PISEE DEV Linux y adaptador SRCeI](docs/PISEE_LINUX.md).
+- [Auditoría y estado de migración del mockup](docs/AUDITORIA_LINUX_2026-10-23.md), [paridad visual](docs/PARIDAD_MOCKUP_2026-10-23.md).
+
 - **[Manual Windows: instalación, configuración, compilación y arranque](docs/MANUAL_REPOSITORIOS.md)**.
 - [Guía de esta aplicación](formulario-publico/README.md).
 - [Contratos de integración](contratos/README.md).
