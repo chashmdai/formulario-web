@@ -5,6 +5,7 @@ Código vigente de laboratorio de SIGER 2026, desarrollado por Nexbyte para vali
 - **[Linux/Docker: build, laboratorios y restauración verificada](docs/LINUX_DOCKER.md)**.
 - [PISEE DEV Linux y adaptador SRCeI](docs/PISEE_LINUX.md).
 - [ClaveÚnica Sandbox real por HTTPS local en Docker/WSL y reversión](docs/SANDBOX_HTTPS_WSL_2026-10-23.md).
+- [Informe verificable de ejecución y pendientes del encargo](docs/INFORME_EJECUCION_2026-10-23.md).
 - [Auditoría y estado de migración del mockup](docs/AUDITORIA_LINUX_2026-10-23.md), [paridad visual](docs/PARIDAD_MOCKUP_2026-10-23.md).
 
 - **[Manual Windows: instalación, configuración, compilación y arranque](docs/MANUAL_REPOSITORIOS.md)**.

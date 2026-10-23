@@ -1,6 +1,6 @@
 # Laboratorio Linux y despliegue pendiente
 
-Esta guía añade Linux sin sustituir las instrucciones Windows. Fecha de verificación: 23-10-2026. Ubuntu 24.04.5 WSL2 x86-64 y systemd. Git/SSH existentes se reutilizaron sin cambios. No se publicó WSL ni se alteraron DNS, hosts o confianza TLS de Windows.
+Esta guía añade Linux sin sustituir las instrucciones Windows. Fecha de verificación: 23-10-2026. Ubuntu 24.04.5 WSL2 x86-64 y systemd. Git/SSH existentes se reutilizaron sin cambios. No se publicó WSL ni se alteró DNS público. Tras autorización expresa posterior se configuraron hosts y confianza de desarrollo del usuario Windows: [HTTPS Sandbox real y reversión](SANDBOX_HTTPS_WSL_2026-10-23.md).
 
 ## Herramientas
 
@@ -32,7 +32,7 @@ docker compose -f infra/compose.app-lab.yml stop
 
 Este bootstrap selecciona únicamente el par Sandbox real, conservando redirect/logout registrados. Callback **bloqueado**, NNA/recepción cerrados y SRCeI deshabilitado en la aplicación; no genera identidades. Configuración privada 0600/directorio 0700, montada de solo lectura y nunca incorporada a imagen. Puerto host **127.0.0.1:18080** (`APP_LAB_PORT`, debe coincidir con `--puerto` del preparador). HTTP permite revisar recursos públicos; no acredita un flujo ciudadano HTTPS ni envío. El healthcheck verifica `/api/session`, no persistencia o disponibilidad de proveedores. Se eligió 18080 tras detectar otro servicio Windows en 8080; no se detuvo ni modificó ese servicio.
 
-El hostname institucional registrado no resuelve en este WSL. Sin resolución y HTTPS autorizado no se prueba OIDC real aquí. Sandbox/QA tienen configuración separada; producción no se habilitó ni se copiaron sus secretos. No sustituir callback por localhost ni activar la bandera para eludir el preflight.
+El bootstrap anterior sigue siendo cerrado por defecto. La variante HTTPS autorizada resolvió después el hostname y comprobó dos ingresos Sandbox reales con sesión y logout. Su configurador exige preflight antes de habilitar; no sustituye callbacks por localhost. QA y producción no se habilitaron ni se copiaron sus secretos. El Compose monta únicamente `application.properties`, sin exponer sus respaldos privados al contenedor.
 
 ## MySQL 8.4 aislado de pruebas
 
@@ -72,6 +72,7 @@ Para una nueva repetición no limpiar un destino que ya contiene datos: crear ot
 | mysql laboratorio | 127.0.0.1:13306 | Volumen `siger-mysql-lab_mysql-lab` | 2 CPU / 1536 MiB |
 | mysql restauración | ninguno | Volumen `siger-mysql-lab_mysql-restore` | 1 CPU / 1024 MiB |
 | PISEE DEV | ninguno | Estado Linux en directorio privado | 1 CPU / 512 MiB |
+| Caddy Sandbox | 127.0.0.1:443 | Solo hoja TLS y clave privadas readonly | 0,5 CPU / 128 MiB |
 
 Son Compose separados de laboratorio, **no** un Compose productivo integrado. El app cerrado no consume el MySQL ni consulta al nodo. PISEE usa red con salida y sin puertos host. Cada archivo tiene healthcheck; app/MySQL rotan logs, PISEE no los persiste para evitar cuerpos del proveedor. Las dependencias/readiness de un despliegue integrado siguen pendientes.
 
@@ -79,6 +80,6 @@ Son Compose separados de laboratorio, **no** un Compose productivo integrado. El
 
 No basta copiar contenedores. Trasladar con custodia autorizada: instantánea consistente de base, estado necesario del nodo, certificados activos y confianza, configuración por ambiente, claves privadas de firma y sus claves públicas históricas, y adjuntos cuando existan. Respaldos y secretos deben cifrarse y mantenerse fuera del host; la copia local aquí usada **no** satisface ese requisito institucional.
 
-Pendientes antes de producción: Compose integrado app/MySQL/PISEE con readiness, TLS de MySQL verificado dentro de Docker, entrada HTTPS y confianza de proxy acotada, habilitación funcional de NNA/adulto declarado, protección antiabuso, almacenamiento/escaneo de adjuntos, prueba integral con consumidor y nueva representación de campos, restauración conjunta de datos/claves/adjuntos, monitoreo y runbooks institucionales. Aún no hay paquete Cloudflare Tunnel listo; no se creó túnel ni DNS.
+Pendientes antes de producción: Compose integrado app/MySQL/PISEE con readiness, TLS de MySQL verificado dentro de Docker, entrada HTTPS institucional (la local Sandbox ya está probada con confianza de proxy acotada), habilitación funcional de NNA/adulto declarado, protección antiabuso, almacenamiento/escaneo de adjuntos, prueba integral con consumidor y nueva representación de campos, restauración conjunta de datos/claves/adjuntos, monitoreo y runbooks institucionales. Aún no hay paquete Cloudflare Tunnel listo; no se creó túnel ni DNS.
 
 Para actualizar, respaldar primero y construir una etiqueta nueva; conservar imagen/configuración anterior. Ejecutar Flyway con cuenta migradora separada antes del proceso DML, revisando compatibilidad de cada migración. Rollback de JAR no implica rollback SQL: no deshacer migraciones ni reescribir sobres firmados. No introducir datos de nuevos contratos hasta que su lector compatible esté disponible. Los Compose actuales se detienen con `docker compose -f ARCHIVO stop`, preservando datos.

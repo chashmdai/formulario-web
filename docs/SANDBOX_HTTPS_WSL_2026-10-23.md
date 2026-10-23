@@ -11,6 +11,7 @@ Autorización expresa del responsable en este chat: hosts Windows/WSL, CA de des
 - Tras el login, `/api/session` indicó `authenticated=true`, `environment=SANDBOX` e identidad con RUN y componentes de nombres/apellidos. El backend emitió `CU_AUTHENTICATION_COMPLETED environment=SANDBOX source=userinfo`.
 - Tras pulsar Cerrar sesión, `/api/session` indicó `authenticated=false` y ausencia de identidad. No se enviaron Comunicaciones durante esta prueba.
 - Se repitió el recorrido real completo después de empaquetar `PrivacyDialog` en el JAR: elección explícita del canal → autorización oficial → sesión autenticada con identidad → cierre → sesión anónima sin identidad. Ambos ingresos concluyeron correctamente.
+- Revisión de proxy: cabeceras `X-Forwarded-Proto: https` falsificadas contra HTTP directo no habilitan HSTS; a través del proxy, cabeceras recibidas `proto=http` se sobrescriben y se mantiene HSTS. Host HTTP distinto del SNI legítimo devuelve 421. Se comprobó además que todos los bytes originales de hosts Windows permanecen como prefijo intacto del archivo modificado.
 - No se guardaron HAR, tokens, cookies, códigos, capturas autenticadas ni respuestas de identidad. La captura de evidencia muestra solo el inicio tras cerrar sesión. Los JSON privados de preflight contienen únicamente estado técnico y huellas públicas.
 
 Esto verifica este cliente y ambiente Sandbox. No certifica aceptación productiva, envío SIGER ni migración completa del mockup. SRCeI es una integración independiente.
