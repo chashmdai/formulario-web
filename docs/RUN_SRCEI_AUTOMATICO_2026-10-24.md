@@ -2,6 +2,8 @@
 
 **Cerrada en el laboratorio integrado.** Se continuó desde `3b398d5`, sobre `integracion-siger-linux-2026`, con Git limpio antes de modificar. Se reutilizaron el formulario, la API de identificación, MySQL, el Nodo Linux y el cliente Java existentes. No hay rediseño, instalaciones, nuevas migraciones, cambios en SIGER institucional, push ni campaña de carga.
 
+Implementación y evidencia documentada confirmadas localmente en **`4191804`**. El checkpoint incorpora esta referencia en el commit documental siguiente.
+
 ## Comportamiento implementado
 
 `IdentificationControls.tsx` programa la revisión del presentador tras **650 ms** con número y DV válidos y estables. No envía una solicitud por tecla. El botón original se conserva como alternativa; ya no es necesario pulsarlo. Una promesa en curso evita duplicar entre disparador, botón y guardado, y una proyección concluida se reutiliza.

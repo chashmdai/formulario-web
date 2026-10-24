@@ -2,6 +2,8 @@
 
 **Unidad RUN → SRCeI cerrada en laboratorio.** Leer primero [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md). Se partió de `3b398d5`, con rama `integracion-siger-linux-2026` limpia y todos los avances anteriores conservados. Las secciones siguientes son historial; las menciones a disparador pendiente o PISEE deshabilitado ya no describen el estado vigente.
 
+Commit local de implementación y verificación documentada: **`4191804`** (`feat(srcei): consultar automaticamente por RUN y verificar integracion DEV`). Este checkpoint fija su referencia en un commit documental posterior; no se hizo push.
+
 - Disparador del presentador: RUN/DV válido, debounce 650 ms, deduplicación, restauración y generación contra respuestas tardías. Consulta CU desde sesión existente, sin sustituir su autenticación. Cambio de RUN invalida identidad anterior e historial/cuotas persisten.
 - NNA conserva RUN voluntario y su acceso sin aceptar canal adulto. Sin RUN no consulta; con RUN usa el mecanismo autorizado. Terceros quedan declarados, sin consulta registral aunque su RUN figure en la allowlist; no tienen disparador automático.
 - DEV real: **una consulta** desde formulario adulto, **COMPLETO**, **10 atributos internos**, cero valores registrales en la proyección pública, recarga sin otro POST. Custodia/idempotencia, fuentes, hash y firma verificados en MySQL/OpenSSL.
