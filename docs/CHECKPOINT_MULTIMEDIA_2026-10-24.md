@@ -1,5 +1,7 @@
 # Checkpoint multimedia · 24/10/2026
 
+> Documento histórico de su unidad. El [cierre y checkpoint vigentes de main](CIERRE_CICLO_MAIN_2026-10-24.md) registra la consolidación posterior autorizada. Las indicaciones anteriores de no publicar corresponden al estado previo a ese cierre.
+
 ## Estado conservado
 
 Repositorio único: `/home/nexbyteproveedor/proyectos/formulario-web`. Rama **`multimedia-adjuntos-2026-10-24`**, base `origin/main@c1e4ead`. Código **c67e359**; operación/QA **74e4b6e**; este checkpoint y la prueba final de concurrencia se confirman juntos en el commit documental/de verificación siguiente. `git log -3` identifica los tres sin reconstruir nada. No se hizo push ni se movió main.

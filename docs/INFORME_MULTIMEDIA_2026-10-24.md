@@ -1,5 +1,7 @@
 # Informe de ingeniería multimedia · 24/10/2026
 
+> Documento histórico de su unidad. El [cierre y checkpoint vigentes de main](CIERRE_CICLO_MAIN_2026-10-24.md) registra la consolidación posterior autorizada. Las indicaciones anteriores de no publicar corresponden al estado previo a ese cierre.
+
 ## Entrega y alcance
 
 Rama local `multimedia-adjuntos-2026-10-24`, creada desde `origin/main@c1e4ead` tras fetch y comprobación de árbol limpio. Commits principales: **c67e359** (almacenamiento, transferencia, validación, contrato y UI), **74e4b6e** (operación, respaldos y QA). El commit que contiene este informe agrega la prueba final de concurrencia y el checkpoint; consultar `git log -3` para su identificador. No se hizo push, merge en main ni cambio en SIGER institucional.

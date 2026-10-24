@@ -4,7 +4,8 @@ permissions:
   contents: read
 jobs:
   verificar:
-    runs-on: windows-latest
+    # El almacén multimedia y sus pruebas requieren filesystem POSIX.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -18,6 +19,18 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: formulario-publico/front/package-lock.json
-      - name: React y Spring Boot (H2, sin proveedores externos)
-        shell: pwsh
-        run: ./formulario-publico/scripts/Build-Formulario.ps1
+      - name: React (sin proveedores externos)
+        working-directory: formulario-publico/front
+        shell: bash
+        run: |
+          npm ci
+          npm run lint
+          npm test -- --maxWorkers=2
+          npm run build
+      - name: Spring Boot (H2, sin carga ni proveedores externos)
+        working-directory: formulario-publico/backend
+        shell: bash
+        run: mvn -B -ntp '-Dtest=*Test,!Carga*Test' verify
+      - name: Controles de respaldo y restauración (sintéticos)
+        shell: bash
+        run: python3 scripts/qa/test_media_archive.py

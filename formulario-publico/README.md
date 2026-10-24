@@ -1,5 +1,7 @@
 # Formulario Público
 
+> Para el formulario completo y multimedia consolidados, comenzar por el [README principal](../README.md) y el [cierre vigente](../docs/CIERRE_CICLO_MAIN_2026-10-24.md). Los apartados siguientes conservan el alcance histórico de los lanzadores Windows y de NNA provisional; no describen una habilitación productiva ni el consumidor SIGER completo.
+
 **Recepción vigente:** [Comunicación institucional y comprobante v3](../docs/REGISTRO_COMUNICACION.md). El arranque normal conserva CU sin MySQL; para enviar y obtener folio utiliza Recepcion-Local.ps1. El perfil de archivos es histórico y no genera folio institucional.
 
 Aplicación ciudadana independiente: `backend` Java 25 / Boot 4.1.1, `front` React 19 / TypeScript. React se empaqueta en **su propio JAR público**; ClaveÚnica, identidad y sesión pertenecen exclusivamente aquí.

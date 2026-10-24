@@ -1,3 +1,13 @@
+# Referencia vigente para integrar el Formulario Público completo
+
+El consumidor SIGER debe tomar como base `/integracion/v3/formulario-completo/entregas`, el [baseline evolutivo](../docs/BASELINE_FORMULARIO_PUBLICO_2026-10-24.md), la [custodia completa](../docs/CUSTODIA_FORMULARIO_COMPLETO.md) y la [extensión documental 1.0/1.1](formulario-completo-multimedia-v1.1.md). Sin opt-in se reclama solo 1.0; 1.1 requiere `X-Formulario-Versiones: 1.0,1.1`. No confundir versión documental, versión del comprobante institucional y número de ruta HTTP.
+
+El [cierre de main](../docs/CIERRE_CICLO_MAIN_2026-10-24.md) contiene resultados y banderas; el [visor](../docs/VISOR_INSTITUCIONAL_MULTIMEDIA.md) define separación entre documentos del ingreso y de gestión. SIGER aún debe adaptar y probar su consumidor. Redacciones, opciones y eventuales eliminaciones de campos no congelan este baseline ni impiden iniciar la integración; coordinar solo los efectos contractuales reales.
+
+Las referencias V1/V2 siguientes son históricas. El transporte V3 previo se conserva y no contiene por sí solo todo el formulario completo. El [plan de hardening diferido](../docs/PLAN_HARDENING_PRODUCCION_DIFERIDO.md) no se ejecuta en este cierre ni autoriza producción.
+
+---
+
 # Actualización 19-10-2026
 
 Contrato vigente: transporte [V3](registro-comunicacion-v3.md) y variante [NNA declarada](comunicacion-nna-v2.0.md). HTTP `/integracion/v2` está retirado (410, sin reservas); la representación de entrega adulta 2.0 sigue siendo válida dentro de HTTP V3. Nuevos ingresos HTTP requieren la sesión originadora para estado/comprobante. No existe restauración automática ni recuperación entre sesiones. Las descripciones V1 siguientes son históricas.

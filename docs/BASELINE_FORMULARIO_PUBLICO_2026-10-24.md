@@ -1,5 +1,11 @@
 # Baseline del Formulario Público · 24 de octubre de 2026
 
+## Referencia de cierre vigente
+
+La ampliación multimedia está consolidada en main con compatibilidad documental **1.0/1.1**. Consultar el [cierre del ciclo](CIERRE_CICLO_MAIN_2026-10-24.md) para publicación, regresiones y banderas; el [contrato multimedia](../contratos/formulario-completo-multimedia-v1.1.md) y el [plan de hardening diferido](PLAN_HARDENING_PRODUCCION_DIFERIDO.md) completan esta referencia. Ninguna publicación activa servicios o capacidades fuera del laboratorio.
+
+La validación funcional institucional pendiente se concentra principalmente en redacciones, opciones de selección y eventuales eliminaciones de campos. No bloquea el inicio de la integración SIGER sobre este contrato. Desarrollo mantiene la responsabilidad de decisiones técnicas/arquitectónicas. El hardening final se abordará después de la integración y las pruebas E2E, en una unidad posterior explícita.
+
 ## Alcance y estado operativo
 
 El Formulario Público se considera **aproximadamente un 96 % validado según la evaluación operativa del proyecto**. Es una estimación de avance aportada por el proyecto: no es un cálculo de cobertura, una certificación formal, aceptación institucional definitiva ni autorización de producción.
@@ -17,7 +23,7 @@ La implementación completa parte del historial conservado de `integracion-siger
 | ClaveÚnica | **REAL_VALIDADO** en Sandbox: autorización, callback, identidad de sesión y logout, evidencia en informes previos | No equivale a certificación ni validación productiva; no se repitió autenticación real en esta unidad |
 | PISEE/SRCeI | **REAL_VALIDADO** DEV: Nodo Linux y consulta autorizada acotada; disparador RUN validado, debounce, deduplicación y restauración | Solo presentadores/finalidades autorizados y allowlist privada. No búsquedas registrales indiscriminadas de terceros. No pruebas de carga ni consultas nuevas en esta unidad |
 | Identidad/procedencia | Sesión persistida y procedencia individual; pruebas de resultado completo/parcial/vacío/error/timeout y respuestas tardías | CU autentica; RUN declarado y SRCeI no autentican. Complementos registrales de un RUN declarado no se devuelven al navegador |
-| Adjuntos/antivirus | Almacenamiento privado, límites, integridad y acceso por propietario/reserva. ClamAV real verificado anteriormente | El scanner debe estar disponible/configurado en cada ambiente; no se repitió una campaña real de antivirus en esta unidad |
+| Adjuntos/antivirus | MySQL histórico y FILE privado nuevo, transferencia por bloques, integridad, reserva, ClamAV e inspector aislado; evidencia en informe multimedia | Solo laboratorio. Techos 12 archivos/250 MiB configurados, sin calificación física de máximos; formatos y reproducción sujetos al perfil seguro |
 | Custodia e idempotencia | MySQL, transacciones, huellas, Ed25519, recuperación y ACK sintético comprobados | Las custodias del laboratorio aún no acreditan registro institucional real ni folio SIGER |
 | UI/UX | Responsive, temas claro/oscuro/contraste, escala de texto, foco, teclado y reducción de movimiento; comparativa visual preservada | Accesibilidad funcional y mediciones, no auditoría WCAG integral ni aceptación visual institucional definitiva |
 | Contactos | Tres celulares y tres correos de captura normalizados y validados; escritura, pegado, selección, corrección y custodia comprobados | Formato no demuestra existencia del número/correo, entrega de mensajes ni titularidad |
@@ -44,13 +50,13 @@ La base para el consumidor completo es la extensión **ya implementada**:
 
 Es optativa y separada de `/integracion/v3/entregas`. El sobre histórico no contiene todo el formulario; no deben truncarse relatos, contactos, adjuntos o fuentes para ajustarlos a él. **SIGER institucional todavía debe adaptar su consumidor al formulario completo.** No se afirma interoperabilidad integral con su consumidor actual.
 
-Se utiliza PULL HTTPS iniciado por SIGER, autenticación de máquina `Authorization: Bearer …` y confianza criptográfica configurada fuera de Git. No hay conexión directa entre bases ni llamadas del navegador a la VM institucional. Las versiones de documento son independientes del número de ruta HTTP: `comunicacion.version` del documento completo actual es `1.0`.
+Se utiliza PULL HTTPS iniciado por SIGER, autenticación de máquina `Authorization: Bearer …` y confianza criptográfica configurada fuera de Git. No hay conexión directa entre bases ni llamadas del navegador a la VM institucional. Las versiones de documento son independientes del número de ruta HTTP: `comunicacion.version` es `1.0` para el camino histórico y `1.1` en nuevas capturas con archivos FILE. El consumidor sin cabecera adicional recibe únicamente 1.0; para aceptar multimedia debe solicitar explícitamente `X-Formulario-Versiones: 1.0,1.1`. No se modifica silenciosamente el documento firmado 1.0.
 
 ### Rutas y reservas
 
 | Operación | Solicitud | Respuesta/garantía |
 |---|---|---|
-| `POST /reclamar` | `{limite: 1..10}` | `{entregas:[{reserva,venceEn,intento,entrega}]}`; `venceEn` es epoch en milisegundos; reserva de cinco minutos |
+| `POST /reclamar` | `{limite: 1..10}`; opt-in `X-Formulario-Versiones: 1.0,1.1` para incluir multimedia | `{entregas:[{reserva,venceEn,intento,entrega}]}`; `venceEn` es epoch en milisegundos; reserva de cinco minutos |
 | `GET /{id}/adjuntos/{adjunto}` | `X-Reserva: UUID` y autenticación de máquina | Bytes privados durante reserva vigente; 404 si no corresponde, 409 por reserva inválida/vencida; verificar tamaño y SHA-256 |
 | `POST /{id}/confirmacion` | `{reserva,recepcion:{registro,comprobante}}` | 204 tras verificar firma institucional confiada, operación, ambas huellas, canal y reserva. ACK idéntico es idempotente |
 | `POST /{id}/fallo` | `{reserva,codigo}` | Códigos: `TRANSITORIO`, `CONTRATO_INVALIDO`, `RECEPTOR_NO_DISPONIBLE`, `CONFIRMACION_AMBIGUA`; backoff/cuarentena |
@@ -70,7 +76,7 @@ El consumidor debe guardar el token de reserva y su vencimiento, recuperar y ver
 - `comunicacion.adjuntos`: descriptores `{id,nombre,tamanio,sha256,tipo,estado}`. Los bytes se recuperan por la ruta con reserva, no por una URL pública.
 - `sha256`, `huellaProcedencia` y `custodia`: huella de contenido completo, huella de procedencia y comprobante técnico público Ed25519.
 
-Se admiten hasta cinco adjuntos, 10 MiB por archivo y 25 MiB por lote. Las capturas ciudadanas completas admiten 64 KiB de JSON; los relatos admiten hasta 5000 caracteres. El consumidor no debe asumir el límite histórico de 2000 caracteres ni descartar campos desconocidos antes de verificar una firma.
+El camino histórico conserva cinco adjuntos, 10 MiB por archivo y 25 MiB por lote. El camino multimedia optativo admite un perfil de hasta 12 adjuntos/250 MiB y límites por tipo, documentados en la [política multimedia](POLITICA_MULTIMEDIA_2026-10-24.md); son techos de laboratorio, no capacidad productiva certificada. La descarga original privada incorpora streaming y Range, sin convertir ubicación física o derivadas en campos del contenido firmado. Las capturas ciudadanas completas admiten 64 KiB de JSON; los relatos admiten hasta 5000 caracteres. El consumidor no debe asumir el límite histórico de 2000 caracteres ni descartar campos desconocidos antes de verificar una firma.
 
 ### Huellas, firmas y ACK
 
@@ -102,7 +108,13 @@ La normalización actual conserva IDs, mapas, versiones y algoritmos. Un consumi
 
 Los datos y firmas existentes se conservan aunque una pregunta se elimine o una opción cambie de etiqueta. No reclasificar ni elevar procedencias históricas de forma implícita. Registrar toda evolución que afecte compatibilidad en ambos repositorios cuando se autorice trabajar en el institucional. Se mantiene abierta la evolución visual y funcional necesaria para la validación institucional.
 
-## Regresión de esta unidad
+## Regresión vigente tras consolidación multimedia
+
+- React: 160 pruebas correctas; lint y build. Backend: 199 descubiertas, 197 correctas y dos omisiones opcionales por cada motor H2/MySQL. Ver resultados de repetición sobre main en el cierre vigente.
+- Inspector/AV, navegador y restauración real: [informe multimedia](INFORME_MULTIMEDIA_2026-10-24.md), con separación de sintéticos, pruebas reales locales y límites pendientes.
+- Documentos 1.0/1.1 no cambian la versión de ruta HTTP ni fuerzan un cambio de versión del ACK institucional por canal. Se conserva la representación firmada histórica.
+
+## Regresión de normalización de contactos (histórica)
 
 - Frontend: **152 pruebas correctas**, 17 archivos; lint y build correctos.
 - Backend H2: **176 correctas, 1 omisión opcional**, 177 descubiertas.
@@ -117,7 +129,7 @@ Evidencia privada local: `.local/evidencias/contactos-{front,lint,build,backend-
 
 1. Adaptar el consumidor SIGER a la extensión completa: DTO, persistencia íntegra, procedencia, adjuntos, firmas, reservas, deduplicación y ACK después de COMMIT.
 2. Ejecutar pruebas de contrato cruzadas y de conciliación con datos/firmantes sintéticos antes de una integración real autorizada. La extensión está implementada; el consumidor real aún no fue adaptado ni validado contra ella.
-3. Continuar la revisión institucional funcional, visual y de privacidad; registrar los cambios de preguntas y condiciones que resulten.
+3. Recoger redacciones, opciones de selección y eventuales eliminaciones de campos de la validación funcional institucional. Gestionarlas como evolución compatible, sin bloquear la integración ni exigir congelación artificial. Cualquier nueva implementación del formulario requiere un nuevo encargo explícito después del cierre de este ciclo.
 4. Campaña independiente de estrés/resiliencia/hardening y requisitos de producción, solo cuando corresponda por autorización y estabilidad del equipo. No se ejecutó carga en esta unidad.
 
 La base es estable para comenzar esa integración y sigue siendo evolutiva. No se declara un producto terminado ni se impone una congelación artificial de campos.

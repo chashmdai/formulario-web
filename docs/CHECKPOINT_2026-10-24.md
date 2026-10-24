@@ -1,5 +1,7 @@
 # Checkpoint vigente — main publicado, contactos y baseline, 24/10/2026
 
+> Documento histórico de su unidad. El [cierre y checkpoint vigentes de main](CIERRE_CICLO_MAIN_2026-10-24.md) registra la consolidación posterior autorizada. Las indicaciones anteriores de no publicar corresponden al estado previo a ese cierre.
+
 **Rama actual: `main`. Código integrado y publicado mediante push normal.** Primera publicación verificada: **`735013717e4190d63137e5cd693744df6e8f5d4a`**, HEAD local idéntico a `origin/main`. Esta actualización documental se publica después sobre el mismo código; verificar su HEAD contenedor con `git rev-parse HEAD` y `git ls-remote origin refs/heads/main`.
 
 Leer [BASELINE_FORMULARIO_PUBLICO_2026-10-24.md](BASELINE_FORMULARIO_PUBLICO_2026-10-24.md) y [CONSOLIDACION_MAIN_2026-10-24.md](CONSOLIDACION_MAIN_2026-10-24.md). Normalización: `4ad601f`; baseline: `ad18d1a`; consolidación: `7350137`. Todo el historial de RUN/SRCeI, adultos, NNA, custodia, adjuntos y pulido se conserva. Ramas anteriores intactas; no se publicó SIGER institucional.

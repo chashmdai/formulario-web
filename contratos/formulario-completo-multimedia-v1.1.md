@@ -1,6 +1,6 @@
 # Extensión multimedia del formulario completo · documento 1.1
 
-Estado: implementado en rama de revisión; no publicado en main ni habilitado en el baseline integrado. Complementa [custodia completa](../docs/CUSTODIA_FORMULARIO_COMPLETO.md) y [baseline](../docs/BASELINE_FORMULARIO_PUBLICO_2026-10-24.md). SIGER institucional aún debe adaptar su consumidor.
+Estado: implementación consolidada en main para integración; su publicación se comprueba en el [cierre vigente](../docs/CIERRE_CICLO_MAIN_2026-10-24.md). La habilitación multimedia permanece exclusiva del laboratorio separado; publicar código no despliega ni activa capacidades. Complementa [custodia completa](../docs/CUSTODIA_FORMULARIO_COMPLETO.md) y [baseline](../docs/BASELINE_FORMULARIO_PUBLICO_2026-10-24.md). SIGER institucional aún debe adaptar su consumidor.
 
 ## Compatibilidad y negociación
 
