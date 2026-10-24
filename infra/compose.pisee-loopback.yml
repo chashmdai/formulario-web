@@ -1,0 +1,6 @@
+# Solo para el JAR de laboratorio nativo en WSL. Reutiliza el Nodo y su estado privados.
+# El compose base sigue sin publicar puertos; este override no es productivo.
+services:
+  pisee:
+    ports:
+      - "127.0.0.1:18084:8084"

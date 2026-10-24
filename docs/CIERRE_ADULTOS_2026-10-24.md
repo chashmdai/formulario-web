@@ -1,3 +1,5 @@
+> **Actualización posterior, 24/10/2026:** la unidad automática RUN→SRCeI también quedó cerrada. El disparador, la restricción de terceros y la conexión DEV con una consulta real completa se documentan en [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md). Los pendientes RUN/SRCeI descritos al final de este informe son antecedentes del cierre adulto, ya resueltos en esa unidad. El consumidor SIGER continúa fuera de alcance.
+
 # Cierre funcional local de adultos — 24 de octubre de 2026
 
 Rama `integracion-siger-linux-2026`, repositorio `/home/nexbyteproveedor/proyectos/formulario-web`. Se conservaron todos los cambios pendientes y los commits anteriores, incluidos `1e6af92`, `c996b97`, `08f5031`, `e7a0ed4` y `9f32383`. Este cierre comprende el Formulario Público adulto en laboratorio; no declara terminado el Encargo Maestro, una certificación gubernamental ni el registro institucional de estas comunicaciones.

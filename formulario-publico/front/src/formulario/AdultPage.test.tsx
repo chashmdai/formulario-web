@@ -40,12 +40,12 @@ beforeEach(()=>{
 afterEach(()=>{vi.restoreAllMocks();window.history.replaceState({},'','/');localStorage.clear();});
 async function fill(){
   if(!exists){const privacy=await screen.findByRole('dialog');await userEvent.click(within(privacy).getByRole('radio',{name:/^Acepto/}));await userEvent.click(within(privacy).getByRole('button',{name:'Continuar'}));}
-  if(cu)await screen.findByDisplayValue('NOMBRE');else{
+  if(cu){await screen.findByDisplayValue('NOMBRE');await waitFor(()=>expect((byId('adult-run') as HTMLInputElement).disabled).toBe(false));}else{
     await userEvent.type(await screen.findByRole('textbox',{name:/^RUN/}),'12345678');await userEvent.type(screen.getByRole('textbox',{name:'Dígito verificador del RUN'}),'5');await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));
     await userEvent.type(await screen.findByRole('textbox',{name:/^Primer nombre/}),'NOMBRE');await userEvent.type(screen.getByRole('textbox',{name:/^Primer apellido/}),'APELLIDO');
   }
-  await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await userEvent.selectOptions(byId('motivo'),'consulta');const dialog=await screen.findByRole('dialog');await userEvent.click(within(dialog).getByRole('checkbox',{name:/Leí esta orientación/}));await userEvent.click(within(dialog).getByRole('button',{name:'Entendido, continuar'}));
-  await userEvent.selectOptions(byId('tema'),'general');await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await userEvent.type(byId('consulta-general-detalle'),'no');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));return screen.findByRole('dialog');
+  await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await waitFor(()=>expect(byId('motivo').closest('section')?.hidden).toBe(false));await waitFor(()=>expect((byId('motivo') as HTMLSelectElement).disabled).toBe(false));await userEvent.selectOptions(byId('motivo'),'consulta');const dialog=await screen.findByRole('dialog');await userEvent.click(within(dialog).getByRole('checkbox',{name:/Leí esta orientación/}));await userEvent.click(within(dialog).getByRole('button',{name:'Entendido, continuar'}));
+  await userEvent.selectOptions(byId('tema'),'general');await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await screen.findByRole('heading',{name:'Cuéntanos sobre tu comunicación'});await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));await userEvent.type(byId('consulta-general-detalle'),'no');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));return screen.findByRole('dialog');
 }
 describe('Cierre de adulto con API controlada',()=>{
   it('exige aviso antes de identificar, revisa sin alterar el relato y recibe custodia sin folio inventado',async()=>{

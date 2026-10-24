@@ -105,6 +105,42 @@ class RecorridosJdbcTest {
         assertEquals(ResultadoSrcei.Estado.NO_HABILITADO,service.personasInternas(id,session).getFirst().estadoConsulta());
         assertFalse(mapper.writeValueAsString(view).contains("NO_HABILITADO"));
     }
+    @ParameterizedTest @EnumSource(value=Rol.class,names={"AFECTADO_NNA","ADULTO_RELACIONADO","PERSONA_SENALADA"})
+    void allowlistDelPresentadorNoAutorizaConsultasDeTerceros(Rol role){
+        var id=iniciar(Tipo.ADULTO_DECLARADO).id();
+        String person=switch(role){case AFECTADO_NNA->"afectado-1";case ADULTO_RELACIONADO->"relacionado-1";default->"senalado-1";};
+        var view=service.identificar(id,person,role,"12345678","5",session,"127.0.0.1",null);
+        assertEquals(0,queries.get());assertFalse(view.autenticada());assertTrue(view.runInformado());
+        assertTrue(view.camposFaltantes().contains("primerNombre"));
+        service.declarar(id,person,Map.of("primerNombre","DECLARADO"),session);
+        assertEquals(Fuente.DECLARACION_CIUDADANA,service.personasInternas(id,session).getFirst().atributos().get("primerNombre").fuente());
+    }
+    @Test void nnaConRunVoluntarioNoExigeElCanalAdultoPeroSinRunNoConsulta(){
+        var id=service.iniciar(Tipo.NNA,false,"NNA_LAB_1",session,"127.0.0.1").id();
+        service.identificar(id,"presentador-nna",Rol.PRESENTADOR,null,null,session,"127.0.0.1",null);
+        assertEquals(0,queries.get());
+        service.reiniciarPersona(id,"presentador-nna",session);
+        var view=service.identificar(id,"presentador-nna",Rol.PRESENTADOR,"12345678","5",session,"127.0.0.1",null);
+        assertEquals(1,queries.get());assertFalse(view.autenticada());assertTrue(view.camposObligatorios().isEmpty());
+    }
+    @Test void cambiarRunMientrasConsultaRechazaResultadoAnteriorSinSobrescribirDeclaracion()throws Exception {
+        var entered=new CountDownLatch(1);var release=new CountDownLatch(1);
+        provider=r->{if(r.numero().equals("12345678")){entered.countDown();try{if(!release.await(3,TimeUnit.SECONDS))throw new IllegalStateException();}catch(InterruptedException e){throw new IllegalStateException();}return resultado(ResultadoSrcei.Estado.COMPLETO);}return resultado(ResultadoSrcei.Estado.VACIO);};
+        var id=iniciar(Tipo.ADULTO_DECLARADO).id();
+        try(var executor=Executors.newVirtualThreadPerTaskExecutor()){
+            var old=executor.submit(()->identificar(id));assertTrue(entered.await(3,TimeUnit.SECONDS));
+            try{
+                service.reiniciarPersona(id,"presentador-adulto",session);
+                service.identificar(id,"presentador-adulto",Rol.PRESENTADOR,"11111111","1",session,"127.0.0.1",null);
+                service.declarar(id,"presentador-adulto",Map.of("primerNombre","NUEVO","primerApellido","DECLARADO"),session);
+            }finally{release.countDown();}
+            assertInstanceOf(FalloTecnico.class,assertThrows(ExecutionException.class,()->old.get(3,TimeUnit.SECONDS)).getCause());
+            var current=service.personasInternas(id,session).getFirst();assertEquals("11111111",current.runNumero());
+            assertEquals("NUEVO",current.atributos().get("primerNombre").valor());assertEquals(Fuente.DECLARACION_CIUDADANA,current.atributos().get("primerNombre").fuente());
+            assertFalse(current.atributos().containsKey("nombres"));assertEquals(2,queries.get());
+            assertEquals(2,db.sql.queryForObject("SELECT query_count FROM citizen_journey WHERE id=?",Integer.class,id.toString()));
+        }
+    }
     @Test void propietarioAjenoNoLeeNiConsultaYOtraPersonaNoReutilizaConsulta(){
         var id=iniciar(Tipo.ADULTO_DECLARADO).id();identificar(id);
         assertEquals(404,assertThrows(FalloTecnico.class,()->service.persona(id,"presentador-adulto",other)).status);

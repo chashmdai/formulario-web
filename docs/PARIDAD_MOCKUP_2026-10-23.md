@@ -1,3 +1,5 @@
+> **Unidad RUN/SRCeI, 24/10/2026:** se mantiene el formulario y su presentación. La revisión del presentador ahora se dispara tras 650 ms de RUN/DV válido; el botón original sigue disponible. Los terceros conservan declaración opcional sin consultar registros. Se verificaron recepción adulta DEV y recorrido NNA móvil real local; no se inicia una nueva campaña de paridad completa. Evidencia y límites en [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md).
+
 # Estado actualizado de paridad — 24 de octubre de 2026
 
 La matriz siguiente actualiza el estado vigente; las secciones posteriores se conservan como evidencia histórica de la migración. Detalles y límites en [CIERRE_ADULTOS_2026-10-24.md](CIERRE_ADULTOS_2026-10-24.md).

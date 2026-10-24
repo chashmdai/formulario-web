@@ -145,7 +145,9 @@ public final class RecorridosJdbc {
             if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person WHERE journey_id=?",Integer.class,journey.toString())>=30)throw new FalloTecnico(429);
             if(finalRun!=null&&((Number)row.get("query_count")).intValue()>=12)throw new FalloTecnico(429);
             var initial=crear(person,role,finalRun,finalIdentity,null,clock);
-            boolean query=finalRun!=null&&autorizado.test(finalRun);
+            // La allowlist de RUN no autoriza búsquedas de terceros. El canal adulto no se exige a NNA.
+            // Esta unidad solo tiene finalidad de identificación del propio presentador.
+            boolean query=role==Rol.PRESENTADOR&&(head.tipo()==Tipo.NNA||head.aceptaCanal())&&finalRun!=null&&autorizado.test(finalRun);
             var lease=query?UUID.randomUUID():null;
             db.sql.update("INSERT INTO citizen_person(journey_id,person_id,role,body,query_state,query_lease,lease_until_ms) VALUES(?,?,?,?,?,?,?)",
                 journey.toString(),person,role.name(),mapper.writeValueAsString(initial),query?"CONSULTANDO":"REVISADO",lease==null?null:lease.toString(),query?clock.millis()+30000L:0L);

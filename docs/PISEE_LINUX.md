@@ -1,3 +1,5 @@
+> **Actualización 24/10/2026:** cliente/Nodo reutilizados desde el formulario integrado con disparador automático, allowlist privada y una consulta DEV real completa. El override de laboratorio publica solo `127.0.0.1:18084` para el JAR nativo; el compose base conserva su red sin puertos. No se modificaron credenciales, certificados ni endpoints externos. Estado actual y reversión: [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md). La documentación siguiente conserva la validación inicial independiente del Nodo/cliente.
+
 # Nodo PISEE y cliente SRCeI en Linux
 
 Estado al 23-10-2026: **REAL_VALIDADO en DEV**, con un RUN expresamente autorizado por el responsable en el chat. No se publica ese identificador ni respuestas personales. Dos consultas acotadas: sonda HTTP y adaptador Java. QA/producción no habilitados.

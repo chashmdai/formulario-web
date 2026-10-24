@@ -35,6 +35,9 @@ export function IdentificationControls({journey, session, nna = false, children,
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<'INICIAL' | 'CONSULTANDO' | 'REVISADO' | 'ERROR'>(cu || nna ? 'CONSULTANDO' : 'INICIAL');
   const [failure, setFailure] = useState('');
+  const [restored, setRestored] = useState(false);
+  const lookup = useRef<Promise<IdentityView | null> | null>(null);
+  const backendExists = useRef(false);
   const generation = useRef(0);
   const resetNeeded = useRef(false);
   const resetPending = useRef<Promise<void> | null>(null);
@@ -45,6 +48,7 @@ export function IdentificationControls({journey, session, nna = false, children,
 
   function received(next: IdentityView) {
     if (cu && !next.autenticada) throw new ApiError(401);
+    backendExists.current = true;
     setView(next); setValues(next.valoresDeclarados); setErrors({}); setFailure('');
     setPhase(next.estado === 'CONSULTANDO' ? 'CONSULTANDO' : 'REVISADO');
     onResolvedRef.current?.(next);
@@ -53,52 +57,83 @@ export function IdentificationControls({journey, session, nna = false, children,
     setPhase('ERROR');
     setFailure(error instanceof ApiError && error.status === 429 ? 'Espera unos minutos antes de volver a revisar el RUN.'
       : error instanceof ApiError && error.status === 401 ? 'La sesión expiró. Vuelve a iniciar sesión con ClaveÚnica.'
+      : error instanceof ApiError && error.status === 409 ? 'Los datos cambiaron en otra ventana. Recarga el formulario antes de continuar.'
       : 'No pudimos guardar o revisar tus datos. Inténtalo nuevamente.');
   }
   async function ensureReset() {
     if (!resetNeeded.current) return;
     if (!resetPending.current) resetPending.current = resetPerson(journey.id, person);
-    try { await resetPending.current; resetNeeded.current = false; }
+    try { await resetPending.current; resetNeeded.current = false; backendExists.current = false; }
     finally { resetPending.current = null; }
   }
   function invalidate() {
-    if (view) resetNeeded.current = true;
+    if (view || backendExists.current) resetNeeded.current = true;
     generation.current++; setView(null); setValues({}); setErrors({}); setFailure(''); setPhase('INICIAL');
     onResolvedRef.current?.(null);
+    // Una sola invalidación por identidad existente, incluso si se siguen escribiendo dígitos.
+    if (resetNeeded.current) void ensureReset().catch(() => { /* Se conserva el pendiente y se reintenta antes de consultar. */ });
   }
-  async function review(withRun = !nna || knowsRun): Promise<IdentityView | null> {
+  function review(withRun = !nna || knowsRun): Promise<IdentityView | null> {
+    if (lookup.current) return lookup.current;
+    if (view?.estado === 'REVISADO') return Promise.resolve(view);
     const token = ++generation.current;
     setFailure(''); setErrors({});
     if (!cu && withRun && !validRun(runNumber(numero), dv)) {
       setErrors({run: 'El número y el dígito verificador no coinciden.'});
-      setPhase('INICIAL'); return null;
+      setPhase('INICIAL'); return Promise.resolve(null);
     }
     setPhase('CONSULTANDO');
-    try {
-      await ensureReset();
-      const next = await identifyPerson(journey.id, person, 'PRESENTADOR', cu || !withRun ? undefined : runNumber(numero), cu || !withRun ? undefined : dv.toUpperCase());
-      if (token !== generation.current) return null;
-      received(next); return next;
-    } catch (error) { if (token === generation.current) fail(error); return null; }
+    const task = (async () => {
+      try {
+        await ensureReset();
+        if (token !== generation.current) return null;
+        backendExists.current = true;
+        const next = await identifyPerson(journey.id, person, 'PRESENTADOR', cu || !withRun ? undefined : runNumber(numero), cu || !withRun ? undefined : dv.toUpperCase());
+        if (token !== generation.current) return null;
+        received(next); return next;
+      } catch (error) { if (token === generation.current) fail(error); return null; }
+    })();
+    lookup.current = task;
+    void task.then(() => { if (lookup.current === task) lookup.current = null; });
+    return task;
   }
   useEffect(() => {
     let active = true;
     const token = ++generation.current;
+    setRestored(false);
     // Restaurar la proyección primero: recargar una página con RUN no consulta otro identificador.
     void getPerson(journey.id, person).catch(error => {
       if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      if (!active || token !== generation.current) return null;
+      if (cu || nna) backendExists.current = true;
       return cu || nna ? identifyPerson(journey.id, person, 'PRESENTADOR') : null;
-    }).then(next => {
+    }).then(async next => {
+      if (active && next && token !== generation.current) {
+        backendExists.current = true; resetNeeded.current = true; await ensureReset();
+      }
       if (active && token === generation.current) {
         if (!next) return;
         if (cu && !next.autenticada) throw new ApiError(401);
+        backendExists.current = true;
         setView(next); setValues(next.valoresDeclarados); setPhase(next.estado === 'CONSULTANDO' ? 'CONSULTANDO' : 'REVISADO');
         if (nna && next.runInformado) setKnowsRun(true);
         onResolvedRef.current?.(next);
       }
-    }).catch(error => { if (active && token === generation.current) fail(error); });
+    }).catch(error => { if (active) {
+      // Una restauración fallida no permite adoptar ciegamente otra identidad en un POST posterior.
+      backendExists.current = true; resetNeeded.current = true; fail(error);
+    } })
+      .finally(() => { if (active) setRestored(true); });
     return () => { active = false; generation.current++; };
   }, [journey.id, cu, nna, person]);
+  // Solo el presentador tiene finalidad autorizada. Las tarjetas de terceros no usan este disparador.
+  useEffect(() => {
+    if (!restored || cu || !nna && !journey.aceptaCanal || journey.estado !== 'BORRADOR' || phase !== 'INICIAL'
+      || view || nna && !knowsRun || !validRun(runNumber(numero), dv)) return;
+    const timer = window.setTimeout(() => { void review(); }, 650);
+    return () => window.clearTimeout(timer);
+    // La revisión captura estos valores; no depender de su función evita reiniciar el debounce por renders ajenos.
+  }, [restored, cu, journey.aceptaCanal, journey.estado, phase, view, nna, knowsRun, numero, dv]);
   async function refresh() {
     const token=++generation.current;setPhase('CONSULTANDO');
     try {const next=await getPerson(journey.id,person);if(token===generation.current)received(next);}
@@ -108,13 +143,13 @@ export function IdentificationControls({journey, session, nna = false, children,
     if (view?.estado !== 'CONSULTANDO' || phase === 'ERROR') return;
     let active=true;const token=generation.current;
     const timer=window.setTimeout(()=>{void getPerson(journey.id,person).then(next=>{
-      if(active&&token===generation.current){setView(next);setValues(next.valoresDeclarados);setPhase(next.estado==='CONSULTANDO'?'CONSULTANDO':'REVISADO');onResolvedRef.current?.(next);}
+      if(active&&token===generation.current)received(next);
     }).catch(error=>{if(active&&token===generation.current)fail(error);});},2000);
     return()=>{active=false;window.clearTimeout(timer);};
   },[view,phase,journey.id,person]);
 
   async function save(): Promise<IdentityView | null> {
-    if (busy) return null;
+    if (busy || !restored) return null;
     const current = view?.estado === 'REVISADO' ? view : await review();
     if (!current || current.estado !== 'REVISADO') return null;
     const input = view ? values : current.valoresDeclarados;
@@ -192,7 +227,7 @@ export function IdentificationControls({journey, session, nna = false, children,
     <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={(nna && !knowsRun) || preservedRun}>
       {runControls}
       {!cu && <div className="lookup-actions" id={nna ? undefined : 'manual-verify'}>
-        <button className="btn btn-primary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
+        <button className="btn btn-primary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy || !restored} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
         {!nna && statusMarkup}
         {nna && <button className="btn btn-secondary" id="nna-skip-run" type="button" disabled={busy} onClick={() => changeKnowsRun(false)}>Continuar sin RUN</button>}
       </div>}

@@ -1,3 +1,23 @@
+# Checkpoint vigente — RUN → SRCeI automático, 24 de octubre de 2026
+
+**Unidad RUN → SRCeI cerrada en laboratorio.** Leer primero [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md). Se partió de `3b398d5`, con rama `integracion-siger-linux-2026` limpia y todos los avances anteriores conservados. Las secciones siguientes son historial; las menciones a disparador pendiente o PISEE deshabilitado ya no describen el estado vigente.
+
+- Disparador del presentador: RUN/DV válido, debounce 650 ms, deduplicación, restauración y generación contra respuestas tardías. Consulta CU desde sesión existente, sin sustituir su autenticación. Cambio de RUN invalida identidad anterior e historial/cuotas persisten.
+- NNA conserva RUN voluntario y su acceso sin aceptar canal adulto. Sin RUN no consulta; con RUN usa el mecanismo autorizado. Terceros quedan declarados, sin consulta registral aunque su RUN figure en la allowlist; no tienen disparador automático.
+- DEV real: **una consulta** desde formulario adulto, **COMPLETO**, **10 atributos internos**, cero valores registrales en la proyección pública, recarga sin otro POST. Custodia/idempotencia, fuentes, hash y firma verificados en MySQL/OpenSSL.
+- NNA móvil: recorrido real local sin RUN y con RUN sintético excluido, disparador/restauración/declaraciones/recepción correctos; MySQL confirma cero consultas externas y canal adulto no exigido. Se conservaron los borradores de pruebas fallidas sin limpiar tablas.
+- Frontend: **99 correctas**, lint/build correctos. Backend H2 y MySQL: **169 correctas y 1 omisión opcional**, de 170 descubiertas. Sin clases de carga; fixtures históricos V3 idénticos.
+- Nodo existente con override `infra/compose.pisee-loopback.yml`: **127.0.0.1:18084 → 8084**, autenticación local; 8489 sin publicar. Estado/certificados/endpoints externos intactos. Configuración DEV del JAR en el directorio privado existente `nna-local-20261023`, allowlist privada del Nodo y concurrencia 1/timeout 15 s. Configurador reversible con respaldo.
+- JAR final PID observado **27172** y SHA-256 `2e3e644570493d29d71e9ffb8cc99f502d1f8d780fa9cf337822e23b4fcf8f06`. Verificar `app.pid`, proceso, puerto 18443 y salud antes de operar. HTTPS oficial 443 y CU se conservan. V1–V7/MySQL/volúmenes no se recrearon.
+- Evidencia privada: `.local/evidencias/run-srcei-dev/` y `run-auto-*` logs; resultados reducidos sin RUN/atributos/secretos. No repetir el script DEV sobre una sesión nueva: la consulta ya está probada. El script MySQL solo verifica; no consulta al proveedor.
+- Límite: combinación real CU/SRCeI no repetida porque la identidad Sandbox no corresponde al RUN permitido; prioridad y mezcla cubiertas sintéticamente. Sin búsquedas de terceros, QA/producción, adaptación del consumidor ni hardening productivo. Las nuevas custodias siguen pendientes de ACK SIGER.
+
+**Al retomar:** comprobar primero Git y este informe. Esta unidad no requiere otra consulta gubernamental ni preparar infraestructura. Mantener la reversión documentada y esperar un encargo posterior para consumidor SIGER o hardening; no comenzarlos como continuación implícita.
+
+---
+
+## Historial previo: cierre de adultos
+
 # Checkpoint vigente — cierre de adultos, 24 de octubre de 2026
 
 **Unidad adulta implementada y verificada en laboratorio.** Consultar primero [CIERRE_ADULTOS_2026-10-24.md](CIERRE_ADULTOS_2026-10-24.md): contiene archivos, pruebas, evidencias privadas, estado real, límites y reversión. Lo que sigue más abajo se conserva como historial de recuperación y avances anteriores; sus menciones a adultos pendientes/cerrados y al proxy anterior ya no describen el estado vigente.

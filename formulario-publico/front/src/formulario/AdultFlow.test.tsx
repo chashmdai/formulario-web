@@ -26,17 +26,17 @@ function mount(full=false,port?:AttachmentPort,cu=false){
   render(<AdultFlow journey={{...journey,tipo:cu?'ADULTO_CU':'ADULTO_DECLARADO'}} session={cu?{authenticated:true,identity:{run:'12345678-5',nombres:'NOMBRE CU',apellidos:'APELLIDO CU',nombresComponentes:['NOMBRE','CU'],apellidosComponentes:['APELLIDO','CU']},environment:'SANDBOX',loginAvailable:true}:null} full={full} filePort={files} onStep={step} onReview={review} />);return {review,step,files};
 }
 async function identity(cu=false){
-  if(cu){await screen.findByDisplayValue('NOMBRE');return;}
+  if(cu){await screen.findByDisplayValue('NOMBRE');await waitFor(()=>expect((byId('adult-run') as HTMLInputElement).disabled).toBe(false));return;}
   await userEvent.type(screen.getByRole('textbox',{name:/^RUN/}),'12345678');await userEvent.type(screen.getByRole('textbox',{name:'Dígito verificador del RUN'}),'5');await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));
   await userEvent.type(await screen.findByRole('textbox',{name:/^Primer nombre/}),'NOMBRE');await userEvent.type(screen.getByRole('textbox',{name:/^Primer apellido/}),'APELLIDO');
 }
 async function reason(value:string,topic='general'){
-  await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await userEvent.selectOptions(byId('motivo'),value);
+  await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await waitFor(()=>expect(byId('motivo').closest('section')?.hidden).toBe(false));await waitFor(()=>expect((byId('motivo') as HTMLSelectElement).disabled).toBe(false));await userEvent.selectOptions(byId('motivo'),value);
   if(value==='consulta'){
     const dialog=await screen.findByRole('dialog');await userEvent.click(within(dialog).getByRole('checkbox',{name:/Leí esta orientación/}));await userEvent.click(within(dialog).getByRole('button',{name:'Entendido, continuar'}));await userEvent.selectOptions(byId('tema'),topic);
   }
 }
-async function last(){await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await screen.findByRole('heading',{name:'Cuéntanos sobre tu comunicación'});}
+async function last(){await userEvent.click(screen.getByRole('button',{name:'Continuar'}));await screen.findByRole('heading',{name:'Cuéntanos sobre tu comunicación'});await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));}
 describe('Recorridos adultos trasladados del mockup',()=>{
   it('sin CU completa consulta general y prepara captura con identidad declarada persistida',async()=>{
     const {review}=mount();await identity();await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));
