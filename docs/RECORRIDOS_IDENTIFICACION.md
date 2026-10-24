@@ -76,3 +76,9 @@ diff -qr contratos/fixtures ../sistema-de-requerimientos/contratos/fixtures
 ```
 
 La batería MySQL opera solo sobre el esquema sintético autorizado `robust_public_test`; no usarla sobre datos con valor. Logs de esta ejecución excluidos de Git: `.local/evidencias/cierre-identificacion-h2-final.log` y `cierre-identificacion-mysql-final.log`. La reapertura probada corresponde al almacén JDBC; no afirma reanudar una sesión HTTP después de reiniciar Tomcat.
+
+## Cliente React reutilizable
+
+`front/src/formulario/api.ts`, `run.ts` e `IdentificationControls.tsx` conectan los controles a esta API sin fixtures de ejecución. Mantienen RUN/DV separados, evitan consultar un DV incorrecto, muestran solo faltantes y declaraciones propias, derivan el RUN CU desde el servidor y reinician la identificación al cambiar RUN. NNA sin RUN inicia ese recorrido sin identificador. El cliente rechaza respuestas ampliadas accidentalmente con atributos internos; usa CSRF y no almacena personas en localStorage. Las llamadas pendientes se deduplican y las respuestas tardías de un panel desmontado se descartan.
+
+Pruebas frontend de esta continuación: 31 correctas, lint y TypeScript/Vite correctos. Las 14 nuevas cubren cliente y controles con dobles HTTP controlados. Son pruebas de componentes: **aún no hay navegación completa montada desde la portada ni comparación visual de estos controles**. La composición de los pasos del mockup y el envío completo siguen pendientes. No se ha presentado el componente aislado como un formulario terminado.
