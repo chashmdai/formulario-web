@@ -2,6 +2,8 @@
 
 **Unidad adulta implementada y verificada en laboratorio.** Consultar primero [CIERRE_ADULTOS_2026-10-24.md](CIERRE_ADULTOS_2026-10-24.md): contiene archivos, pruebas, evidencias privadas, estado real, límites y reversión. Lo que sigue más abajo se conserva como historial de recuperación y avances anteriores; sus menciones a adultos pendientes/cerrados y al proxy anterior ya no describen el estado vigente.
 
+Commit de implementación y evidencias documentadas: **`df3b43a`** (`feat(adultos): cerrar recorridos React con custodia real y verificar Sandbox`). Se confirma localmente, sin push. Este checkpoint añade su referencia en un commit documental posterior.
+
 - Rama `integracion-siger-linux-2026`, mismo repositorio y todos los commits previos conservados. Tres pasos React adultos, revisión, custodia y adjuntos reales, con/sin CU, conectados desde portada y callback.
 - Frontend: **82 correctas**, lint/build correctos. Backend: **164 correctas y 1 omisión opcional** de 165 descubiertas, tanto en H2 como en MySQL; excluidas las clases de carga.
 - Edge escritorio/móvil: seis envíos declarados (tres motivos × dos tamaños), idempotencia y conflicto, archivos inválidos/limpios, privacidad de adjuntos, comprobante y recarga. MySQL y OpenSSL verificaron contenido, procedencia, firma y adjuntos.
