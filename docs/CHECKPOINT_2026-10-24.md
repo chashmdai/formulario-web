@@ -1,3 +1,20 @@
+# Checkpoint vigente — cierre de adultos, 24 de octubre de 2026
+
+**Unidad adulta implementada y verificada en laboratorio.** Consultar primero [CIERRE_ADULTOS_2026-10-24.md](CIERRE_ADULTOS_2026-10-24.md): contiene archivos, pruebas, evidencias privadas, estado real, límites y reversión. Lo que sigue más abajo se conserva como historial de recuperación y avances anteriores; sus menciones a adultos pendientes/cerrados y al proxy anterior ya no describen el estado vigente.
+
+- Rama `integracion-siger-linux-2026`, mismo repositorio y todos los commits previos conservados. Tres pasos React adultos, revisión, custodia y adjuntos reales, con/sin CU, conectados desde portada y callback.
+- Frontend: **82 correctas**, lint/build correctos. Backend: **164 correctas y 1 omisión opcional** de 165 descubiertas, tanto en H2 como en MySQL; excluidas las clases de carga.
+- Edge escritorio/móvil: seis envíos declarados (tres motivos × dos tamaños), idempotencia y conflicto, archivos inválidos/limpios, privacidad de adjuntos, comprobante y recarga. MySQL y OpenSSL verificaron contenido, procedencia, firma y adjuntos.
+- CU Sandbox real: identidad de sesión, revisión en ambos tamaños, una comunicación enviada desde móvil y verificada en MySQL. Logout real y retorno final comprobados separadamente con sesión anónima. No se consultó SRCeI en esta unidad.
+- HTTPS oficial local 443 → Caddy integrado → TLS nativo 18443. JAR PID al cierre `55175` (verificar siempre `app.pid` y proceso, no asumir su vigencia). Configuración privada existente `nna-local-20261023`; MySQL `robust_public_local`; ClamAV 13310. Recepción adulta efectiva habilitada después de controles. El Docker anterior permanece en 18080; PISEE y volúmenes intactos.
+- V1–V7 sin cambios y fixtures V3 idénticos. Sin push ni modificaciones de SIGER institucional. La adaptación de su consumidor al documento completo/adjuntos/ACK sigue pendiente; las siete comunicaciones adultas no tienen folio institucional real.
+- **Próximo paso exacto:** conectar el disparador automático RUN/DV con la API de identificación existente, con deduplicación y control de respuestas tardías; configurar el backend integrado para DEV con allowlist privada y comprobar una consulta real autorizada. El cliente Java, fallback, proyección privada y procedencia persistente ya existen. No empezar infraestructura ni reconstruir el formulario.
+- No repetir los scripts de recepción o Sandbox innecesariamente: generan registros/ingresos reales y se respeta la cuota de inicio. La presentación final tiene un script con API controlada independiente.
+
+---
+
+## Historial anterior, conservado
+
 # Continuación y recuperación — 2026-10-24
 
 Encargo Maestro **pendiente de completar**. Repositorio `/home/nexbyteproveedor/proyectos/formulario-web`, rama `integracion-siger-linux-2026`. Se conservaron `1e6af92`, `42b142d`, `9e8eafe`, `c996b97` y todos los cambios sin commit del 23/10. No hubo push, intervención en SIGER institucional, borrado de bases/volúmenes ni investigación del fallo de Windows.

@@ -162,17 +162,20 @@ export function IdentificationControls({journey, session, nna = false, children,
   const displayedNumber = identity ? formatRunNumber(identity.runNumero || identity.run.split('-')[0]) : numero;
   const displayedDv = identity ? identity.runDv || identity.run.split('-')[1] : dv;
   const preservedRun = !cu && !!view?.runInformado && !numero && !dv;
+  const statusMarkup = <div className="manual-status" id={nna ? 'nna-lookup-status' : 'manual-status'} role="status" aria-live="polite" aria-atomic="true" hidden={!busy && !failure && (!view || (nna && !view.runInformado))}>
+      {busy ? 'Estamos revisando tus datos…' : failure || view?.mensaje}
+    </div>;
   const runControls = <div className="field">
     <label htmlFor={`${prefix}-run`}>RUN{nna ? ' (RUT)' : ''}{nna ? <span className="muted-label"> (opcional)</span> : <span className="identity-source" id="source-run">{cu ? 'ClaveÚnica' : 'Declarado'}</span>}</label>
     <div className="run-split">
       <div className="run-piece"><span className="run-piece-label" aria-hidden="true">Número</span>
-        <input id={`${prefix}-run`} name={`${prefix}-run`} value={displayedNumber} onChange={e => changeRun('numero', e.target.value)} readOnly={cu} disabled={busy}
+        <input type="text" id={`${prefix}-run`} name={`${prefix}-run`} value={displayedNumber} onChange={e => changeRun('numero', e.target.value)} readOnly={cu} disabled={busy}
           onPaste={e=>{if(busy||cu)return;const parsed=pastedRun(e.clipboardData.getData('text'));if(parsed){e.preventDefault();invalidate();setNumero(formatRunNumber(parsed.numero));setDv(parsed.dv);}}}
           inputMode="numeric" maxLength={10} data-mask="run-body" data-run-body="true" placeholder="12.345.678" spellCheck={false}
           required={!cu && !nna} aria-invalid={!!errors.run} aria-describedby={`${prefix}-run-help ${prefix}-run-error`} />
       </div><span className="run-hyphen" aria-hidden="true">-</span>
       <div className="run-piece"><label className="run-piece-label" htmlFor={`${prefix}-run-dv`}>DV</label>
-        <input id={`${prefix}-run-dv`} value={displayedDv} onChange={e => changeRun('dv', e.target.value)} readOnly={cu} disabled={busy}
+        <input type="text" id={`${prefix}-run-dv`} value={displayedDv} onChange={e => changeRun('dv', e.target.value)} readOnly={cu} disabled={busy}
           data-mask="run-dv" inputMode="text" maxLength={1} placeholder="K" autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-label="Dígito verificador del RUN" aria-invalid={!!errors.run} />
       </div>
     </div>
@@ -190,12 +193,11 @@ export function IdentificationControls({journey, session, nna = false, children,
       {runControls}
       {!cu && <div className="lookup-actions" id={nna ? undefined : 'manual-verify'}>
         <button className="btn btn-primary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
+        {!nna && statusMarkup}
         {nna && <button className="btn btn-secondary" id="nna-skip-run" type="button" disabled={busy} onClick={() => changeKnowsRun(false)}>Continuar sin RUN</button>}
       </div>}
     </div>
-    <div className="manual-status" id={nna ? 'nna-lookup-status' : 'manual-status'} role="status" aria-live="polite" aria-atomic="true" hidden={!busy && !failure && (!view || (nna && !view.runInformado))}>
-      {busy ? 'Estamos revisando tus datos…' : failure || view?.mensaje}
-    </div>
+    {(nna || cu || preservedRun) && statusMarkup}
     {phase === 'ERROR' && <button className="btn btn-secondary" type="button" onClick={() => void (view?.estado === 'CONSULTANDO' ? refresh() : review())}>Volver a intentar</button>}
     <div className={nna ? 'form-grid nna-basics' : 'identity-input-grid'} id={nna ? undefined : 'adult-personal-fields'} hidden={!fields.length && !children && !identity}>
       {fields.map(m => {

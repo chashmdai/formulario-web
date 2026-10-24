@@ -6,7 +6,7 @@ Fecha de cliente: 2026-10-23. Continúa la identificación persistente del commi
 
 Implementado en Java/JDBC y probado con H2 y MySQL: recepción NNA con relato íntegro de 5000 caracteres; ubicación, nombre preferido, tratamiento, contacto primario/secundario y precauciones; identidad/procedencia tomada exclusivamente del recorrido de servidor; custodia técnica Ed25519; idempotencia por clave y propietario; congelación del recorrido; cola recuperable, reservas, reintentos, cuarentena y ACK institucional verificado. Las respuestas ciudadanas contienen estado y comprobantes, sin el agregado privado. Un comprobante de custodia no es un folio SIGER.
 
-Los adultos permanecen cerrados para esta recepción hasta implementar y probar sus reglas completas. No se hace pasar un adulto declarado por una identidad ClaveÚnica ni por una declaración NNA. La identificación por sesión de los tres recorridos sigue disponible por su API existente.
+Actualización 24/10/2026: las reglas y los recorridos completos adultos ya están implementados y comprobados; su bandera adicional `formulario.adultos.habilitado` se habilitó en el laboratorio integrado después de los controles. Por defecto permanece cerrada. No se hace pasar un adulto declarado por una identidad ClaveÚnica ni por una declaración NNA. Ver `CIERRE_ADULTOS_2026-10-24.md` para evidencia, reversión y límites institucionales.
 
 V7 agrega `citizen_submission` y `citizen_attachment`, con claves foráneas al recorrido. V1–V6 no se modifican. El catálogo `front/src/formulario/territorio.json` es la única fuente compartida para Java y React, congelada desde `ddn-formulario@13f9cf6`; no se presenta como actualización oficial de comunas.
 

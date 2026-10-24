@@ -12,6 +12,7 @@ p = argparse.ArgumentParser()
 p.add_argument("directorio_privado", type=Path)
 p.add_argument("--migrar", action="store_true")
 p.add_argument("--detener", action="store_true")
+p.add_argument("--permitir-cu-sandbox", action="store_true", help="Opt-in explícito para el formulario integrado, conservando callbacks oficiales")
 a = p.parse_args()
 private = a.directorio_privado.expanduser().resolve()
 root = Path(__file__).resolve().parents[2]
@@ -21,8 +22,14 @@ if not private.is_dir() or any((d / ".git").exists() for d in [private, *private
 if not (private / "application.properties").is_file():
     p.error("Falta la configuración privada")
 props = dict(line.split("=", 1) for line in (private / "application.properties").read_text().splitlines() if "=" in line and not line.startswith("#"))
-if props.get("server.address") != "127.0.0.1" or props.get("server.port") != "18443" or props.get("siger.claveunica.callback-approved") != "false" or props.get("server.ssl.enabled") != "true":
+if props.get("server.address") != "127.0.0.1" or props.get("server.port") != "18443" or props.get("server.ssl.enabled") != "true" or props.get("siger.claveunica.environment") != "SANDBOX":
     p.error("Solo admite el laboratorio NNA loopback/TLS con callback bloqueado")
+if props.get("siger.claveunica.callback-approved") != "false" and not a.permitir_cu_sandbox:
+    p.error("El callback requiere el opt-in explícito --permitir-cu-sandbox")
+if a.permitir_cu_sandbox:
+    domain="https://claveunica.formularioadulto.defensorianinez.gob.cl"
+    if props.get("siger.claveunica.redirect-uri") != domain+"/redirect" or props.get("siger.claveunica.logout-uri") != domain+"/logout" or props.get("siger.claveunica.public-origin") != domain:
+        p.error("Conservar exactamente los callbacks y origen oficiales del Sandbox")
 if a.detener:
     pid = int((private / "app.pid").read_text())
     process_dir = Path(f"/proc/{pid}")

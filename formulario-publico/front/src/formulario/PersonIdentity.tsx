@@ -83,10 +83,10 @@ export function PersonIdentity({journey,person,role,identityRef,children,onResol
       {preserved?<p className="field-help">Ya se informó un RUN para esta persona. <button type="button" className="btn btn-secondary" disabled={busy} onClick={invalidate}>Corregir RUN</button></p>:<div className="field">
         <label htmlFor={id('run')}>RUN <span className="muted-label">(opcional)</span></label>
         <div className="run-split"><div className="run-piece"><span className="run-piece-label" aria-hidden="true">Número</span>
-          <input id={id('run')} data-mask="run-body" data-run-body="true" inputMode="numeric" maxLength={10} placeholder="12.345.678" spellCheck={false} value={numero} disabled={busy} onChange={e=>changed('numero',e.target.value)} aria-invalid={!!errors.run}
+          <input type="text" id={id('run')} data-mask="run-body" data-run-body="true" inputMode="numeric" maxLength={10} placeholder="12.345.678" spellCheck={false} value={numero} disabled={busy} onChange={e=>changed('numero',e.target.value)} aria-invalid={!!errors.run}
             onPaste={e=>{if(busy)return;const parsed=pastedRun(e.clipboardData.getData('text'));if(parsed){e.preventDefault();invalidate();setNumero(formatRunNumber(parsed.numero));setDv(parsed.dv);}}} />
         </div><span className="run-hyphen" aria-hidden="true">-</span><div className="run-piece"><label className="run-piece-label" htmlFor={id('run')+'-dv'}>DV</label>
-          <input id={id('run')+'-dv'} data-mask="run-dv" inputMode="text" maxLength={1} placeholder="K" autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-label="Dígito verificador del RUN" value={dv} disabled={busy} onChange={e=>changed('dv',e.target.value)} aria-invalid={!!errors.run} />
+          <input type="text" id={id('run')+'-dv'} data-mask="run-dv" inputMode="text" maxLength={1} placeholder="K" autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-label="Dígito verificador del RUN" value={dv} disabled={busy} onChange={e=>changed('dv',e.target.value)} aria-invalid={!!errors.run} />
         </div></div><p className="field-error" hidden={!errors.run}>{errors.run}</p>
       </div>}
       <div className="lookup-actions"><button type="button" className="btn btn-secondary" disabled={busy||preserved} onClick={()=>{void review();}}>Revisar RUN</button>
@@ -97,8 +97,9 @@ export function PersonIdentity({journey,person,role,identityRef,children,onResol
     </div>
     <div className="repeat-fields">
       {fields.filter(f=>(role==='AFECTADO_NNA'||f.key!=='edad')&&view?.camposFaltantes.includes(f.key)).map(f=><div className="field" data-identity-attr={f.suffix} key={f.key}>
-        <label htmlFor={id(f.suffix)}>{f.label} <span className="muted-label">{f.hint}</span></label>
+        <label htmlFor={id(f.suffix)}>{f.label} <span className="muted-label">{role==='ADULTO_RELACIONADO'?'(si lo sabes)':f.hint}</span></label>
         <input id={id(f.suffix)} data-key={f.suffix} data-name-part={f.key==='edad'?undefined:true} type={f.key==='edad'?'number':'text'} {...(f.key==='edad'?{min:0,max:17,inputMode:'numeric' as const}: {})} maxLength={f.key==='edad'?2:500}
+          placeholder={role==='AFECTADO_NNA'?(f.key==='edad'?'Ej.: 12':f.label):role==='PERSONA_SENALADA'&&f.key==='primerNombre'?'Primer nombre':undefined}
           value={values[f.key]||''} disabled={busy} onChange={e=>{const value=e.target.value;setValues(old=>({...old,[f.key]:value}));setErrors(old=>{const next={...old};delete next[f.key];return next;});}} aria-invalid={!!errors[f.key]} aria-describedby={id(f.suffix)+'-error'} />
         <p className="field-error" id={id(f.suffix)+'-error'} hidden={!errors[f.key]}>{errors[f.key]}</p>
       </div>)}

@@ -4,6 +4,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -87,7 +88,7 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain security(HttpSecurity http, ClientRegistrationRepository registrations,
             RestClientAuthorizationCodeTokenResponseClient tokenClient, ClaveUnicaOidcUserService userService,
-            ClaveUnicaProperties properties) throws Exception {
+            ClaveUnicaProperties properties,Environment environment) throws Exception {
         var contextRepository = new HttpSessionSecurityContextRepository();
         var resolver = new DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization");
         resolver.setAuthorizationRequestCustomizer(builder -> builder.scopes(new java.util.LinkedHashSet<>(java.util.List.of("openid", "run", "name"))));
@@ -148,7 +149,7 @@ public class SecurityConfiguration {
                             response.sendRedirect(ProviderLogout.url(properties));
                         }))
                 .logout(logout -> logout.logoutUrl("/auth/logout").invalidateHttpSession(true).clearAuthentication(true)
-                        .deleteCookies("SIGERSESSION")
+                        .deleteCookies(environment.getProperty("server.servlet.session.cookie.name","SIGERSESSION"))
                         .logoutSuccessHandler((request, response, authentication) -> response.sendRedirect(ProviderLogout.url(properties))))
                 .addFilterBefore(new CallbackAvailabilityFilter(properties), OAuth2AuthorizationRequestRedirectFilter.class);
         return http.build(); // CSRF remains enabled, including logout and authenticated POSTs.

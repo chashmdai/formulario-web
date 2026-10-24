@@ -2,13 +2,14 @@ import { ApiError, getCsrf, json } from '../api';
 import { getCurrentJourney, getJourneyCapabilities, startJourney } from './api';
 import type { Journey } from './api';
 import type { Attachment, AttachmentPort } from './NnaFlow';
+import type { InstitutionReference, PersonReference } from './adultRules';
 
 export interface CustodyReceipt {algoritmo: string; keyId: string; payload: string; firma: string}
 export interface SubmissionState {
   id: string; estado: 'PENDIENTE_REGISTRO_SIGER' | 'REGISTRADA_SIGER'; custodia: CustodyReceipt;
   registro: null | {registro: {folio: string}; comprobante: CustodyReceipt};
 }
-export interface CompleteCapture {campos: Record<string,string>; personas: never[]; instituciones: never[]; adjuntos: string[]}
+export interface CompleteCapture {campos: Record<string,string>; personas: PersonReference[]; instituciones: InstitutionReference[]; adjuntos: string[]}
 const root = '/api/formulario';
 const journeyPath = (id: string) => `${root}/recorridos/${encodeURIComponent(id)}`;
 function state(value: SubmissionState): SubmissionState {
@@ -20,13 +21,14 @@ export async function getSubmission(id: string): Promise<SubmissionState> {retur
 export async function getJourneySubmission(id: string): Promise<SubmissionState> {return state(await json<SubmissionState>(`${journeyPath(id)}/comunicacion`));}
 export const getReceptionCapabilities = () => json<{nna: boolean; adultos: boolean}>(`${root}/recepcion/capacidades`);
 export const listAttachments = (journey:string) => json<Attachment[]>(`${journeyPath(journey)}/adjuntos`);
-export async function submitNna(journey: string, key: string, body: CompleteCapture): Promise<SubmissionState> {
+export async function submitCapture(journey: string, key: string, body: CompleteCapture): Promise<SubmissionState> {
   const csrf = await getCsrf();
   const response = await fetch(`${journeyPath(journey)}/comunicaciones`, {method: 'POST', credentials: 'same-origin', cache: 'no-store',
     headers: {'Content-Type': 'application/json', [csrf.headerName]: csrf.token, 'Idempotency-Key': key}, body: JSON.stringify(body)});
   if (!response.ok) throw new ApiError(response.status);
   return state(await response.json() as SubmissionState);
 }
+export const submitNna=submitCapture;
 export function attachmentPort(journey: string): AttachmentPort {
   return {
     async replace(files: File[]) {

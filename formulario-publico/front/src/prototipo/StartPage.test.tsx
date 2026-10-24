@@ -19,8 +19,8 @@ describe('Inicio institucional en migración', () => {
     expect(screen.getByRole('link', {name: 'Iniciar sesión con ClaveÚnica'}).getAttribute('href')).toBe('/oauth2/authorization/claveunica');
     expect(screen.queryByText(/USUARIO DEMO/)).toBeNull();
   });
-  it('no fabrica un ingreso adulto cuando esa ruta todavía no está implementada', async () => {
-    const fetch = vi.spyOn(window, 'fetch');
+  it('no fabrica un ingreso adulto cuando el backend está cerrado', async () => {
+    const fetch = vi.spyOn(window, 'fetch').mockImplementation(async url=>new Response(JSON.stringify(String(url)==='/api/session'?{authenticated:false,loginAvailable:false}:{disponible:false}),{status:200}));
     render(<StartPage />);
     await userEvent.click(screen.getByRole('button', {name: /Soy una persona adulta/}));
     await userEvent.click(screen.getByRole('button', {name: /No tengo ClaveÚnica/}));
@@ -28,10 +28,15 @@ describe('Inicio institucional en migración', () => {
     expect(screen.getByRole('button', {name: 'Continuar'}).hasAttribute('disabled')).toBe(true);
     await userEvent.click(screen.getByRole('radio', {name: /^Acepto/}));
     await userEvent.click(screen.getByRole('button', {name: 'Continuar'}));
-    expect(screen.getByText('Este acceso todavía no está disponible. Puedes volver al inicio.')).toBeTruthy();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(await screen.findByText('Este acceso está temporalmente cerrado. Inténtalo nuevamente más tarde.')).toBeTruthy();
+    expect(fetch.mock.calls.every(([,init])=>!init?.method)).toBe(true);
     await userEvent.click(screen.getByRole('button', {name: 'Cerrar y volver al inicio'}));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  it('guarda la aceptación y el tipo declarado antes de navegar al formulario adulto',async()=>{
+    const navigate=vi.fn();const fetch=vi.spyOn(window,'fetch').mockImplementation(async(url)=>new Response(JSON.stringify(String(url)==='/api/session'?{authenticated:false,loginAvailable:true}:String(url)==='/api/csrf'?{token:'csrf-test',headerName:'X-CSRF-TOKEN'}:String(url)==='/api/formulario/capacidades'?{disponible:true,avisoAdulto:'ADULTO_LAB_1'}:{id:'recorrido'}),{status:200}));
+    render(<StartPage navigate={navigate} />);await userEvent.click(screen.getByRole('button',{name:/Soy una persona adulta/}));await userEvent.click(screen.getByRole('button',{name:/No tengo ClaveÚnica/}));await userEvent.click(screen.getByRole('radio',{name:/^Acepto/}));await userEvent.click(screen.getByRole('button',{name:'Continuar'}));
+    expect(navigate).toHaveBeenCalledWith('/?vista=formulario-adulto&modo=manual');const posted=fetch.mock.calls.find(([,init])=>init?.method==='POST')!;expect(JSON.parse(posted[1]!.body as string)).toEqual({tipo:'ADULTO_DECLARADO',avisoVersion:'ADULTO_LAB_1',aceptaCanalDigital:true});
   });
   it('ofrece otros canales al rechazar, permite cambiar respuesta y reinicia la elección al volver', async () => {
     const fetch = vi.spyOn(window, 'fetch');

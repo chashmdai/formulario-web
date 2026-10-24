@@ -1,3 +1,5 @@
+> **Actualización 24/10/2026:** adultos y NNA ya cuentan con recorridos React integrados y custodia pública real en laboratorio. Este informe conserva el diagnóstico anterior. Estado vigente, pruebas y límites: [Cierre de adultos](CIERRE_ADULTOS_2026-10-24.md) y [checkpoint](CHECKPOINT_2026-10-24.md). Continúan pendientes el disparador automático RUN→SRCeI del formulario y la evolución autorizada del consumidor institucional; no se declara concluido el Encargo Maestro.
+
 # Informe de ejecución verificable — 23 octubre 2026
 
 **El encargo integral sigue abierto.** Se completaron y comprobaron la preparación Linux, el cliente SRCeI y Nodo DEV, el laboratorio MySQL/restauración, el empaquetado Docker, ClaveÚnica Sandbox real por HTTPS y dos tramos de la réplica visual. Todavía no existe el formulario completo conectado de extremo a extremo. No se entregan simulaciones como funcionalidades reales.

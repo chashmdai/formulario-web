@@ -1,3 +1,5 @@
+> **Actualización 24/10/2026:** el proxy existente ahora usa el override `infra/compose.formulario-https.yml` para servir el formulario integrado en TLS nativo 18443 y conservar callbacks oficiales en 443. La aplicación Docker anterior sigue en 18080 para reversión. Los tres archivos TLS montados tienen ahora modo 0640; el directorio privado sigue 0700. Configuración actual, verificación Sandbox adulta, permisos y reversión detallados en [CIERRE_ADULTOS_2026-10-24.md](CIERRE_ADULTOS_2026-10-24.md). El resto de este documento describe el montaje anterior, conservado como antecedente.
+
 # ClaveÚnica Sandbox real en Docker/WSL — 23 octubre 2026
 
 Autorización expresa del responsable en este chat: hosts Windows/WSL, CA de desarrollo en el usuario, proxy HTTPS local y flujo real Sandbox. Esta ejecución complementa [el procedimiento Windows anterior](SANDBOX_HTTPS_LOCAL.md); no requiere detener el servicio ajeno que ocupa 8080.

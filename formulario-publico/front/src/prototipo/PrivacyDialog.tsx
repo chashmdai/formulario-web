@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 /** Aviso institucional del prototipo. Elección del canal en memoria; no acredita identidad. */
-export function PrivacyDialog({onClose, onAccept}: {onClose: () => void; onAccept: () => void}) {
+export function PrivacyDialog({onClose, onAccept, busy=false, error=''}: {onClose: () => void; onAccept: () => void; busy?:boolean; error?:string}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const homeButton = useRef<HTMLButtonElement>(null);
   const fieldset = useRef<HTMLFieldSetElement>(null);
@@ -31,7 +31,7 @@ export function PrivacyDialog({onClose, onAccept}: {onClose: () => void; onAccep
       aria-describedby="privacy-intro"
       aria-labelledby="privacy-title"
       className="dialog privacy-dialog"
-      id="privacy-access" ref={dialog} onCancel={onClose}
+      id="privacy-access" ref={dialog} onCancel={e=>{if(busy)e.preventDefault();else onClose();}}
     >
       <div className="dialog-head">
         <div>
@@ -42,11 +42,12 @@ export function PrivacyDialog({onClose, onAccept}: {onClose: () => void; onAccep
           <p id="privacy-intro">
             Este aviso corresponde al formulario digital para personas adultas.
           </p>
+          {error&&<p className="field-error" role="alert">{error}</p>}
         </div>
         <button
           aria-label="Cerrar y volver al inicio"
           className="dialog-close"
-          id="privacy-close" onClick={onClose}
+          id="privacy-close" onClick={onClose} disabled={busy}
           type="button"
         >
           <svg className="icon"><use href="#i-x"></use></svg>
@@ -109,7 +110,7 @@ export function PrivacyDialog({onClose, onAccept}: {onClose: () => void; onAccep
               >Consultar la Ley 21.719 <span aria-hidden="true">↗</span></a
             >
           </p>
-          <fieldset className="privacy-fieldset" id="privacy-fieldset" ref={fieldset} tabIndex={-1}>
+          <fieldset className="privacy-fieldset" id="privacy-fieldset" ref={fieldset} tabIndex={-1} disabled={busy}>
             <legend>
               ¿Quieres continuar mediante este formulario digital?
             </legend>
@@ -139,11 +140,11 @@ export function PrivacyDialog({onClose, onAccept}: {onClose: () => void; onAccep
           </p>
         </div>
         <div className="dialog-foot privacy-footer">
-          <button className="btn btn-secondary" id="privacy-back" onClick={onClose} type="button">
+          <button className="btn btn-secondary" id="privacy-back" onClick={onClose} type="button" disabled={busy}>
             Volver</button
           ><button
             className="btn btn-primary"
-            disabled={!decision}
+            disabled={!decision||busy}
             id="privacy-continue" onClick={continueChoice}
             type="button"
           >

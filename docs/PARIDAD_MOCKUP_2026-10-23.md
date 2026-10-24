@@ -1,3 +1,25 @@
+# Estado actualizado de paridad — 24 de octubre de 2026
+
+La matriz siguiente actualiza el estado vigente; las secciones posteriores se conservan como evidencia histórica de la migración. Detalles y límites en [CIERRE_ADULTOS_2026-10-24.md](CIERRE_ADULTOS_2026-10-24.md).
+
+| Recorrido/estado | Escritorio 1440×900 | Móvil 390×844 | Evidencia y límite |
+|---|---|---|---|
+| Portada y aviso adulto | Componentes originales reutilizados; aceptación persistida antes del recorrido | Mismo gate y alternativas | Pruebas frontend; paridad inicial histórica conservada |
+| Adulto declarado, etapas 1/2/3 | RUN/DV, faltantes, consultas, promoción y vulneración | Mismos tres recorridos | Seis recepciones reales, capturas por pasos/completo/contraste/revisión/custodia/recarga |
+| Consulta/entrevista/estadísticas/empleo | Orientación, perfil otro obligatorio, confirmación de fuentes, canal externo de empleo | Mismas condiciones | Preflight navegador real con recepción cerrada; todos los perfiles cubiertos sintéticamente |
+| NNA afectados, adultos relacionados, señalados e instituciones | Tarjetas, campos condicionales, datos desconocidos y retiro confirmado | Mismo recorrido complejo | Backend/React y navegador de vulneración; custodia excluye la tarjeta retirada |
+| Adulto CU | Identidad de sesión bloqueada y revisión completa | Revisión y envío real | Mismo recorrido Sandbox; una custodia, no dos envíos; logout real separado |
+| Revisión/envío | Solo declaraciones propias y CU; datos SRCeI privados | Mismos controles | Custodia MySQL real; ningún folio simulado; ACK institucional real pendiente |
+| Adjuntos rechazados/limpios | PDF inválido bloquea; TXT limpio inspeccionado por ClamAV | Mismo comportamiento | Descarga ajena 404; integridad verificada en MySQL |
+| Claro/oscuro/contraste/130% | Sin desborde en estados capturados | Sin desborde en estados capturados | Presentación final con API controlada separada de los envíos reales |
+| NNA completo | Verificado en `08f5031` | Verificado en `08f5031` | Regresiones actuales incluidas; no se rehízo su infraestructura |
+
+Se cotejaron las tres etapas del HTML y React. Posición/ancho de primera tarjeta coinciden en las capturas reales de recepción: x348/y421.96875/ancho1028 escritorio; x14/y510.75/ancho362 móvil; fuente Cabin 16px. Se corrigieron título/caption de identificación manual, header, casillas RUN/DV y posición del estado, con inspección visual final explícitamente controlada. Se conserva la estructura y el CSS originales; cambian textos de simulación, tratamiento seguro de datos y recepción real. No se afirma igualdad total de píxeles ni certificación integral de accesibilidad.
+
+---
+
+## Historial de paridad anterior
+
 # Paridad visual y funcional del mockup
 
 Referencia congelada: `ddn-formulario` commit `13f9cf6`. La migración está **PARCIAL**. La entrada principal adulta y NNA conservan su comportamiento anterior; la nueva pantalla se revisa con `/?vista=inicio`. No se declara réplica integral.
