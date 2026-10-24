@@ -1,3 +1,4 @@
+import {MediaAttachments} from '../ui/MediaAttachments';
 import {AttachmentStatus} from '../ui/AttachmentStatus';
 import type { NnaContext } from "./NnaFlow";
 
@@ -25,7 +26,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div className="char-counter" id="nna-story-count">{ctx.value("nna-story").length} caracteres</div>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-files">{"¿Quieres agregar fotos o archivos?\n                      "}<span className="muted-label">{"(opcional)"}</span>
+{" "}{ctx.media?<MediaAttachments control={ctx.media} id="nna-files-feedback"/>:<><label htmlFor="nna-files">{"¿Quieres agregar fotos o archivos?\n                      "}<span className="muted-label">{"(opcional)"}</span>
 </label>
 {" "}<div className="upload-box">
 {" "}<input className="sr-only" id="nna-files" name="nna-files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx" disabled={ctx.uploading} onChange={ctx.onFiles} />
@@ -43,7 +44,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 </label>
 {" "}</div>
 {" "}<AttachmentStatus id="nna-files-feedback" files={ctx.attachments} pending={ctx.uploading} error={ctx.errors["nna-files"]} feedback={ctx.fileFeedback} />
-{" "}<button className="btn btn-secondary remove-files" hidden={!ctx.shown("nna-files-clear")} id="nna-files-clear" type="button" onClick={() => ctx.action("nna-files-clear")}>{"\n                      Quitar archivos seleccionados\n                    "}</button>
+{" "}<button className="btn btn-secondary remove-files" hidden={!ctx.shown("nna-files-clear")} id="nna-files-clear" type="button" onClick={() => ctx.action("nna-files-clear")}>{"\n                      Quitar archivos seleccionados\n                    "}</button></>}
 {" "}</div>
 {" "}</div>
 {" "}<div className="privacy-note">
@@ -55,7 +56,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div className="step-actions">
 {" "}<button className="btn btn-secondary" id="nna-back" type="button" onClick={() => ctx.action("nna-back")} hidden={ctx.full}>{"\n                    Volver a mis datos"}</button>
-<button className="btn btn-primary" id="nna-review" type="button" onClick={() => ctx.action("nna-review")}>{"\n                    Revisar mi comunicación\n                    "}<svg aria-hidden="true" className="icon small">
+<button className="btn btn-primary" id="nna-review" disabled={ctx.reviewBlocked} type="button" onClick={() => ctx.action("nna-review")}>{"\n                    Revisar mi comunicación\n                    "}<svg aria-hidden="true" className="icon small">
 {" "}<use href="#i-arrow">
 </use>
 {" "}</svg>

@@ -4,7 +4,7 @@
   <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>4.1.1</version><relativePath/></parent>
   <groupId>cl.nexbyte.siger</groupId><artifactId>formulario-publico</artifactId><version>0.1.0-SNAPSHOT</version>
   <name>Formulario Público</name><description>Defensoría de la Niñez — integración ClaveÚnica</description>
-  <properties><java.version>25</java.version></properties>
+  <properties><java.version>25</java.version><siger.build.directory>${project.basedir}/target</siger.build.directory></properties>
   <dependencies>
     <dependency><groupId>org.springframework</groupId><artifactId>spring-jdbc</artifactId></dependency>
     <dependency><groupId>com.zaxxer</groupId><artifactId>HikariCP</artifactId></dependency>
@@ -22,6 +22,7 @@
     <dependency><groupId>org.springframework.security</groupId><artifactId>spring-security-test</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build>
+    <directory>${siger.build.directory}</directory>
     <resources>
       <resource><directory>src/main/resources</directory></resource>
       <resource><directory>../front/dist</directory><targetPath>static</targetPath></resource>

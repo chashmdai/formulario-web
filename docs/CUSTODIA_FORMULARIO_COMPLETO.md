@@ -56,3 +56,7 @@ Reversión funcional: cerrar recepción/recuperación mediante los controles exi
 ## Evidencias
 
 Suite ampliada: 148 pruebas backend descubiertas, 4 opcionales omitidas; H2 y MySQL se registran por separado en `.local/evidencias/formulario-completo-{h2,mysql}-final.log`. Incluye identidad parcial en sobre privado, texto de 5000 caracteres, idempotencia concurrente, reinicio lógico del servicio, propietario, congelación, cuotas de archivos, antivirus controlado, ZIP inválido, integridad, reserva vencida, ACK ajeno/falso, cuarentena y pruebas HTTP/CSRF/TLS. Los resultados finales se consignan en el checkpoint; no son pruebas reales contra proveedores gubernamentales.
+
+## Ampliación multimedia en rama de revisión (24/10/2026)
+
+El camino histórico descrito arriba permanece en el baseline. La ampliación optativa se documenta en [ADR multimedia](ADR_MULTIMEDIA_2026-10-24.md), [política](POLITICA_MULTIMEDIA_2026-10-24.md) y [documento 1.1](../contratos/formulario-completo-multimedia-v1.1.md). No se modifican firmas históricas ni se habilita el consumidor SIGER automáticamente.

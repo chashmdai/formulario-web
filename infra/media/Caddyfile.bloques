@@ -1,0 +1,9 @@
+# Importar DENTRO del sitio HTTPS existente. No cambia callbacks, TLS ni upstream.
+# Los bytes del archivo viajan por PUT de 8 MiB, no por multipart grande.
+@bloques_multimedia {
+    method PUT
+    path /api/formulario/recorridos/*/cargas/*/bloques/*
+}
+request_body @bloques_multimedia {
+    max_size 8388608
+}

@@ -27,6 +27,7 @@ function download(data: unknown, filename: string) {
   const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 export default function NnaPage() {
+  const [mediaEnabled,setMediaEnabled]=useState(false);
   const [dirty,setDirty]=useState(false),[exit,setExit]=useState(false);
   const [journey,setJourney]=useState<Journey|null>(null),[session,setSession]=useState<Session|null>(null);
   const [full,setFull]=useState(false),[step,setStep]=useState(1),[retry,setRetry]=useState(0);
@@ -42,7 +43,7 @@ export default function NnaPage() {
     void Promise.all([enterNna(),getSession(),getReceptionCapabilities()]).then(async([j,s,c])=>{
       const restored=j.estado==='RECIBIDO'?await getJourneySubmission(j.id):null;
       const restoredFiles=restored?[]:await listAttachments(j.id);
-      if(active){setJourney(j);setSession(s);setAvailable(c.nna);setReceipt(restored);setInitialFiles(restoredFiles);setFatal('');}
+      if(active){setJourney(j);setSession(s);setAvailable(c.nna);setMediaEnabled(c.multimedia===true);setReceipt(restored);setInitialFiles(restoredFiles);setFatal('');}
     }).catch(()=>{if(active)setFatal('No pudimos abrir tu formulario. Inténtalo nuevamente.');}).finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
   },[retry]);
@@ -74,7 +75,7 @@ export default function NnaPage() {
           {fatal&&<div className="paper"><div className="paper-body"><p role="alert">{fatal}</p><button type="button" className="btn btn-primary" onClick={()=>{setLoading(true);setFatal('');setRetry(v=>v+1);}}>Reintentar</button></div></div>}
           {journey&&files&&!fatal&&!loading&&!receipt&&<div>
             {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
-            <NnaFlow journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(campos,identity,attachments)=>{setError('');setReview({campos,identity,attachments});}} />
+            <NnaFlow mediaEnabled={mediaEnabled} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(campos,identity,attachments)=>{setError('');setReview({campos,identity,attachments});}} />
           </div>}
           {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={()=>{void check();}} />}
         </main>

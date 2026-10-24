@@ -1,0 +1,35 @@
+name: siger-multimedia-lab
+services:
+  inspector:
+    image: siger-inspector:multimedia-20261024
+    build: {context: ./media, dockerfile: Dockerfile}
+    restart: unless-stopped
+    user: "1000:1000"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 768m
+    pids_limit: 32
+    tmpfs: ["/scratch:size=192m,uid=1000,gid=1000,mode=0700", "/tmp:size=8m,mode=1777"]
+    volumes:
+      - ${MULTIMEDIA_IPC_DIR:?Directorio privado POSIX, uid 1000}:/ipc
+    logging: {driver: json-file, options: {max-size: 2m, max-file: "2"}}
+  antivirus:
+    image: siger-media-clamav:multimedia-20261024
+    build: {context: ./media, dockerfile: Dockerfile.clamav}
+    restart: unless-stopped
+    user: "1000:1000"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 1536m
+    pids_limit: 32
+    tmpfs: ["/scratch:size=320m,uid=1000,gid=1000,mode=0700", "/tmp:size=8m,mode=1777"]
+    volumes:
+      - ${MULTIMEDIA_AV_IPC_DIR:?Directorio privado POSIX, uid 1000}:/ipc
+      - ${MULTIMEDIA_AV_DATABASE:?Definiciones reales existentes}:/var/lib/clamav:ro
+    logging: {driver: json-file, options: {max-size: 2m, max-file: "2"}}

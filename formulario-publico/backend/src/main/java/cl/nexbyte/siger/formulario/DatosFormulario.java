@@ -14,7 +14,7 @@ public record DatosFormulario(Map<String,String> campos,List<Relacion> personas,
     }
     public DatosFormulario {
         campos=map(campos,80);personas=personas==null?List.of():List.copyOf(personas);instituciones=instituciones==null?List.of():List.copyOf(instituciones);adjuntos=adjuntos==null?List.of():List.copyOf(adjuntos);
-        if(personas.size()>29||instituciones.size()>20||adjuntos.size()>5||new HashSet<>(adjuntos).size()!=adjuntos.size()||personas.stream().map(Relacion::personaId).distinct().count()!=personas.size())throw new IllegalArgumentException("Límites de comunicación excedidos");
+        if(personas.size()>29||instituciones.size()>20||adjuntos.size()>12||new HashSet<>(adjuntos).size()!=adjuntos.size()||personas.stream().map(Relacion::personaId).distinct().count()!=personas.size())throw new IllegalArgumentException("Límites de comunicación excedidos");
     }
     private static Map<String,String> map(Map<String,String> value,int max) {
         if(value==null)return Map.of();if(value.size()>max||value.entrySet().stream().anyMatch(e->e.getKey()==null||e.getValue()==null))throw new IllegalArgumentException("Campos inválidos");

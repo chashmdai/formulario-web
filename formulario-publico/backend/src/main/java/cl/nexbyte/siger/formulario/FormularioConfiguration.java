@@ -14,10 +14,10 @@ import tools.jackson.databind.json.JsonMapper;
 public class FormularioConfiguration {
     @Bean TerritorioFormulario territorioFormulario(JsonMapper mapper)throws java.io.IOException{return new TerritorioFormulario(mapper);}
     @Bean ValidacionFormulario validacionFormulario(TerritorioFormulario territorio){return new ValidacionFormulario(territorio);}
-    @Bean AdjuntosFormulario adjuntosFormulario(BaseJdbc db,RecorridosJdbc recorridos,Environment env){
+    @Bean AdjuntosFormulario adjuntosFormulario(BaseJdbc db,RecorridosJdbc recorridos,Environment env,org.springframework.beans.factory.ObjectProvider<cl.nexbyte.siger.multimedia.AlmacenPrivado> store){
         int port=env.getProperty("formulario.adjuntos.clamav-port",Integer.class,0);
         AdjuntosFormulario.Escaner scanner=port==0?bytes->{throw new java.io.IOException("Inspección no configurada");}:new EscanerClamAv(port);
-        return new AdjuntosFormulario(db,recorridos,scanner);
+        return new AdjuntosFormulario(db,recorridos,scanner,store.getIfAvailable());
     }
     @Bean RecepcionFormularioJdbc recepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario files,JsonMapper mapper,ValidacionFormulario validation,Environment env)throws java.io.IOException {
         return new RecepcionFormularioJdbc(db,recorridos,files,mapper,validation,env.getRequiredProperty("publico.comprobante.key-id"),

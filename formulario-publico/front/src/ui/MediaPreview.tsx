@@ -1,0 +1,12 @@
+import {useEffect,useRef,useState} from 'react';
+import type {Attachment} from '../formulario/NnaFlow';
+import {mediaUrl,mediaView} from '../formulario/mediaApi';
+import type {MediaView} from '../formulario/mediaApi';
+import {useDialogFocus} from './useDialogFocus';
+import {Icon} from './FormChrome';
+export function MediaPreview({journey,file,onClose}:{journey:string;file:Attachment;onClose:()=>void}){
+ const dialog=useRef<HTMLDialogElement>(null),[view,setView]=useState<MediaView|null>(null),[failed,setFailed]=useState(false);useDialogFocus(dialog);
+ useEffect(()=>{const d=dialog.current;d?.showModal();let active=true;void mediaView(journey,file.id).then(v=>{if(active)setView(v);}).catch(()=>{if(active)setFailed(true);});return()=>{active=false;d?.close();};},[journey,file.id]);
+ const url=mediaUrl(journey,file.id,true);
+ return <dialog ref={dialog} className="dialog media-preview" aria-labelledby="media-preview-title" onCancel={onClose}><div className="dialog-head"><div><span className="mini-tag">Archivo adjunto</span><h2 id="media-preview-title">{file.nombre}</h2></div><button type="button" className="dialog-close" aria-label="Cerrar previsualización" onClick={onClose}><Icon name="x"/></button></div><div className="dialog-body">{!view&&!failed&&<p role="status">Estamos abriendo tu archivo…</p>}{failed&&<p role="alert" className="field-error">La vista previa no está disponible. Puedes descargar el archivo para revisarlo en tu dispositivo.</p>}{view&&!failed&&<>{view.representacion==='IMAGEN_DERIVADA'?<figure><img src={url} alt={'Vista previa de '+file.nombre} onError={()=>setFailed(true)}/><figcaption>{view.original.tipo==='application/pdf'?'Primera página del documento.':'Representación de la imagen.'} El archivo original se conserva completo.</figcaption></figure>:view.representacion==='AUDIO'?<audio controls preload="metadata" src={url} onError={()=>setFailed(true)} aria-label={'Escuchar '+file.nombre}/>:view.representacion==='VIDEO'?<video controls preload="metadata" src={url} onError={()=>setFailed(true)} aria-label={'Reproducir '+file.nombre}/>:<p>Este formato no tiene una vista previa disponible. Puedes descargar el original para revisarlo en tu dispositivo.</p>}</>}</div><div className="dialog-foot"><p>El original y su integridad se mantienen.</p><div className="dialog-buttons"><a className="btn btn-secondary" href={mediaUrl(journey,file.id)} download>Descargar original</a><button type="button" className="btn btn-primary" onClick={onClose}>Volver al formulario</button></div></div></dialog>;
+}

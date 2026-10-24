@@ -28,11 +28,13 @@ public final class RecepcionFormularioJdbc {
         ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",UUID.randomUUID(),clock.instant(),"CUSTODIA_PUBLICA","0".repeat(64),"0".repeat(64),"FORMULARIO_PUBLICO_DDN","VERIFICACION"),keyId,key,mapper).verificar(trust,mapper);
     }
     public boolean disponible(){try{var c=controles.estado();return enabled&&c.aceptarNuevos()&&c.contingencia().equals("NORMAL");}catch(org.springframework.dao.DataAccessException e){return false;}}
+    public boolean multimediaDisponible(){return adjuntos.multimediaDisponible();}
     public boolean adultosDisponibles(){return adultos&&disponible();}
     public Estado recibir(UUID id,UUID journey,String session,DatosFormulario datos){
         if(id==null||journey==null||datos==null)throw new FalloTecnico(400);sesion(session);
         String hash=CanonFormulario.huella("SOLICITUD",List.of(journey,session,datos),mapper);
         var previous=previa(id,journey,session,hash);if(previous!=null)return previous;
+        var verifiedFiles=adjuntos.prepararRecepcion(journey,session);
         try{return db.transaction(()->{
             var route=recorridos.bloquearBorrador(journey,session);
             // Otro hilo con la misma clave puede haber confirmado mientras esperábamos el lock del recorrido.
@@ -44,12 +46,13 @@ public final class RecepcionFormularioJdbc {
             var people=recorridos.personasInternas(journey,session,selected);validation.validar(route.tipo(),canonical,people);
             var files=adjuntos.internos(journey);
             if(!new HashSet<>(canonical.adjuntos()).equals(new HashSet<>(files.stream().map(AdjuntosFormulario.Descriptor::id).toList())))throw new IllegalArgumentException("Adjuntos no corresponden al recorrido");
-            for(var f:files)adjuntos.contenido(journey,f.id());
-            var content=new EntregaFormulario.Contenido("1.0",id,journey,route.tipo(),clock.instant(),route.avisoVersion(),route.aceptaCanal(),canonical,people,files);
+            if(!files.equals(verifiedFiles))throw new FalloTecnico(409);
+            String documentVersion=adjuntos.multimedia(files)?"1.1":"1.0";
+            var content=new EntregaFormulario.Contenido(documentVersion,id,journey,route.tipo(),clock.instant(),route.avisoVersion(),route.aceptaCanal(),canonical,people,files);
             String bodyHash=CanonFormulario.huella("CONTENIDO",content,mapper),sourceHash=EntregaFormulario.procedencia(content,mapper);
             var proof=ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",id,content.recibidaEn(),"CUSTODIA_PUBLICA",bodyHash,sourceHash,"FORMULARIO_PUBLICO_DDN",route.avisoVersion()),keyId,key,mapper);
             var delivery=new EntregaFormulario(content,bodyHash,sourceHash,proof);delivery.validar(trust,mapper);
-            db.sql.update("INSERT INTO citizen_submission(id,journey_id,owner_session,request_hash,body,state,created_ms,next_attempt_ms) VALUES(?,?,?,?,?,'PENDIENTE',?,?)",id.toString(),journey.toString(),session,hash,mapper.writeValueAsString(delivery),clock.millis(),clock.millis());
+            db.sql.update("INSERT INTO citizen_submission(id,journey_id,owner_session,request_hash,body,state,created_ms,next_attempt_ms,document_version) VALUES(?,?,?,?,?,'PENDIENTE',?,?,?)",id.toString(),journey.toString(),session,hash,mapper.writeValueAsString(delivery),clock.millis(),clock.millis(),documentVersion);
             recorridos.recibida(journey,session);db.event("FORMULARIO_COMPLETO",id.toString(),"CUSTODIA_CONFIRMADA");
             return new Estado(id,"PENDIENTE_REGISTRO_SIGER",proof,null);
         });}catch(DuplicateKeyException conflict){var winner=previa(id,journey,session,hash);if(winner==null)throw new FalloTecnico(409);return winner;}
@@ -79,16 +82,19 @@ public final class RecepcionFormularioJdbc {
         try{var delivery=mapper.readValue(text,EntregaFormulario.class);delivery.validar(trust,mapper);if(!id.equals(delivery.comunicacion().id()))throw new FalloTecnico(503);return delivery;}
         catch(RuntimeException error){throw new FalloTecnico(503);}
     }
-    public List<Reserva> reclamar(int limit){
+    public List<Reserva> reclamar(int limit){return reclamar(limit,Set.of("1.0"));}
+    public List<Reserva> reclamar(int limit,Set<String> versions){
+        if(versions==null||versions.isEmpty()||!Set.of("1.0","1.1").containsAll(versions))throw new FalloTecnico(400);
         if(limit<1||limit>10)throw new FalloTecnico(400);var control=controles.estado();
         if(!enabled||!control.recuperar()||!control.contingencia().equals("NORMAL"))throw new FalloTecnico(503);
         return db.transaction(()->{
             long now=clock.millis();var result=new ArrayList<Reserva>();
-            var ids=db.sql.queryForList("SELECT id FROM citizen_submission WHERE (state='PENDIENTE' AND next_attempt_ms<=?) OR (state='RESERVADA' AND lease_until_ms<=?) ORDER BY created_ms,id LIMIT ?",String.class,now,now,limit*4);
+            var ids=db.sql.queryForList("SELECT id FROM citizen_submission WHERE ((state='PENDIENTE' AND next_attempt_ms<=?) OR (state='RESERVADA' AND lease_until_ms<=?)) AND ((document_version='1.0' AND ?=TRUE) OR (document_version='1.1' AND ?=TRUE)) ORDER BY created_ms,id LIMIT ?",String.class,now,now,versions.contains("1.0"),versions.contains("1.1"),limit*4);
             for(var id:ids){var lease=UUID.randomUUID();
                 if(db.sql.update("UPDATE citizen_submission SET state='RESERVADA',lease_id=?,lease_until_ms=?,attempts=attempts+1 WHERE id=? AND ((state='PENDIENTE' AND next_attempt_ms<=?) OR (state='RESERVADA' AND lease_until_ms<=?))",lease.toString(),now+300000L,id,now,now)!=1)continue;
                 var row=db.sql.queryForMap("SELECT body,attempts FROM citizen_submission WHERE id=?",id);int attempts=((Number)row.get("attempts")).intValue();
                 try{if(attempts>10)throw new FalloTecnico(503);var delivery=leer(row.get("body").toString(),UUID.fromString(id));
+                    if(!versions.contains(delivery.comunicacion().version()))throw new FalloTecnico(503);
                     result.add(new Reserva(lease,now+300000L,attempts,delivery));db.event("FORMULARIO_COMPLETO",id,"RESERVADA");
                 }catch(FalloTecnico corrupt){db.sql.update("UPDATE citizen_submission SET state='CUARENTENA',last_error='INTEGRIDAD_O_LIMITE' WHERE id=?",id);db.event("FORMULARIO_COMPLETO",id,"CUARENTENA");}
                 if(result.size()==limit)break;
@@ -102,6 +108,12 @@ public final class RecepcionFormularioJdbc {
         if(!"RESERVADA".equals(row.get("state"))||lease==null||!lease.toString().equals(row.get("lease_id"))||((Number)row.get("lease_until_ms")).longValue()<=clock.millis())throw new FalloTecnico(409);
         var delivery=leer(row.get("body").toString(),id);var d=delivery.comunicacion().adjuntos().stream().filter(f->f.id().equals(file)).findFirst().orElseThrow(()->new FalloTecnico(404));
         var bytes=adjuntos.contenido(delivery.comunicacion().recorridoId(),file);if(!AdjuntosFormulario.hash(bytes.contenido()).equals(d.sha256())||bytes.contenido().length!=d.tamanio()||!bytes.nombre().equals(d.nombre()))throw new FalloTecnico(503);return bytes;
+    }
+    public cl.nexbyte.siger.multimedia.RecursoPrivado recursoReservado(UUID id,UUID lease,UUID file){
+        var rows=db.sql.queryForList("SELECT body,state,lease_id,lease_until_ms FROM citizen_submission WHERE id=?",id.toString());if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();
+        if(!"RESERVADA".equals(row.get("state"))||lease==null||!lease.toString().equals(row.get("lease_id"))||((Number)row.get("lease_until_ms")).longValue()<=clock.millis())throw new FalloTecnico(409);
+        var delivery=leer(row.get("body").toString(),id);var d=delivery.comunicacion().adjuntos().stream().filter(f->f.id().equals(file)).findFirst().orElseThrow(()->new FalloTecnico(404));var resource=adjuntos.recursoInterno(delivery.comunicacion().recorridoId(),file);
+        if(resource.tamanio()!=d.tamanio()||!resource.sha256().equals(d.sha256())||!resource.nombre().equals(d.nombre()))throw new FalloTecnico(503);db.sql.update("INSERT INTO media_access(id,attachment_id,at_ms,principal_kind,principal_ref,representation,event_code) VALUES(?,?,?,'INTEGRACION',?,'ORIGINAL','LECTURA_SOLICITADA')",UUID.randomUUID().toString(),file.toString(),clock.millis(),cl.nexbyte.siger.multimedia.AuditoriaMedia.referencia(lease.toString()));return resource;
     }
     public void confirmar(UUID id,UUID lease,RegistroInstitucional ack){
         if(id==null||lease==null||ack==null)throw new FalloTecnico(400);

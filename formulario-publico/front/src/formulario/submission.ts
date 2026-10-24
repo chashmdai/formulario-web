@@ -19,7 +19,7 @@ function state(value: SubmissionState): SubmissionState {
 }
 export async function getSubmission(id: string): Promise<SubmissionState> {return state(await json<SubmissionState>(`${root}/comunicaciones/${encodeURIComponent(id)}`));}
 export async function getJourneySubmission(id: string): Promise<SubmissionState> {return state(await json<SubmissionState>(`${journeyPath(id)}/comunicacion`));}
-export const getReceptionCapabilities = () => json<{nna: boolean; adultos: boolean}>(`${root}/recepcion/capacidades`);
+export const getReceptionCapabilities = () => json<{nna: boolean; adultos: boolean; multimedia?: boolean}>(`${root}/recepcion/capacidades`);
 export const listAttachments = (journey:string) => json<Attachment[]>(`${journeyPath(journey)}/adjuntos`);
 export async function submitCapture(journey: string, key: string, body: CompleteCapture): Promise<SubmissionState> {
   const csrf = await getCsrf();

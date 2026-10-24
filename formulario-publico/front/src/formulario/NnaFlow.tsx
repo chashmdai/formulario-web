@@ -1,3 +1,4 @@
+import type {MediaControl} from '../ui/MediaAttachments';
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { ChangeEvent, RefObject } from 'react';
 import type { Session } from '../api';
@@ -8,11 +9,12 @@ import { NnaStepTwo } from './NnaStepTwo';
 import { nnaRequired, nnaValues, validateNna } from './nnaRules';
 import type { FormErrors } from './nnaRules';
 
-export interface Attachment {id: string; nombre: string; tamanio: number; sha256: string; estado: string}
+export interface Attachment {id: string; nombre: string; tamanio: number; sha256: string; estado: string;tipo?:string}
 export interface AttachmentPort {replace: (files: File[]) => Promise<Attachment[]>; clear: () => Promise<void>}
 export interface NnaNavigation {go: (step: number) => void}
 type TextControl = {value: string; onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void; required: boolean; disabled: boolean; 'aria-invalid': boolean; 'aria-errormessage'?: string};
 export interface NnaContext {
+  media?:MediaControl;reviewBlocked?:boolean;
   journey: Journey; session: Session | null; identityRef: RefObject<IdentificationHandle | null>;
   full: boolean; step: number; attachments: Attachment[]; errors: FormErrors; uploading: boolean; fileFeedback: string;
   bind: (id: string) => TextControl;
@@ -24,16 +26,17 @@ interface Props {
   journey: Journey; session: Session | null; full: boolean; filePort: AttachmentPort;
   onStep?: (step: number) => void;
   navigationRef?: RefObject<NnaNavigation | null>;
-  initialAttachments?: Attachment[];
+  initialAttachments?: Attachment[];mediaEnabled?:boolean;
   onReview: (values: Record<string, string>, identity: IdentityView, attachments: Attachment[]) => Promise<void>;
 }
 /** Dos pasos del mockup. La recepción y la revisión son operaciones del contenedor, nunca simulaciones locales. */
-export function NnaFlow({journey, session, full, filePort, onStep, onReview, navigationRef, initialAttachments = []}: Props) {
+export function NnaFlow({journey, session, full, filePort, onStep, onReview, navigationRef, mediaEnabled=false, initialAttachments = []}: Props) {
   const [step, setStep] = useState(1);
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<FormErrors>({});
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
   const [uploading, setUploading] = useState(false);
+  const [mediaBusy,setMediaBusy]=useState(false);
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState('');
   const identityRef = useRef<IdentificationHandle>(null);
@@ -85,6 +88,7 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
       setUploading(true);try {await filePort.clear();if (mounted.current) {setAttachments([]);setErrors(old => {const next = {...old};delete next['nna-files'];return next;});}} catch {if (mounted.current) setFailure('No pudimos quitar los archivos. Inténtalo nuevamente.');}
       finally {if (mounted.current) setUploading(false);}return;
     }
+    if(id==='nna-review'&&mediaBusy)return;
     if (id !== 'nna-next' && id !== 'nna-review') return;
     const next = {...validateNna(values, id === 'nna-review'), ...(errors['nna-files'] ? {'nna-files': errors['nna-files']} : {})};focusErrors(next);
     setWorking(true);
@@ -115,7 +119,7 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
       .finally(() => {element.value = '';if (mounted.current) setUploading(false);});
   }
   useImperativeHandle(navigationRef, () => ({go: target => {if (full) document.getElementById(target === 1 ? 'nna-ident-title' : 'nna-story-title')?.focus();else void action(target === 1 ? 'nna-back' : 'nna-next');}}));
-  const ctx: NnaContext = {journey, session, identityRef, full, step, attachments, errors, uploading,
+  const ctx: NnaContext = {media:mediaEnabled?{journey:journey.id,files:attachments,disabled:working,onChange:setAttachments,onBusy:setMediaBusy}:undefined,reviewBlocked:mediaBusy,journey, session, identityRef, full, step, attachments, errors, uploading,
     fileFeedback: uploading ? 'Estamos recibiendo tus archivos…' : errors['nna-files'] || (attachments.length ? attachments.map(file => file.nombre).join(' · ') : 'Ningún archivo seleccionado'),
     value, setValue:changed, shown, action: id => {void action(id);}, onFiles,
     bind: id => ({value: value(id), onChange: e => changed(id, e.target.value), required: required.includes(id) || id === 'nna-story', disabled: disabled(id), 'aria-invalid': !!errors[id], 'aria-errormessage': errors[id]?id+'-summary':undefined}),

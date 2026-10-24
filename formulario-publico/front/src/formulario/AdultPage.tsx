@@ -27,6 +27,7 @@ import '../prototipo/inicio.css';
 import '../ui/experience.css';
 
 export default function AdultPage({initialJourney,mode='manual'}:{initialJourney?:Journey;mode?:'manual'|'cu'}){
+  const [mediaEnabled,setMediaEnabled]=useState(false);
   const [dirty,setDirty]=useState(false),[exit,setExit]=useState(false);
   const [journey,setJourney]=useState<Journey|null>(null),[session,setSession]=useState<Session|null>(null),[available,setAvailable]=useState(false);
   const [full,setFull]=useState(false),[step,setStep]=useState(1),[retry,setRetry]=useState(0),[loading,setLoading]=useState(true);
@@ -39,11 +40,11 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
   useEffect(()=>{
     let active=true;document.title='Formulario para personas adultas | Defensoría de la Niñez';
     void Promise.all([getSession(),getReceptionCapabilities(),initialJourney?Promise.resolve(initialJourney):getCurrentJourney().catch(e=>{if(!(e instanceof ApiError)||e.status!==404)throw e;return null;})]).then(async([s,c,j])=>{
-      if(!j||j.tipo!==kind){if(active){setSession(s);setAvailable(c.adultos);setPrivacy(true);setLoading(false);}return;}
+      if(!j||j.tipo!==kind){if(active){setSession(s);setAvailable(c.adultos);setMediaEnabled(c.multimedia===true);setPrivacy(true);setLoading(false);}return;}
       if(!j.aceptaCanal)throw new ApiError(409);
       const restored=j.estado==='RECIBIDO'?await getJourneySubmission(j.id):null;
       const attached=restored?[]:await listAttachments(j.id);
-      if(active){setSession(s);setAvailable(c.adultos);setJourney(j);setReceipt(restored);setInitialFiles(attached);setFatal('');setLoading(false);}
+      if(active){setSession(s);setAvailable(c.adultos);setMediaEnabled(c.multimedia===true);setJourney(j);setReceipt(restored);setInitialFiles(attached);setFatal('');setLoading(false);}
     }).catch(()=>{if(active){setFatal('No pudimos abrir tu formulario. Inténtalo nuevamente.');setLoading(false);}});
     return()=>{active=false;};
   },[initialJourney,kind,retry]);
@@ -85,7 +86,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
           {journey&&!authenticated&&!receipt&&<section className="paper"><div className="paper-body"><h2>Ingresa con tu ClaveÚnica</h2><p>Necesitas verificar tu identidad para continuar por este acceso.</p>{session?.loginAvailable?<ClaveUnicaButton />:<p role="status">El inicio con ClaveÚnica está temporalmente cerrado.</p>}</div></section>}
           {journey&&files&&authenticated&&!loading&&!fatal&&!receipt&&<>
             {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
-            <AdultFlow key={journey.id} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(capture,presenter,people,attached)=>{setError('');setReview({capture,presenter,people,files:attached});}} />
+            <AdultFlow mediaEnabled={mediaEnabled} key={journey.id} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(capture,presenter,people,attached)=>{setError('');setReview({capture,presenter,people,files:attached});}} />
           </>}
           {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={()=>{void check();}} />}
         </main></div></div>

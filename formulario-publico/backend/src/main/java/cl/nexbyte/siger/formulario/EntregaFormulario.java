@@ -20,7 +20,7 @@ public record EntregaFormulario(Contenido comunicacion,String sha256,String huel
     }
     public void validar(Map<String,PublicKey> trust,JsonMapper mapper){
         var c=comunicacion;
-        if(c==null||!"1.0".equals(c.version())||c.id()==null||c.recorridoId()==null||c.tipo()==null||c.recibidaEn()==null||c.avisoVersion()==null||c.datos()==null||custodia==null
+        if(c==null||!("1.0".equals(c.version())||"1.1".equals(c.version()))||c.id()==null||c.recorridoId()==null||c.tipo()==null||c.recibidaEn()==null||c.avisoVersion()==null||c.datos()==null||custodia==null
                 ||!CanonFormulario.huella("CONTENIDO",c,mapper).equals(sha256)||!procedencia(c,mapper).equals(huellaProcedencia))throw new IllegalArgumentException("Integridad de comunicación inválida");
         var proof=custodia.verificar(trust,mapper);
         if(!proof.id().equals(c.id())||!proof.recibidaEn().equals(c.recibidaEn())||!proof.avisoVersion().equals(c.avisoVersion())||!proof.huellaContenido().equals(sha256)||!proof.huellaProcedencia().equals(huellaProcedencia))throw new IllegalArgumentException("Custodia no corresponde");

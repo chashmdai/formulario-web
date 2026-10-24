@@ -8,7 +8,7 @@ public final class ConfiguracionDatos {
   if(url==null||!url.startsWith("jdbc:mysql://"))throw new IllegalArgumentException("URL MySQL inválida");
   var uri=URI.create(url.substring(5));
   if(uri.getHost()==null||uri.getUserInfo()!=null||uri.getFragment()!=null||uri.getRawPath()==null||!uri.getRawPath().matches("/[A-Za-z0-9_]+"))throw new IllegalArgumentException("URL MySQL inválida");
-  boolean test=local&&"127.0.0.1".equals(uri.getHost())&&uri.getPort()==13306&&Set.of("/robust_public_test","/robust_inst_test","/robust_public_local","/robust_inst_local").contains(uri.getPath());
+  boolean test=local&&"127.0.0.1".equals(uri.getHost())&&uri.getPort()==13306&&Set.of("/robust_public_test","/robust_inst_test","/robust_public_local","/robust_inst_local","/robust_public_media_lab").contains(uri.getPath());
   var params=new HashMap<String,String>();
   var allowed=Set.of("sslMode","connectTimeout","socketTimeout","allowPublicKeyRetrieval");
   if(uri.getRawQuery()!=null)for(var part:uri.getRawQuery().split("&",-1)){

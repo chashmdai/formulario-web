@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!Dockerfile.clamav
+!sandbox.c
+!inspector.py
+!clamd.conf

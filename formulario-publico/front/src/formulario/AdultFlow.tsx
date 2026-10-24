@@ -1,3 +1,4 @@
+import type {MediaControl} from '../ui/MediaAttachments';
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode, RefObject } from 'react';
 import type { Session } from '../api';
@@ -20,6 +21,7 @@ type Control={value:string;onChange:(e:ChangeEvent<HTMLInputElement|HTMLSelectEl
 type Check={checked:boolean;onChange:(e:ChangeEvent<HTMLInputElement>)=>void;disabled:boolean;'aria-invalid'?:boolean;'aria-errormessage'?:string};
 export interface AdultNavigation {go:(step:number)=>void}
 export interface AdultContext {
+  media?:MediaControl;reviewBlocked?:boolean;
   journey:Journey;session:Session|null;identityRef:RefObject<IdentificationHandle|null>;cu:boolean;full:boolean;step:number;
   attachments:Attachment[];busy:boolean;uploading:boolean;errors:FormErrors;ready:boolean;blockIdentity:boolean;guidanceAcknowledged:boolean;
   reasonTitle:string;reasonText:string;fileFeedback:string;
@@ -29,7 +31,7 @@ export interface AdultContext {
   people:(role:RelatedRole)=>ReactNode;count:(role:RelatedRole)=>number;
 }
 interface Props {
-  journey:Journey;session:Session|null;full:boolean;filePort:AttachmentPort;initialAttachments?:Attachment[];
+  journey:Journey;session:Session|null;full:boolean;filePort:AttachmentPort;initialAttachments?:Attachment[];mediaEnabled?:boolean;
   navigationRef?:RefObject<AdultNavigation|null>;onStep?:(step:number)=>void;
   onReview:(capture:AdultCapture,presenter:IdentityView,people:ReadonlyMap<string,IdentityView>,files:Attachment[])=>Promise<void>;
 }
@@ -39,9 +41,10 @@ const reasonCopy:Record<string,[string,string]>={
   promocion:['Actividad de Promoción y Difusión','Permite consultar o solicitar actividades destinadas a comunidades u organizaciones.'],
 };
 /** Recorrido adulto del mockup. El contenedor revisa/envía la captura; aquí no se fabrican comprobantes. */
-export function AdultFlow({journey,session,full,filePort,initialAttachments=[],navigationRef,onStep,onReview}:Props) {
+export function AdultFlow({journey,session,full,filePort,initialAttachments=[],mediaEnabled=false,navigationRef,onStep,onReview}:Props) {
   const [step,setStep]=useState(1),[values,setValues]=useState<Record<string,string>>({}),[errors,setErrors]=useState<FormErrors>({});
   const [cards,setCards]=useState<Card[]>([]),[attachments,setAttachments]=useState<Attachment[]>(initialAttachments);
+  const [mediaBusy,setMediaBusy]=useState(false);
   const [working,setWorking]=useState(false),[uploading,setUploading]=useState(false),[failure,setFailure]=useState('');
   const [guidance,setGuidance]=useState(false),[guidanceAcknowledged,setGuidanceAcknowledged]=useState(false);
   const identityRef=useRef<IdentificationHandle>(null),people=useRef(new Map<string,PersonIdentityHandle>()),form=useRef<HTMLFormElement>(null),pending=useRef(false);
@@ -104,7 +107,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
     finally{pending.current=false;setWorking(false);}
   }
   async function review(){
-    if(pending.current||uploading)return;pending.current=true;setWorking(true);setFailure('');
+    if(pending.current||uploading||mediaBusy)return;pending.current=true;setWorking(true);setFailure('');
     const next={...validateAdult(values),...(errors.adjuntos?{adjuntos:errors.adjuntos}:{})};
     try {
       const presenter=await identityRef.current?.save();if(!mounted.current)return;if(!presenter){setStep(1);onStep?.(1);focusStep(1);return;}
@@ -136,7 +139,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
     else if(id==='agregar-afectado')add('AFECTADO_NNA');else if(id==='agregar-responsable')add('PERSONA_SENALADA');else if(id==='add-related-adult')add('ADULTO_RELACIONADO');
   }
   useImperativeHandle(navigationRef,()=>({go:target=>{void navigate(target);}}));
-  const ctx:AdultContext={journey,session,identityRef,attachments,cu:journey.tipo==='ADULTO_CU',full,step,busy:working,uploading,errors,ready,blockIdentity,guidanceAcknowledged,
+  const ctx:AdultContext={media:mediaEnabled?{journey:journey.id,files:attachments,disabled:working,onChange:setAttachments,onBusy:setMediaBusy}:undefined,reviewBlocked:mediaBusy,journey,session,identityRef,attachments,cu:journey.tipo==='ADULTO_CU',full,step,busy:working,uploading,errors,ready,blockIdentity,guidanceAcknowledged,
     value,setValue:changed,shown,action,maxLength:adultMaxLength,required:id=>required.includes(id),communes:prefix=>comunas[value(`${prefix}-region`)]||[],onFiles,
     reasonTitle:reasonCopy[reason]?.[0]||'',reasonText:reasonCopy[reason]?.[1]||'',
     fileFeedback:uploading?'Estamos recibiendo tus archivos…':errors.adjuntos||(attachments.length?attachments.map(f=>f.nombre).join(' · '):'Ningún archivo seleccionado'),
@@ -154,9 +157,9 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
       <div className="error-summary" id="adult-errors" tabIndex={-1} role="alert" hidden={!Object.keys(errors).length}><p>Revisa estos campos para continuar:</p><ul>{Object.entries(errors).map(([id,message])=><li key={id} id={id+'-summary'}><a href={`#${id}`} onClick={e=>{e.preventDefault();focusField(id);}}>{message}</a></li>)}</ul></div>
       {failure&&<p className="field-error" role="alert">{failure}</p>}
       <AdultStepOne ctx={ctx} /><AdultStepTwo ctx={ctx} /><AdultStepThree ctx={ctx} />
-      {step===3||full?<button type="button" className="btn btn-secondary remove-files" hidden={!attachments.length&&!errors.adjuntos} disabled={working||uploading} onClick={()=>{void clearFiles();}}>Quitar archivos seleccionados</button>:null}
+      {step===3||full?<button type="button" className="btn btn-secondary remove-files" hidden={mediaEnabled||!attachments.length&&!errors.adjuntos} disabled={working||uploading} onClick={()=>{void clearFiles();}}>Quitar archivos seleccionados</button>:null}
       <div className="adult-step-nav" id="adult-step-nav" hidden={full} aria-label="Navegación entre pasos"><button className="btn btn-secondary" id="adult-prev" type="button" hidden={step===1} onClick={()=>{void navigate(Math.max(1,step-1));}}>Volver</button><p aria-live="polite" id="adult-step-message">Los campos con * son obligatorios.</p><button className="btn btn-primary" id="adult-next" type="button" hidden={step===3} onClick={()=>{void navigate(step+1);}}>Continuar <svg className="icon small" aria-hidden="true"><use href="#i-arrow" /></svg></button></div>
-      <div className="review-bar" hidden={!ready||!full&&step!==3}><div className="review-message"><span className="review-circle"><svg className="icon" aria-hidden="true"><use href="#i-check" /></svg></span><div><strong>Tu comunicación, antes de enviarla</strong><p>Revisa tus respuestas antes de enviar tu comunicación.</p></div></div><button className="btn btn-primary" id="revisar" type="button" onClick={()=>{void review();}}>Revisar respuestas</button></div>
+      <div className="review-bar" hidden={!ready||!full&&step!==3}><div className="review-message"><span className="review-circle"><svg className="icon" aria-hidden="true"><use href="#i-check" /></svg></span><div><strong>Tu comunicación, antes de enviarla</strong><p>Revisa tus respuestas antes de enviar tu comunicación.</p></div></div><button className="btn btn-primary" id="revisar" disabled={mediaBusy} type="button" onClick={()=>{void review();}}>Revisar respuestas</button></div>
     </form>
     {guidance&&<ConsultationGuidance ctx={ctx} />}
   </>;

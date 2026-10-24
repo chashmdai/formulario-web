@@ -41,7 +41,7 @@ public final class RecorridosJdbc {
     }
     public Recorrido consultar(UUID id,String session) {return recorrido(fila(id,session,false));}
     // Solo dentro de la transacción de custodia/adjuntos; comparte el lock con las declaraciones.
-    Recorrido bloquearBorrador(UUID id,String session) {var row=fila(id,session,true);editable(row);return recorrido(row);}
+    public Recorrido bloquearBorrador(UUID id,String session) {var row=fila(id,session,true);editable(row);return recorrido(row);}
     void recibida(UUID id,String session) {
         bloquearBorrador(id,session);
         if(db.sql.update("UPDATE citizen_journey SET state='RECIBIDO' WHERE id=? AND state='BORRADOR'",id.toString())!=1)throw new FalloTecnico(409);

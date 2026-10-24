@@ -1,3 +1,4 @@
+import {MediaAttachments} from '../ui/MediaAttachments';
 import {MobileInput} from '../ui/MobileInput';
 import {cleanEmail} from './contacts';
 import {AttachmentStatus} from '../ui/AttachmentStatus';
@@ -352,7 +353,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<p className="field-help" id="telefono-help">Escribe los ocho dígitos restantes. Puedes pegar el número completo con su prefijo.</p><p className="field-error" id="telefono-error" hidden={!ctx.errors.telefono}>{ctx.errors.telefono}</p>
 {" "}</div>
 {" "}<div className="field">
-{" "}<label htmlFor="adjuntos">{"Documentos o antecedentes\n                          "}<span className="muted-label">{"(opcional)"}</span>
+{" "}{ctx.media?<MediaAttachments control={ctx.media} id="archivos-elegidos"/>:<><label htmlFor="adjuntos">{"Documentos o antecedentes\n                          "}<span className="muted-label">{"(opcional)"}</span>
 </label>
 {" "}<div className="upload-box">
 {" "}<input className="sr-only" id="adjuntos" name="adjuntos" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx" disabled={ctx.busy || ctx.uploading} onChange={ctx.onFiles} />
@@ -369,7 +370,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 </span>
 </label>
 {" "}</div>
-{" "}<AttachmentStatus id="archivos-elegidos" files={ctx.attachments} pending={ctx.uploading} error={ctx.errors.adjuntos} feedback={ctx.fileFeedback} />
+{" "}<AttachmentStatus id="archivos-elegidos" files={ctx.attachments} pending={ctx.uploading} error={ctx.errors.adjuntos} feedback={ctx.fileFeedback} /></>}
 {" "}</div>
 {" "}<div className="manual-location">
 {" "}<div className="pane-head">
