@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: Object.fromEntries(['/api', '/oauth2', '/redirect', '/logout', '/auth'].map((path) =>
-      [path, { target: 'http://127.0.0.1:8080', changeOrigin: false }])),
+      [path, { target: 'http://127.0.0.1:18080', changeOrigin: false }])),
   },
   test: { environment: 'jsdom', globals: true, restoreMocks: true, setupFiles: ['./src/test/setup.ts'] },
 });

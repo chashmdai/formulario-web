@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NnaFlow } from './NnaFlow';
 import type { AttachmentPort } from './NnaFlow';
 import type { IdentityView, Journey } from './api';
-import { declarePerson, identifyPerson, resetPerson } from './api';
-vi.mock('./api', () => ({identifyPerson: vi.fn(), declarePerson: vi.fn(), resetPerson: vi.fn()}));
+import { ApiError } from '../api';
+import { declarePerson, getPerson, identifyPerson, resetPerson } from './api';
+vi.mock('./api', () => ({getPerson: vi.fn(), identifyPerson: vi.fn(), declarePerson: vi.fn(), resetPerson: vi.fn()}));
 const journey: Journey = {id: 'nna-sintetico', tipo: 'NNA', avisoVersion: 'NNA_LAB_1', aceptaCanal: false, estado: 'BORRADOR', venceEn: '2026-10-24T00:00:00Z'};
 const view = (): IdentityView => ({personaId: 'presentador-nna', estado: 'REVISADO', autenticada: false, runInformado: false,
   camposFaltantes: ['primerNombre','segundoNombre','primerApellido','segundoApellido','edad'], camposObligatorios: ['primerNombre','primerApellido'], valoresDeclarados: {}, mensaje: 'Completa los datos solicitados.'});
 beforeEach(() => {
-  vi.resetAllMocks();vi.mocked(identifyPerson).mockResolvedValue(view());vi.mocked(resetPerson).mockResolvedValue(undefined);
+  vi.resetAllMocks();vi.mocked(getPerson).mockRejectedValue(new ApiError(404));vi.mocked(identifyPerson).mockResolvedValue(view());vi.mocked(resetPerson).mockResolvedValue(undefined);
   vi.mocked(declarePerson).mockImplementation(async (_j, _p, values) => ({...view(), valoresDeclarados: values}));
 });
 afterEach(() => cleanup());

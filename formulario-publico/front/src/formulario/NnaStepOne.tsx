@@ -81,12 +81,12 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<option value="unsafe">{"\n                            No tengo una forma segura de contacto\n                          "}</option>
 {" "}</select>
 {" "}</div>
-{" "}<p className="field-help" id="nna-primary-method-help">{"\n                        Solo se usarían canales habilitados y seguros por la\n                        institución. Esta maqueta no envía mensajes.\n                      "}</p>
+{" "}<p className="field-help" id="nna-primary-method-help">{"\n                        Indica un medio seguro para que la institución pueda\n                        contactarte.\n                      "}</p>
 {" "}<p className="field-error" id="nna-primary-method-error" hidden={!ctx.errors["nna-primary-method"]}>{ctx.errors["nna-primary-method"]}</p>
 {" "}</div>
 {" "}<div data-channel="celular" data-contact="nna-primary" hidden={!ctx.shown("nna-primary:celular")}>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-primary-celular">{"Número de celular"}</label>
+{" "}<label htmlFor="nna-primary-celular">{"Número de celular"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-celular").required}>{" *"}</span></label>
 <input aria-describedby="nna-primary-celular-help nna-primary-celular-error" autoComplete="tel" data-mask="mobile" id="nna-primary-celular" inputMode="tel" maxLength={17} name="nna-primary-celular" placeholder="+56 9 XXXX XXXX" type="tel" {...ctx.bind("nna-primary-celular")} />
 {" "}<p className="field-help" id="nna-primary-celular-help">
 </p>
@@ -95,7 +95,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div data-channel="email" data-contact="nna-primary" hidden={!ctx.shown("nna-primary:email")}>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-primary-email">{"Correo electrónico"}</label>
+{" "}<label htmlFor="nna-primary-email">{"Correo electrónico"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-email").required}>{" *"}</span></label>
 <input aria-describedby="nna-primary-email-help nna-primary-email-error" id="nna-primary-email" name="nna-primary-email" placeholder="nombre@ejemplo.cl" type="email" {...ctx.bind("nna-primary-email")} />
 {" "}<p className="field-help" id="nna-primary-email-help">
 </p>
@@ -104,7 +104,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div className="paired-fields" data-channel="social" data-contact="nna-primary" hidden={!ctx.shown("nna-primary:social")}>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-primary-network">{"¿Qué red social utilizas?"}</label>
+{" "}<label htmlFor="nna-primary-network">{"¿Qué red social utilizas?"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-network").required}>{" *"}</span></label>
 {" "}<div className="select-wrap">
 {" "}<select aria-describedby="nna-primary-network-help nna-primary-network-error" id="nna-primary-network" name="nna-primary-network" {...ctx.bind("nna-primary-network")}>
 {" "}<option value="">{"Selecciona una red social"}</option>
@@ -122,11 +122,11 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<p className="field-error" id="nna-primary-network-error" hidden={!ctx.errors["nna-primary-network"]}>{ctx.errors["nna-primary-network"]}</p>
 {" "}</div>
 {" "}<div className="field social-other" hidden={!ctx.shown("nna-primary-other-network-wrap")} id="nna-primary-other-network-wrap">
-{" "}<label htmlFor="nna-primary-other-network">{"¿Cuál red social?"}</label>
+{" "}<label htmlFor="nna-primary-other-network">{"¿Cuál red social?"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-other-network").required}>{" *"}</span></label>
 <input id="nna-primary-other-network" name="nna-primary-other-network" placeholder="Escribe el nombre de la red" type="text" {...ctx.bind("nna-primary-other-network")} />
 {" "}</div>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-primary-handle">{"Tu usuario o enlace de perfil"}</label>
+{" "}<label htmlFor="nna-primary-handle">{"Tu usuario o enlace de perfil"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-handle").required}>{" *"}</span></label>
 <input aria-describedby="nna-primary-handle-help nna-primary-handle-error" id="nna-primary-handle" name="nna-primary-handle" placeholder="Ej.: @usuario" type="text" {...ctx.bind("nna-primary-handle")} />
 {" "}<p className="field-help" id="nna-primary-handle-help">
 </p>
@@ -138,7 +138,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<use href="#i-info">
 </use>
 </svg>
-<span>{"Puedes dejar tu comunicación. Si no indicas un medio\n                        seguro, podría no ser posible contactarte. Esta\n                        alternativa debe validarse con la institución."}</span>
+<span>{"Puedes dejar tu comunicación. Si no indicas un medio\n                        seguro, podría no ser posible contactarte."}</span>
 {" "}</div>
 {" "}<div hidden={!ctx.shown("nna-contact-safety")} id="nna-contact-safety">
 {" "}<div className="field">
@@ -159,7 +159,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 <input id="nna-extra-contact" type="checkbox" {...ctx.check("nna-extra-contact")} />{" Quiero\n                      agregar otra forma de contacto (opcional)"}</label>
 {" "}<div className="pane-fields secondary-contact" hidden={!ctx.shown("nna-secondary-panel")} id="nna-secondary-panel">
 {" "}<div className="field">
-{" "}<label htmlFor="nna-secondary-method">{"Otra forma de contacto"}</label>
+{" "}<label htmlFor="nna-secondary-method">{"Otra forma de contacto"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-method").required}>{" *"}</span></label>
 {" "}<div className="select-wrap">
 {" "}<select aria-describedby="nna-secondary-method-help nna-secondary-method-error" id="nna-secondary-method" name="nna-secondary-method" {...ctx.bind("nna-secondary-method")}>
 {" "}<option value="">{"Selecciona una opción"}</option>
@@ -174,7 +174,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div data-channel="celular" data-contact="nna-secondary" hidden={!ctx.shown("nna-secondary:celular")}>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-secondary-celular">{"Número de celular"}</label>
+{" "}<label htmlFor="nna-secondary-celular">{"Número de celular"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-celular").required}>{" *"}</span></label>
 <input aria-describedby="nna-secondary-celular-help nna-secondary-celular-error" autoComplete="tel" data-mask="mobile" id="nna-secondary-celular" inputMode="tel" maxLength={17} name="nna-secondary-celular" placeholder="+56 9 XXXX XXXX" type="tel" {...ctx.bind("nna-secondary-celular")} />
 {" "}<p className="field-help" id="nna-secondary-celular-help">
 </p>
@@ -183,7 +183,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div data-channel="email" data-contact="nna-secondary" hidden={!ctx.shown("nna-secondary:email")}>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-secondary-email">{"Correo electrónico"}</label>
+{" "}<label htmlFor="nna-secondary-email">{"Correo electrónico"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-email").required}>{" *"}</span></label>
 <input aria-describedby="nna-secondary-email-help nna-secondary-email-error" id="nna-secondary-email" name="nna-secondary-email" placeholder="nombre@ejemplo.cl" type="email" {...ctx.bind("nna-secondary-email")} />
 {" "}<p className="field-help" id="nna-secondary-email-help">
 </p>
@@ -192,7 +192,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div className="paired-fields" data-channel="social" data-contact="nna-secondary" hidden={!ctx.shown("nna-secondary:social")}>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-secondary-network">{"¿Qué red social utilizas?"}</label>
+{" "}<label htmlFor="nna-secondary-network">{"¿Qué red social utilizas?"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-network").required}>{" *"}</span></label>
 {" "}<div className="select-wrap">
 {" "}<select aria-describedby="nna-secondary-network-help nna-secondary-network-error" id="nna-secondary-network" name="nna-secondary-network" {...ctx.bind("nna-secondary-network")}>
 {" "}<option value="">{"\n                                Selecciona una red social\n                              "}</option>
@@ -210,11 +210,11 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<p className="field-error" id="nna-secondary-network-error" hidden={!ctx.errors["nna-secondary-network"]}>{ctx.errors["nna-secondary-network"]}</p>
 {" "}</div>
 {" "}<div className="field social-other" hidden={!ctx.shown("nna-secondary-other-network-wrap")} id="nna-secondary-other-network-wrap">
-{" "}<label htmlFor="nna-secondary-other-network">{"¿Cuál red social?"}</label>
+{" "}<label htmlFor="nna-secondary-other-network">{"¿Cuál red social?"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-other-network").required}>{" *"}</span></label>
 <input id="nna-secondary-other-network" name="nna-secondary-other-network" placeholder="Escribe el nombre de la red" type="text" {...ctx.bind("nna-secondary-other-network")} />
 {" "}</div>
 {" "}<div className="field">
-{" "}<label htmlFor="nna-secondary-handle">{"Tu usuario o enlace de perfil"}</label>
+{" "}<label htmlFor="nna-secondary-handle">{"Tu usuario o enlace de perfil"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-handle").required}>{" *"}</span></label>
 <input aria-describedby="nna-secondary-handle-help nna-secondary-handle-error" id="nna-secondary-handle" name="nna-secondary-handle" placeholder="Ej.: @usuario" type="text" {...ctx.bind("nna-secondary-handle")} />
 {" "}<p className="field-help" id="nna-secondary-handle-help">
 </p>
@@ -233,36 +233,13 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}</div>
 {" "}<div className="step-actions">
-{" "}<span>{"No se consulta ni se muestra información de Registro Civil\n                    en esta vista."}</span>
+{" "}<span>{"Sin RUN no se consulta Registro Civil. Los antecedentes\n                    recuperados no se muestran en esta vista."}</span>
 <button className="btn btn-primary" id="nna-next" type="button" onClick={() => ctx.action("nna-next")} hidden={ctx.full}>{"\n                    Continuar\n                    "}<svg aria-hidden="true" className="icon small">
 {" "}<use href="#i-arrow">
 </use>
 {" "}</svg>
 {" "}</button>
 {" "}</div>
-{" "}<details className="simulator-panel" id="demo-tools-nna">
-{" "}<summary>{"\n                    Resultado SRCeI y herramientas de demostración\n                  "}</summary>
-{" "}<div className="demo-tool-grid">
-{" "}<div className="field">
-{" "}<label htmlFor="demo-srcei-nna">{"Resultado SRCeI (simulado)"}</label>
-{" "}<div className="select-wrap">
-{" "}<select id="demo-srcei-nna" {...ctx.bind("demo-srcei-nna")}>
-{" "}<option value="full">{"Antecedentes recuperados"}</option>
-{" "}<option value="partial">{"\n                            Antecedentes parciales\n                          "}</option>
-{" "}<option value="empty">{"\n                            Sin información concluyente\n                          "}</option>
-{" "}<option value="unavailable">{"\n                            Servicio no disponible\n                          "}</option>
-{" "}</select>
-{" "}</div>
-{" "}<p className="field-help">{"\n                        El resultado nunca revela datos registrales en el\n                        formulario ciudadano.\n                      "}</p>
-{" "}</div>
-{" "}<div className="demo-actions">
-{" "}<button className="btn btn-secondary" id="demo-fill-nna" type="button" onClick={() => ctx.action("demo-fill-nna")}>{"\n                        Cargar datos de demostración"}</button>
-<button className="btn btn-secondary" id="demo-internal-nna" type="button" onClick={() => ctx.action("demo-internal-nna")}>{"\n                        Ver recepción interna simulada\n                      "}</button>
-{" "}</div>
-{" "}</div>
-{" "}<p className="demo-warning">{"\n                    La pantalla simula escenarios sin verificar existencia,\n                    identidad o titularidad de un RUN.\n                  "}</p>
-{" "}<p className="field-help">{"\n                    Solo demostración. La consulta completa omite la\n                    identificación recuperada; la parcial pide lo faltante. Sin\n                    RUN no se consulta.\n                  "}</p>
-{" "}</details>
 {" "}</div>
 {" "}</section>);
 }

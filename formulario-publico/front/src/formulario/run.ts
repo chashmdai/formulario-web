@@ -8,3 +8,10 @@ export function validRun(numero: string, dv: string): boolean {
 }
 export const runNumber = (input: string) => input.replace(/\D/g, '').slice(0, 8);
 export const formatRunNumber = (input: string) => runNumber(input).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+export function pastedRun(input: string): {numero: string; dv: string} | null {
+  const compact=input.trim().replace(/[.\s]/g,'');
+  const explicit=/^([0-9]{1,8})-([0-9Kk])$/.exec(compact);
+  if(explicit)return {numero:explicit[1],dv:explicit[2].toUpperCase()};
+  if(/^[0-9]{8}[0-9Kk]$/.test(compact)||/^[0-9]{1,8}[Kk]$/.test(compact))return {numero:compact.slice(0,-1),dv:compact.slice(-1).toUpperCase()};
+  return null;
+}

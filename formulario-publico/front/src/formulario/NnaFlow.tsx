@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { ChangeEvent, RefObject } from 'react';
 import type { Session } from '../api';
 import type { IdentityView, Journey } from './api';
@@ -10,6 +10,7 @@ import type { FormErrors } from './nnaRules';
 
 export interface Attachment {id: string; nombre: string; tamanio: number; sha256: string; estado: string}
 export interface AttachmentPort {replace: (files: File[]) => Promise<Attachment[]>; clear: () => Promise<void>}
+export interface NnaNavigation {go: (step: number) => void}
 type TextControl = {value: string; onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void; required: boolean; disabled: boolean; 'aria-invalid': boolean};
 export interface NnaContext {
   journey: Journey; session: Session | null; identityRef: RefObject<IdentificationHandle | null>;
@@ -22,14 +23,16 @@ export interface NnaContext {
 interface Props {
   journey: Journey; session: Session | null; full: boolean; filePort: AttachmentPort;
   onStep?: (step: number) => void;
+  navigationRef?: RefObject<NnaNavigation | null>;
+  initialAttachments?: Attachment[];
   onReview: (values: Record<string, string>, identity: IdentityView, attachments: Attachment[]) => Promise<void>;
 }
 /** Dos pasos del mockup. La recepción y la revisión son operaciones del contenedor, nunca simulaciones locales. */
-export function NnaFlow({journey, session, full, filePort, onStep, onReview}: Props) {
+export function NnaFlow({journey, session, full, filePort, onStep, onReview, navigationRef, initialAttachments = []}: Props) {
   const [step, setStep] = useState(1);
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<FormErrors>({});
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
   const [uploading, setUploading] = useState(false);
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState('');
@@ -68,10 +71,16 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview}: Pr
     setErrors(next);
     if (Object.keys(next).length) requestAnimationFrame(() => form.current?.querySelector<HTMLElement>('#nna-errors')?.focus());
   }
+  function focusStep(target: number) {
+    requestAnimationFrame(()=>{
+      document.getElementById(target===1?'nna-step-one':'nna-step-two')?.scrollIntoView?.({block:'start',behavior:'auto'});
+      document.getElementById(target===1?'nna-ident-title':'nna-story-title')?.focus({preventScroll:true});
+    });
+  }
   async function action(id: string) {
     if (working || uploading) return;
     setFailure('');
-    if (id === 'nna-back') {setStep(1);onStep?.(1);return;}
+    if (id === 'nna-back') {setStep(1);onStep?.(1);focusStep(1);return;}
     if (id === 'nna-files-clear') {
       setUploading(true);try {await filePort.clear();if (mounted.current) {setAttachments([]);setErrors(old => {const next = {...old};delete next['nna-files'];return next;});}} catch {if (mounted.current) setFailure('No pudimos quitar los archivos. Inténtalo nuevamente.');}
       finally {if (mounted.current) setUploading(false);}return;
@@ -82,7 +91,7 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview}: Pr
     try {
       const identity = await identityRef.current?.save();
       if (!mounted.current || !identity || Object.keys(next).length) return;
-      if (id === 'nna-next') {setStep(2);onStep?.(2);requestAnimationFrame(() => document.getElementById('nna-story-title')?.focus());}
+      if (id === 'nna-next') {setStep(2);onStep?.(2);focusStep(2);}
       else await onReview(nnaValues(values), identity, attachments);
     } catch {if (mounted.current) setFailure('No pudimos revisar tu comunicación. Inténtalo nuevamente.');}
     finally {if (mounted.current) setWorking(false);}
@@ -103,6 +112,7 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview}: Pr
     }).catch(() => {if (mounted.current) setErrors(old => ({...old, 'nna-files': 'No pudimos recibir estos archivos. Revisa su formato o vuelve a intentarlo.'}));})
       .finally(() => {element.value = '';if (mounted.current) setUploading(false);});
   }
+  useImperativeHandle(navigationRef, () => ({go: target => {if (full) document.getElementById(target === 1 ? 'nna-ident-title' : 'nna-story-title')?.focus();else void action(target === 1 ? 'nna-back' : 'nna-next');}}));
   const ctx: NnaContext = {journey, session, identityRef, full, step, errors, uploading,
     fileFeedback: uploading ? 'Estamos recibiendo tus archivos…' : errors['nna-files'] || (attachments.length ? attachments.map(file => file.nombre).join(' · ') : 'Ningún archivo seleccionado'),
     value, shown, action: id => {void action(id);}, onFiles,

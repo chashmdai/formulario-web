@@ -1,5 +1,5 @@
 import logo from './assets/logo.svg';
-export function InstitutionalHeader({theme, scale, onTheme, onIncrease, onDecrease}: {theme: string; scale: number; onTheme: (v: string) => void; onIncrease: () => void; onDecrease: () => void}) { return <><svg
+export function InstitutionalHeader({theme, scale, onTheme, onIncrease, onDecrease, title = 'Formulario de contacto ciudadano', onHome}: {theme: string; scale: number; onTheme: (v: string) => void; onIncrease: () => void; onDecrease: () => void; title?: string; onHome?: () => void}) { return <><svg
       aria-hidden="true"
       focusable="false"
       className="icon-sprite"
@@ -73,7 +73,7 @@ export function InstitutionalHeader({theme, scale, onTheme, onIncrease, onDecrea
           <div className="service-label">
             <small>Servicios a la ciudadanía</small
             ><strong id="header-form-title"
-              >Formulario de contacto ciudadano</strong
+              >{title}</strong
             >
           </div>
         </div>
@@ -81,7 +81,7 @@ export function InstitutionalHeader({theme, scale, onTheme, onIncrease, onDecrea
           <button
             aria-label="Volver al inicio"
             className="home-nav"
-            hidden
+            hidden={!onHome} onClick={onHome}
             id="go-home"
             type="button"
           >

@@ -37,7 +37,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 </span>
 <span>
 <strong>{"Seleccionar archivos"}</strong>
-<small>{"Opcional. Demostración: máx. 5 archivos, 10 MB c/u\n                            y 25 MB total; límites por validar."}</small>
+<small>{"Opcional. Máx. 5 archivos, 10 MB por archivo\n                            y 25 MB en total."}</small>
 </span>
 </label>
 {" "}</div>
@@ -50,7 +50,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 {" "}<use href="#i-lock">
 </use>
 </svg>
-<span>{"Prototipo de revisión: el texto de privacidad y las\n                    condiciones de recepción deben ser aprobados por la\n                    Defensoría antes de publicar el formulario."}</span>
+<span>{"Tu información se utilizará para gestionar tu comunicación.\n                    Revisa tus datos antes de enviarlos."}</span>
 {" "}</div>
 {" "}<div className="step-actions">
 {" "}<button className="btn btn-secondary" id="nna-back" type="button" onClick={() => ctx.action("nna-back")} hidden={ctx.full}>{"\n                    Volver a mis datos"}</button>

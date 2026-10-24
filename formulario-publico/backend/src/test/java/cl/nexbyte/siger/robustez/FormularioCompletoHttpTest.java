@@ -48,6 +48,8 @@ class FormularioCompletoHttpTest {
         assertFalse(response.contains("APELLIDO"));assertFalse(response.contains("Ñ".repeat(50)));
         mvc.perform(get("/api/formulario/comunicaciones/"+key).secure(true).session(new MockHttpSession())).andExpect(status().isNotFound());
         mvc.perform(get("/api/formulario/comunicaciones/"+key).secure(true).session(session)).andExpect(status().isOk());
+        mvc.perform(get(path+"/comunicacion").secure(true).session(session)).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(key));
+        mvc.perform(get(path+"/comunicacion").secure(true).session(new MockHttpSession())).andExpect(status().isNotFound());
         mvc.perform(post(path+"/personas/presentador-nna/declaracion").secure(true).session(session).with(csrf()).contentType("application/json").content("x".repeat(9000))).andExpect(status().isPayloadTooLarge());
         mvc.perform(post("/integracion/v3/entregas/reclamar").secure(true).header("Authorization","Bearer token-controlado-de-integracion-sintetico-2026").contentType("application/json").content("x".repeat(9000))).andExpect(status().isPayloadTooLarge());
     }

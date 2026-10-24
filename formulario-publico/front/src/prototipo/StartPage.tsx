@@ -43,7 +43,7 @@ export default function StartPage() {
     <a className="skip" href="#landing">Saltar a la selección</a>
     <InstitutionalHeader theme={theme} scale={scale} onTheme={v => setTheme(['light', 'dark', 'contrast'].includes(v) ? v : 'light')}
       onIncrease={() => setScale(v => Math.min(130, v + 10))} onDecrease={() => setScale(v => Math.max(100, v - 10))} />
-    <AudienceSelection onNna={() => window.location.assign('/?formulario=nna')} onAdult={() => { setManualUnavailable(false); dialog.current?.showModal(); }} />
+    <AudienceSelection onNna={() => window.location.assign('/?vista=formulario-nna')} onAdult={() => { setManualUnavailable(false); dialog.current?.showModal(); }} />
     <AdultAccess dialogRef={dialog} onClose={close} onManual={() => beginAdult('manual')} onCu={() => beginAdult('cu')} manualUnavailable={manualUnavailable} />
     {privacyRoute && <PrivacyDialog onClose={() => setPrivacyRoute(null)} onAccept={acceptChannel} />}
     <InstitutionalFooter />

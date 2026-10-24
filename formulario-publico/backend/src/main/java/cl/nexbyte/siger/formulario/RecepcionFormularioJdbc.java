@@ -56,6 +56,10 @@ public final class RecepcionFormularioJdbc {
         sesion(session);var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE id=? AND owner_session=?",id.toString(),session);
         if(rows.isEmpty())throw new FalloTecnico(404);return estado(id,rows.getFirst());
     }
+    public Estado consultarRecorrido(UUID journey,String session){
+        sesion(session);var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE journey_id=? AND owner_session=?",journey.toString(),session);
+        if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();return estado(UUID.fromString(row.get("id").toString()),row);
+    }
     private Estado estado(UUID id,Map<String,Object> row){
         var delivery=leer(row.get("body").toString(),id);
         if(row.get("ack")==null)return new Estado(id,"PENDIENTE_REGISTRO_SIGER",delivery.custodia(),null);

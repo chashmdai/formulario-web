@@ -199,4 +199,18 @@ class RecorridosJdbcTest {
             assertEquals(ResultadoSrcei.Estado.TIMEOUT,service.personasInternas(id,session).getFirst().estadoConsulta());assertEquals(1,queries.get());
         }
     }
+    @Test void recargaNnaResuelveReservaVencidaSinRecibirRunNiReconsultar()throws Exception {
+        var entered=new CountDownLatch(1);var release=new CountDownLatch(1);
+        provider=r->{entered.countDown();try{if(!release.await(3,TimeUnit.SECONDS))throw new IllegalStateException();}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException();}return resultado(ResultadoSrcei.Estado.COMPLETO);};
+        var id=iniciar(Tipo.NNA).id();
+        try(var executor=Executors.newVirtualThreadPerTaskExecutor()) {
+            var first=executor.submit(()->service.identificar(id,"presentador-nna",Rol.PRESENTADOR,"12345678","5",session,"127.0.0.1",null));assertTrue(entered.await(3,TimeUnit.SECONDS));
+            var later=new RecorridosJdbc(db,mapper,r->{throw new AssertionError("No repetir proveedor");},r->true,Clock.offset(clock,Duration.ofSeconds(31)),new byte[32],"ADULTO_LAB_1","NNA_LAB_1");
+            try {
+                var fallback=later.persona(id,"presentador-nna",session);assertEquals("REVISADO",fallback.estado());assertTrue(fallback.runInformado());assertEquals(Set.of("primerNombre","primerApellido"),fallback.camposObligatorios());assertFalse(mapper.writeValueAsString(fallback).contains("12345678"));
+                assertEquals(fallback,later.persona(id,"presentador-nna",session));
+            }finally{release.countDown();}
+            assertThrows(ExecutionException.class,()->first.get(3,TimeUnit.SECONDS));assertEquals(1,queries.get());
+        }
+    }
 }

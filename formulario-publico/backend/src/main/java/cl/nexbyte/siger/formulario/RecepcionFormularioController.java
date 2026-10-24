@@ -23,6 +23,7 @@ public class RecepcionFormularioController {
         return ok(enabled(request).recibir(key,id,SesionIngreso.actual(request),datos));
     }
     @GetMapping("/comunicaciones/{id}") ResponseEntity<RecepcionFormularioJdbc.Estado> consultar(@PathVariable UUID id,HttpServletRequest request){return ok(enabled(request).consultar(id,SesionIngreso.actual(request)));}
+    @GetMapping("/recorridos/{id}/comunicacion") ResponseEntity<RecepcionFormularioJdbc.Estado> consultarRecorrido(@PathVariable UUID id,HttpServletRequest request){return ok(enabled(request).consultarRecorrido(id,SesionIngreso.actual(request)));}
     @GetMapping("/recorridos/{id}/adjuntos") ResponseEntity<List<AdjuntosFormulario.Descriptor>> listar(@PathVariable UUID id,HttpServletRequest request){return ok(adjuntos(request).listar(id,SesionIngreso.actual(request)));}
     @PostMapping(path="/recorridos/{id}/adjuntos",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     ResponseEntity<List<AdjuntosFormulario.Descriptor>> cargar(@PathVariable UUID id,@RequestParam("archivos") List<MultipartFile> batch,HttpServletRequest request)throws IOException {

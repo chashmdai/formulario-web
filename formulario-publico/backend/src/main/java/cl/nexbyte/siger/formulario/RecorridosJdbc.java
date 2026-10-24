@@ -75,8 +75,21 @@ public final class RecorridosJdbc {
     }
     public Vista persona(UUID journey,String person,String session) {
         fila(journey,session,false);
-        var rows=db.sql.queryForList("SELECT body,query_state FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
+        var rows=db.sql.queryForList("SELECT body,query_state,lease_until_ms FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
         if(rows.isEmpty())throw new FalloTecnico(404);
+        if("CONSULTANDO".equals(rows.getFirst().get("query_state"))&&((Number)rows.getFirst().get("lease_until_ms")).longValue()<=clock.millis()) {
+            // Una recarga no conoce el RUN privado: resolver la reserva vencida desde su estado persistido.
+            return db.transaction(()->{
+                var row=fila(journey,session,true);editable(row);
+                var current=db.sql.queryForMap("SELECT body,query_state,lease_until_ms FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
+                var old=leer(current.get("body").toString());
+                if("CONSULTANDO".equals(current.get("query_state"))&&((Number)current.get("lease_until_ms")).longValue()<=clock.millis()) {
+                    old=new Persona(old.id(),old.rol(),old.runNumero(),old.runDv(),old.modulo11(),old.autenticada(),ResultadoSrcei.Estado.TIMEOUT,clock.instant(),UUID.randomUUID(),old.atributos(),old.discrepancias());
+                    db.sql.update("UPDATE citizen_person SET body=?,query_state='REVISADO',query_lease=NULL,lease_until_ms=0 WHERE journey_id=? AND person_id=?",mapper.writeValueAsString(old),journey.toString(),person);
+                }
+                return "REVISADO".equals(current.get("query_state"))||old.estadoConsulta()==ResultadoSrcei.Estado.TIMEOUT?vista(old):new Vista(old.id(),"CONSULTANDO",old.autenticada(),old.runNumero()!=null,Set.of(),Set.of(),Map.of(),"Estamos revisando el RUN.");
+            });
+        }
         var p=leer(rows.getFirst().get("body").toString());
         if("CONSULTANDO".equals(rows.getFirst().get("query_state")))return new Vista(p.id(),"CONSULTANDO",p.autenticada(),p.runNumero()!=null,Set.of(),Set.of(),Map.of(),"Estamos revisando el RUN. Puedes volver a intentar con el mismo recorrido.");
         return vista(p);

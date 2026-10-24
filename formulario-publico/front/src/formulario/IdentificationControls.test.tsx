@@ -1,12 +1,13 @@
 import { createRef } from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IdentificationControls } from './IdentificationControls';
 import type { IdentificationHandle } from './IdentificationControls';
 import type { IdentityView, Journey } from './api';
-import { declarePerson, identifyPerson, resetPerson } from './api';
-vi.mock('./api', () => ({identifyPerson: vi.fn(), declarePerson: vi.fn(), resetPerson: vi.fn()}));
+import { ApiError } from '../api';
+import { declarePerson, getPerson, identifyPerson, resetPerson } from './api';
+vi.mock('./api', () => ({getPerson: vi.fn(), identifyPerson: vi.fn(), declarePerson: vi.fn(), resetPerson: vi.fn()}));
 const journey: Journey = {id: 'recorrido-sintetico', tipo: 'ADULTO_DECLARADO', avisoVersion: 'LAB_1', aceptaCanal: true, estado: 'BORRADOR', venceEn: '2026-10-24T00:00:00Z'};
 const empty = (): IdentityView => ({personaId: 'presentador-adulto', estado: 'REVISADO', autenticada: false, runInformado: true,
   camposFaltantes: ['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido', 'fechaNacimiento', 'sexo'], camposObligatorios: ['primerNombre', 'primerApellido'], valoresDeclarados: {}, mensaje: 'Completa los datos solicitados.'});
@@ -16,12 +17,25 @@ function mount(props: Partial<Parameters<typeof IdentificationControls>[0]> = {}
   return identityRef;
 }
 beforeEach(() => {
-  vi.resetAllMocks();vi.mocked(identifyPerson).mockResolvedValue(empty());vi.mocked(resetPerson).mockResolvedValue(undefined);
+  vi.resetAllMocks();vi.mocked(getPerson).mockRejectedValue(new ApiError(404));vi.mocked(identifyPerson).mockResolvedValue(empty());vi.mocked(resetPerson).mockResolvedValue(undefined);
   vi.mocked(declarePerson).mockImplementation(async (_j, _p, values) => ({...empty(), valoresDeclarados: values}));
 });
 afterEach(() => cleanup());
 async function run() { await userEvent.type(screen.getByRole('textbox', {name: /^RUN/}), '12345678');await userEvent.type(screen.getByRole('textbox', {name: 'Dígito verificador del RUN'}), '5'); }
 describe('Identificación ciudadana conectada al servidor', () => {
+  it('restaura una identificación con RUN sin revelarlo ni repetir consulta al recargar', async () => {
+    vi.mocked(getPerson).mockResolvedValue({...empty(), personaId:'presentador-nna', camposFaltantes:['primerApellido'], camposObligatorios:['primerApellido'], valoresDeclarados:{primerApellido:'DECLARADO'}});
+    mount({journey:{...journey,tipo:'NNA'},nna:true});
+    expect(await screen.findByDisplayValue('DECLARADO')).toBeTruthy();expect(screen.getByText(/Ya informaste un RUN/)).toBeTruthy();
+    expect(identifyPerson).not.toHaveBeenCalled();expect(screen.queryByRole('textbox',{name:/^RUN/})).toBeNull();
+    await userEvent.click(screen.getByRole('button',{name:'Guardar identificación'}));await waitFor(()=>expect(declarePerson).toHaveBeenCalledWith(journey.id,'presentador-nna',{primerApellido:'DECLARADO'}));
+  });
+  it('pegar un RUN completo reparte número y DV como en el mockup', async () => {
+    mount();const input=screen.getByRole('textbox',{name:/^RUN/});
+    fireEvent.paste(input,{clipboardData:{getData:()=> '12.345.678-5'}});
+    expect((input as HTMLInputElement).value).toBe('12.345.678');expect((screen.getByRole('textbox',{name:'Dígito verificador del RUN'}) as HTMLInputElement).value).toBe('5');
+    await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));expect(identifyPerson).toHaveBeenCalledWith(journey.id,'presentador-adulto','PRESENTADOR','12345678','5');
+  });
   it('requiere módulo 11 antes de consultar y permite corregir un DV inválido', async () => {
     mount();await userEvent.click(screen.getByRole('button', {name: 'Revisar RUN'}));
     expect(identifyPerson).not.toHaveBeenCalled();expect(screen.getByText('El número y el dígito verificador no coinciden.')).toBeTruthy();

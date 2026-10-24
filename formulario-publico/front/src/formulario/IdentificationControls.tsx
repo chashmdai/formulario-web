@@ -2,9 +2,9 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode, Ref } from 'react';
 import type { Session } from '../api';
 import { ApiError } from '../api';
-import { declarePerson, identifyPerson, resetPerson } from './api';
+import { declarePerson, getPerson, identifyPerson, resetPerson } from './api';
 import type { Declarations, IdentityField, IdentityView, Journey } from './api';
-import { formatRunNumber, runNumber, validRun } from './run';
+import { formatRunNumber, pastedRun, runNumber, validRun } from './run';
 
 export interface IdentificationHandle { save: () => Promise<IdentityView | null> }
 interface Props {
@@ -82,19 +82,36 @@ export function IdentificationControls({journey, session, nna = false, children,
     } catch (error) { if (token === generation.current) fail(error); return null; }
   }
   useEffect(() => {
-    if (!cu && !nna) return;
     let active = true;
     const token = ++generation.current;
-    // La llamada está deduplicada en el cliente y es idempotente en el backend, incluido StrictMode.
-    void identifyPerson(journey.id, person, 'PRESENTADOR').then(next => {
+    // Restaurar la proyección primero: recargar una página con RUN no consulta otro identificador.
+    void getPerson(journey.id, person).catch(error => {
+      if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      return cu || nna ? identifyPerson(journey.id, person, 'PRESENTADOR') : null;
+    }).then(next => {
       if (active && token === generation.current) {
+        if (!next) return;
         if (cu && !next.autenticada) throw new ApiError(401);
         setView(next); setValues(next.valoresDeclarados); setPhase(next.estado === 'CONSULTANDO' ? 'CONSULTANDO' : 'REVISADO');
+        if (nna && next.runInformado) setKnowsRun(true);
         onResolvedRef.current?.(next);
       }
     }).catch(error => { if (active && token === generation.current) fail(error); });
     return () => { active = false; generation.current++; };
   }, [journey.id, cu, nna, person]);
+  async function refresh() {
+    const token=++generation.current;setPhase('CONSULTANDO');
+    try {const next=await getPerson(journey.id,person);if(token===generation.current)received(next);}
+    catch(error){if(token===generation.current)fail(error);}
+  }
+  useEffect(() => {
+    if (view?.estado !== 'CONSULTANDO' || phase === 'ERROR') return;
+    let active=true;const token=generation.current;
+    const timer=window.setTimeout(()=>{void getPerson(journey.id,person).then(next=>{
+      if(active&&token===generation.current){setView(next);setValues(next.valoresDeclarados);setPhase(next.estado==='CONSULTANDO'?'CONSULTANDO':'REVISADO');onResolvedRef.current?.(next);}
+    }).catch(error=>{if(active&&token===generation.current)fail(error);});},2000);
+    return()=>{active=false;window.clearTimeout(timer);};
+  },[view,phase,journey.id,person]);
 
   async function save(): Promise<IdentityView | null> {
     if (busy) return null;
@@ -144,11 +161,13 @@ export function IdentificationControls({journey, session, nna = false, children,
     && ((identity && verifiedNames[m.key] !== undefined) || view?.camposFaltantes.includes(m.key)));
   const displayedNumber = identity ? formatRunNumber(identity.runNumero || identity.run.split('-')[0]) : numero;
   const displayedDv = identity ? identity.runDv || identity.run.split('-')[1] : dv;
+  const preservedRun = !cu && !!view?.runInformado && !numero && !dv;
   const runControls = <div className="field">
     <label htmlFor={`${prefix}-run`}>RUN{nna ? ' (RUT)' : ''}{nna ? <span className="muted-label"> (opcional)</span> : <span className="identity-source" id="source-run">{cu ? 'ClaveÚnica' : 'Declarado'}</span>}</label>
     <div className="run-split">
       <div className="run-piece"><span className="run-piece-label" aria-hidden="true">Número</span>
         <input id={`${prefix}-run`} name={`${prefix}-run`} value={displayedNumber} onChange={e => changeRun('numero', e.target.value)} readOnly={cu} disabled={busy}
+          onPaste={e=>{if(busy||cu)return;const parsed=pastedRun(e.clipboardData.getData('text'));if(parsed){e.preventDefault();invalidate();setNumero(formatRunNumber(parsed.numero));setDv(parsed.dv);}}}
           inputMode="numeric" maxLength={10} data-mask="run-body" data-run-body="true" placeholder="12.345.678" spellCheck={false}
           required={!cu && !nna} aria-invalid={!!errors.run} aria-describedby={`${prefix}-run-help ${prefix}-run-error`} />
       </div><span className="run-hyphen" aria-hidden="true">-</span>
@@ -166,17 +185,18 @@ export function IdentificationControls({journey, session, nna = false, children,
       <label className="radio-pill"><input type="radio" name="nna-knows-run" checked={knowsRun} onChange={() => changeKnowsRun(true)} disabled={busy} value="yes" /> Sí, quiero ingresarlo</label>
       <label className="radio-pill"><input type="radio" name="nna-knows-run" checked={!knowsRun} onChange={() => changeKnowsRun(false)} disabled={busy} value="no" /> No sé mi RUN / continuar sin RUN</label>
     </div></fieldset>}
-    <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={nna && !knowsRun}>
+    {preservedRun && <div className="field-help"><p>Ya informaste un RUN en este recorrido. No es necesario volver a ingresarlo.</p><button type="button" className="btn btn-secondary" disabled={busy} onClick={invalidate}>Corregir el RUN informado</button></div>}
+    <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={(nna && !knowsRun) || preservedRun}>
       {runControls}
       {!cu && <div className="lookup-actions" id={nna ? undefined : 'manual-verify'}>
         <button className="btn btn-primary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
         {nna && <button className="btn btn-secondary" id="nna-skip-run" type="button" disabled={busy} onClick={() => changeKnowsRun(false)}>Continuar sin RUN</button>}
       </div>}
     </div>
-    <div className="manual-status" id={nna ? 'nna-lookup-status' : 'manual-status'} role="status" aria-live="polite" aria-atomic="true" hidden={!busy && !view && !failure}>
+    <div className="manual-status" id={nna ? 'nna-lookup-status' : 'manual-status'} role="status" aria-live="polite" aria-atomic="true" hidden={!busy && !failure && (!view || (nna && !view.runInformado))}>
       {busy ? 'Estamos revisando tus datos…' : failure || view?.mensaje}
     </div>
-    {phase === 'ERROR' && <button className="btn btn-secondary" type="button" onClick={() => void review()}>Volver a intentar</button>}
+    {phase === 'ERROR' && <button className="btn btn-secondary" type="button" onClick={() => void (view?.estado === 'CONSULTANDO' ? refresh() : review())}>Volver a intentar</button>}
     <div className={nna ? 'form-grid nna-basics' : 'identity-input-grid'} id={nna ? undefined : 'adult-personal-fields'} hidden={!fields.length && !children && !identity}>
       {fields.map(m => {
         const id = `${prefix}-${m.suffix}`, readOnly = !!identity && verifiedNames[m.key] !== undefined;
@@ -185,7 +205,7 @@ export function IdentificationControls({journey, session, nna = false, children,
           onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setValues(old => ({...old, [m.key]: e.target.value})),
           'aria-invalid': !!errors[m.key], 'aria-describedby': `${id}-help ${id}-error`};
         return <div className="field" data-identity-attr={m.suffix} key={m.key}>
-          <label htmlFor={id}>{m.label}{['segundoApellido', 'edad'].includes(m.key) && <span className="muted-label"> {m.key === 'edad' ? '(opcional)' : '(si corresponde)'}</span>}
+          <label htmlFor={id}>{m.label}{(['segundoApellido', 'edad'].includes(m.key) || (nna && m.key === 'segundoNombre')) && <span className="muted-label"> {m.key === 'edad' ? '(opcional)' : '(si corresponde)'}</span>}
             {required && <span aria-hidden="true" className="required-mark"> *</span>}{!nna && <span className="identity-source" id={`source-${m.suffix}`}>{sourceFor(m.key)}</span>}</label>
           {m.key === 'sexo' ? <div className="select-wrap"><select {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Hombre</option><option value="I">Indeterminado</option><option value="U">No hay información</option></select></div>
             : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : 500} {...(m.key === 'edad' ? {min: 0, max: 17, inputMode: 'numeric' as const} : {})} {...(['primerNombre','segundoNombre','primerApellido','segundoApellido'].includes(m.key) ? {'data-name-part': true} : {})} />}
