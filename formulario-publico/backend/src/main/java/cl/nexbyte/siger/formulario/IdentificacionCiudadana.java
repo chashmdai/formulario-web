@@ -81,6 +81,7 @@ public final class IdentificacionCiudadana {
         if(p.rol()==Rol.AFECTADO_NNA || (p.rol()==Rol.PRESENTADOR && p.id().equals("presentador-nna"))) {
             missing.remove("fechaNacimiento"); missing.remove("sexo");
         } else missing.remove("edad");
+        if(p.rol()!=Rol.PRESENTADOR){missing.remove("fechaNacimiento");missing.remove("sexo");}
         p.atributos().forEach((key,value)->{if(util(value))missing.remove(key);});
         if(p.atributos().containsKey("nombres")) missing.removeAll(Set.of("primerNombre","segundoNombre"));
         if(p.atributos().containsKey("apellidos")) missing.removeAll(Set.of("primerApellido","segundoApellido"));

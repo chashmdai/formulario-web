@@ -79,6 +79,8 @@ class AdultosFormularioJdbcTest {
     }
     @Test void personasMultiplesAliasInstitucionYAdultoRelacionadoSeCustodianSinAutenticarlos(){
         iniciar(Tipo.ADULTO_CU);var affected=unknown();person("afectado-2",Rol.AFECTADO_NNA,Map.of("primerNombre","NOMBRE","edad","12"));person("relacionado-1",Rol.ADULTO_RELACIONADO,Map.of());person("senalado-1",Rol.PERSONA_SENALADA,Map.of());
+        assertFalse(journeys.persona(journey,"relacionado-1",session).camposFaltantes().contains("fechaNacimiento"));assertFalse(journeys.persona(journey,"senalado-1",session).camposFaltantes().contains("sexo"));
+        assertThrows(IllegalArgumentException.class,()->journeys.declarar(journey,"relacionado-1",Map.of("fechaNacimiento","2000-01-01"),session));
         var c=violation();c.put("identifica-responsables","true");var people=List.of(affected,new DatosFormulario.Relacion("afectado-2",Map.of("region","13","comuna","Santiago")),new DatosFormulario.Relacion("relacionado-1",Map.of("relacion","Testigo")),new DatosFormulario.Relacion("senalado-1",Map.of("alias","Apodo sintético","rol","Vínculo relatado")));
         var institutions=List.of(new DatosFormulario.Institucion("Entidad sintética","Organismo público","Vínculo relatado","13","Santiago"));service.recibir(UUID.randomUUID(),journey,session,data(c,people,institutions));
         var content=service.reclamar(1).getFirst().entrega().comunicacion();assertEquals(5,content.personas().size());assertEquals(people,content.datos().personas());assertEquals(institutions,content.datos().instituciones());assertEquals(1,content.personas().stream().filter(Persona::autenticada).count());
