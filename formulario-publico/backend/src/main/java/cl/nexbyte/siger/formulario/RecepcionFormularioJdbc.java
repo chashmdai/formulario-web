@@ -37,14 +37,15 @@ public final class RecepcionFormularioJdbc {
             var route=recorridos.bloquearBorrador(journey,session);
             // Otro hilo con la misma clave puede haber confirmado mientras esperábamos el lock del recorrido.
             var repeated=previa(id,journey,session,hash);if(repeated!=null)return repeated;
+            var canonical=ContactosFormulario.normalizar(datos);
             if(!disponible())throw new FalloTecnico(503);
             if(route.tipo()!=Tipo.NNA&&!adultos)throw new FalloTecnico(503);
-            var selected=new HashSet<String>();selected.add(route.tipo()==Tipo.NNA?"presentador-nna":"presentador-adulto");datos.personas().forEach(p->selected.add(p.personaId()));
-            var people=recorridos.personasInternas(journey,session,selected);validation.validar(route.tipo(),datos,people);
+            var selected=new HashSet<String>();selected.add(route.tipo()==Tipo.NNA?"presentador-nna":"presentador-adulto");canonical.personas().forEach(p->selected.add(p.personaId()));
+            var people=recorridos.personasInternas(journey,session,selected);validation.validar(route.tipo(),canonical,people);
             var files=adjuntos.internos(journey);
-            if(!new HashSet<>(datos.adjuntos()).equals(new HashSet<>(files.stream().map(AdjuntosFormulario.Descriptor::id).toList())))throw new IllegalArgumentException("Adjuntos no corresponden al recorrido");
+            if(!new HashSet<>(canonical.adjuntos()).equals(new HashSet<>(files.stream().map(AdjuntosFormulario.Descriptor::id).toList())))throw new IllegalArgumentException("Adjuntos no corresponden al recorrido");
             for(var f:files)adjuntos.contenido(journey,f.id());
-            var content=new EntregaFormulario.Contenido("1.0",id,journey,route.tipo(),clock.instant(),route.avisoVersion(),route.aceptaCanal(),datos,people,files);
+            var content=new EntregaFormulario.Contenido("1.0",id,journey,route.tipo(),clock.instant(),route.avisoVersion(),route.aceptaCanal(),canonical,people,files);
             String bodyHash=CanonFormulario.huella("CONTENIDO",content,mapper),sourceHash=EntregaFormulario.procedencia(content,mapper);
             var proof=ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",id,content.recibidaEn(),"CUSTODIA_PUBLICA",bodyHash,sourceHash,"FORMULARIO_PUBLICO_DDN",route.avisoVersion()),keyId,key,mapper);
             var delivery=new EntregaFormulario(content,bodyHash,sourceHash,proof);delivery.validar(trust,mapper);

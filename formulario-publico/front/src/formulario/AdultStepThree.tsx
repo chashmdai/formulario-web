@@ -1,3 +1,5 @@
+import {MobileInput} from '../ui/MobileInput';
+import {cleanEmail} from './contacts';
 import {AttachmentStatus} from '../ui/AttachmentStatus';
 import type { AdultContext } from "./AdultFlow";
 
@@ -335,18 +337,19 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<div className="char-counter" id="contador">{ctx.value("relato").length} caracteres</div>
 {" "}</div>
 {" "}<div className="field">
-{" "}<label htmlFor="email">{"Correo electrónico de contacto\n                          "}<span className="muted-label">{"(por definir)"}</span>
+{" "}<label htmlFor="email">{"Correo electrónico de contacto\n                          "}<span className="muted-label">{"(opcional)"}</span>
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("email")}>{" *"}</span>
 </label>
-<input autoComplete="email" id="email" inputMode="email" name="email" placeholder="nombre@ejemplo.cl" type="email" {...ctx.bind("email")} maxLength={ctx.maxLength("email")} />
-{" "}<div className="field-help">{"\n                          Podría utilizarse para dar respuesta, según el\n                          procedimiento aprobado.\n                        "}</div>
+<input autoComplete="email" id="email" inputMode="email" name="email" placeholder="nombre@ejemplo.cl" type="email" {...ctx.bind("email")} onBlur={e=>ctx.setValue("email",cleanEmail(e.target.value))} aria-describedby="email-help email-error" maxLength={ctx.maxLength("email")} />
+{" "}<div className="field-help" id="email-help">{"\n                          Podría utilizarse para dar respuesta, según el\n                          procedimiento aprobado.\n                        "}</div>
+<p className="field-error" id="email-error" hidden={!ctx.errors.email}>{ctx.errors.email}</p>
 {" "}</div>
 {" "}<div className="field">
-{" "}<label htmlFor="telefono">{"Celular de contacto\n                          "}<span className="muted-label">{"(por definir)"}</span>
+{" "}<label htmlFor="telefono">{"Celular de contacto\n                          "}<span className="muted-label">{"(opcional)"}</span>
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("telefono")}>{" *"}</span>
 </label>
-<input autoComplete="tel" data-mask="mobile" id="telefono" inputMode="tel" maxLength={17} name="telefono" placeholder="+56 9 XXXX XXXX" type="tel" {...ctx.bind("telefono")} />
-{" "}<p className="field-help">{"\n                          Formato chileno: +56 9 XXXX XXXX.\n                        "}</p>
+<MobileInput id="telefono" name="telefono" value={ctx.value("telefono")} onValueChange={v=>ctx.setValue("telefono",v)} disabled={ctx.bind("telefono").disabled} required={ctx.required("telefono")} aria-invalid={!!ctx.errors.telefono} aria-describedby="telefono-help telefono-error" aria-errormessage={ctx.errors.telefono?"telefono-error":undefined} />
+{" "}<p className="field-help" id="telefono-help">Escribe los ocho dígitos restantes. Puedes pegar el número completo con su prefijo.</p><p className="field-error" id="telefono-error" hidden={!ctx.errors.telefono}>{ctx.errors.telefono}</p>
 {" "}</div>
 {" "}<div className="field">
 {" "}<label htmlFor="adjuntos">{"Documentos o antecedentes\n                          "}<span className="muted-label">{"(opcional)"}</span>

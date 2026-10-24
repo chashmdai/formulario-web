@@ -177,4 +177,23 @@ class FormularioCompletoJdbcTest {
         var ack=new RegistroInstitucional(wrong,ComprobanteInstitucional.firmar(wrong,"institucion",institution.getPrivate(),mapper));
         assertEquals(409,assertThrows(FalloTecnico.class,()->service.confirmar(received.id(),r.reserva(),ack)).status);assertNull(service.consultar(received.id(),session).registro());
     }
+    @Test void contactosNnaSeCustodianCanonicosSinMutarSolicitudYConReintentoExacto()throws Exception {
+        var fields=new HashMap<>(datos().campos());fields.putAll(Map.of("nna-primary-method","celular","nna-primary-celular","+56 9 1234 5678","nna-extra-contact","true","nna-secondary-method","email","nna-secondary-email","  Nombre+Alias@Sub.correo.algo  "));
+        var raw=datos(fields,List.of());var id=UUID.randomUUID();var received=service.recibir(id,journey,session,raw);var body=db.sql.queryForObject("SELECT body FROM citizen_submission WHERE id=?",String.class,id.toString());
+        service=crear();assertEquals(received,service.recibir(id,journey,session,raw));assertEquals(body,db.sql.queryForObject("SELECT body FROM citizen_submission WHERE id=?",String.class,id.toString()));
+        var delivery=service.reclamar(1).getFirst().entrega();delivery.validar(Map.of("publico",signer.getPublic()),mapper);
+        assertEquals("+56912345678",delivery.comunicacion().datos().campos().get("nna-primary-celular"));assertEquals("Nombre+Alias@Sub.correo.algo",delivery.comunicacion().datos().campos().get("nna-secondary-email"));
+        assertEquals("+56 9 1234 5678",raw.campos().get("nna-primary-celular"));var changed=new HashMap<>(fields);changed.put("nna-primary-celular","+56912345678");assertEquals(409,assertThrows(FalloTecnico.class,()->service.recibir(id,journey,session,datos(changed,List.of()))).status);
+    }
+    @Test void custodiaHistoricaYReintentoNoSeNormalizanNiSeRevalidanConReglasNuevas(){
+        var fields=new HashMap<>(datos().campos());fields.putAll(Map.of("nna-primary-method","celular","nna-primary-celular","+56 9 1234 5678","nna-extra-contact","true","nna-secondary-method","email","nna-secondary-email","antes..valido@correo.algo"));
+        var raw=datos(fields,List.of());var id=UUID.randomUUID();var people=journeys.personasInternas(journey,session);
+        var content=new EntregaFormulario.Contenido("1.0",id,journey,Tipo.NNA,clock.instant(),"NNA_LAB_1",false,raw,people,List.of());
+        var hash=CanonFormulario.huella("CONTENIDO",content,mapper);var source=EntregaFormulario.procedencia(content,mapper);var proof=ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",id,content.recibidaEn(),"CUSTODIA_PUBLICA",hash,source,"FORMULARIO_PUBLICO_DDN","NNA_LAB_1"),"publico",signer.getPrivate(),mapper);
+        var delivery=new EntregaFormulario(content,hash,source,proof);String body=mapper.writeValueAsString(delivery);var requestHash=CanonFormulario.huella("SOLICITUD",List.of(journey,session,raw),mapper);
+        db.sql.update("INSERT INTO citizen_submission(id,journey_id,owner_session,request_hash,body,state,created_ms,next_attempt_ms) VALUES(?,?,?,?,?,'PENDIENTE',?,?)",id.toString(),journey.toString(),session,requestHash,body,clock.millis(),clock.millis());db.sql.update("UPDATE citizen_journey SET state='RECIBIDO' WHERE id=?",journey.toString());
+        assertFalse(ContactosFormulario.correoValido(fields.get("nna-secondary-email")));assertEquals(proof,service.consultar(id,session).custodia());assertEquals(proof,service.recibir(id,journey,session,raw).custodia());
+        var recovered=service.reclamar(1).getFirst().entrega();assertEquals(raw,recovered.comunicacion().datos());assertEquals(proof,recovered.custodia());recovered.validar(Map.of("publico",signer.getPublic()),mapper);assertEquals(body,db.sql.queryForObject("SELECT body FROM citizen_submission WHERE id=?",String.class,id.toString()));
+    }
+
 }

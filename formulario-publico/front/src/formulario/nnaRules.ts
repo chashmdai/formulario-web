@@ -1,3 +1,4 @@
+import {canonicalMobile,normalizeContact,validEmail} from './contacts';
 import { comunas, regiones } from './territorio';
 
 export type FormValues = Readonly<Record<string, string>>;
@@ -18,9 +19,7 @@ export function nnaRequired(values: FormValues): string[] {
   return required;
 }
 export function validMobile(value: string): boolean {
-  let digits = value.replace(/\D/g, '');
-  if (digits.length === 11 && digits.startsWith('56')) digits = digits.slice(2);
-  return /^9\d{8}$/.test(digits);
+  return canonicalMobile(value)!==null&&canonicalMobile(value)!=='';
 }
 export function nnaValues(values: FormValues): Record<string, string> {
   const output: Record<string, string> = {};
@@ -34,7 +33,7 @@ export function nnaValues(values: FormValues): Record<string, string> {
     const method = values[`${prefix}-method`];
     if (method) output[`${prefix}-method`] = method;
     const keys = method === 'social' ? ['network','handle', ...(values[`${prefix}-network`] === 'otra' ? ['other-network'] : [])] : method === 'celular' || method === 'email' ? [method] : [];
-    for (const key of keys) if (values[`${prefix}-${key}`]) output[`${prefix}-${key}`] = values[`${prefix}-${key}`];
+    for (const key of keys) if (values[`${prefix}-${key}`]) output[`${prefix}-${key}`] = normalizeContact(`${prefix}-${key}`,values[`${prefix}-${key}`]);
   }
   return output;
 }
@@ -51,8 +50,8 @@ export function validateNna(values: FormValues, story: boolean): FormErrors {
   for (const [id, value] of Object.entries(clean)) {
     if (id === 'nna-story' && !story) continue;
     if (value.length > (id === 'nna-story' ? 5000 : 500)) errors[id] = id === 'nna-story' ? 'Tu relato admite hasta 5000 caracteres.' : 'Este campo admite hasta 500 caracteres.';
-    if (id.endsWith('-email') && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) errors[id] = 'Revisa el formato del correo electrónico.';
-    if (id.endsWith('-celular') && value && !validMobile(value)) errors[id] = 'Ingresa un celular chileno de 9 dígitos: +56 9 XXXX XXXX.';
+    if (id.endsWith('-email') && value && !validEmail(value)) errors[id] = 'Revisa el formato del correo electrónico.';
+    if (id.endsWith('-celular') && value && !validMobile(value)) errors[id] = 'Escribe los ocho dígitos después de +56 9.';
   }
   return errors;
 }

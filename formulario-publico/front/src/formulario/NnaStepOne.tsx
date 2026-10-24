@@ -1,3 +1,5 @@
+import {MobileInput} from '../ui/MobileInput';
+import {cleanEmail} from './contacts';
 import type { NnaContext } from "./NnaFlow";
 import { IdentificationControls } from "./IdentificationControls";
 import { GeoFields } from "./GeoFields";
@@ -81,7 +83,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div data-channel="celular" data-contact="nna-primary" hidden={!ctx.shown("nna-primary:celular")}>
 {" "}<div className="field">
 {" "}<label htmlFor="nna-primary-celular">{"Número de celular"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-celular").required}>{" *"}</span></label>
-<input aria-describedby="nna-primary-celular-help nna-primary-celular-error" autoComplete="tel" data-mask="mobile" id="nna-primary-celular" inputMode="tel" maxLength={17} name="nna-primary-celular" placeholder="+56 9 XXXX XXXX" type="tel" {...ctx.bind("nna-primary-celular")} />
+<MobileInput id="nna-primary-celular" name="nna-primary-celular" value={ctx.value("nna-primary-celular")} onValueChange={v=>ctx.setValue("nna-primary-celular",v)} disabled={ctx.bind("nna-primary-celular").disabled} required={ctx.bind("nna-primary-celular").required} aria-invalid={!!ctx.errors["nna-primary-celular"]} aria-describedby="nna-primary-celular-help nna-primary-celular-error" aria-errormessage={ctx.errors["nna-primary-celular"]?"nna-primary-celular-error":undefined} />
 {" "}<p className="field-help" id="nna-primary-celular-help">
 </p>
 {" "}<p className="field-error" id="nna-primary-celular-error" hidden={!ctx.errors["nna-primary-celular"]}>{ctx.errors["nna-primary-celular"]}</p>
@@ -90,7 +92,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div data-channel="email" data-contact="nna-primary" hidden={!ctx.shown("nna-primary:email")}>
 {" "}<div className="field">
 {" "}<label htmlFor="nna-primary-email">{"Correo electrónico"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-email").required}>{" *"}</span></label>
-<input aria-describedby="nna-primary-email-help nna-primary-email-error" id="nna-primary-email" name="nna-primary-email" placeholder="nombre@ejemplo.cl" type="email" {...ctx.bind("nna-primary-email")} />
+<input aria-describedby="nna-primary-email-help nna-primary-email-error" id="nna-primary-email" name="nna-primary-email" placeholder="nombre@ejemplo.cl" type="email" autoComplete="email" inputMode="email" maxLength={254} {...ctx.bind("nna-primary-email")} onBlur={e=>ctx.setValue("nna-primary-email",cleanEmail(e.target.value))} />
 {" "}<p className="field-help" id="nna-primary-email-help">
 </p>
 {" "}<p className="field-error" id="nna-primary-email-error" hidden={!ctx.errors["nna-primary-email"]}>{ctx.errors["nna-primary-email"]}</p>
@@ -169,7 +171,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div data-channel="celular" data-contact="nna-secondary" hidden={!ctx.shown("nna-secondary:celular")}>
 {" "}<div className="field">
 {" "}<label htmlFor="nna-secondary-celular">{"Número de celular"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-celular").required}>{" *"}</span></label>
-<input aria-describedby="nna-secondary-celular-help nna-secondary-celular-error" autoComplete="tel" data-mask="mobile" id="nna-secondary-celular" inputMode="tel" maxLength={17} name="nna-secondary-celular" placeholder="+56 9 XXXX XXXX" type="tel" {...ctx.bind("nna-secondary-celular")} />
+<MobileInput id="nna-secondary-celular" name="nna-secondary-celular" value={ctx.value("nna-secondary-celular")} onValueChange={v=>ctx.setValue("nna-secondary-celular",v)} disabled={ctx.bind("nna-secondary-celular").disabled} required={ctx.bind("nna-secondary-celular").required} aria-invalid={!!ctx.errors["nna-secondary-celular"]} aria-describedby="nna-secondary-celular-help nna-secondary-celular-error" aria-errormessage={ctx.errors["nna-secondary-celular"]?"nna-secondary-celular-error":undefined} />
 {" "}<p className="field-help" id="nna-secondary-celular-help">
 </p>
 {" "}<p className="field-error" id="nna-secondary-celular-error" hidden={!ctx.errors["nna-secondary-celular"]}>{ctx.errors["nna-secondary-celular"]}</p>
@@ -178,7 +180,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div data-channel="email" data-contact="nna-secondary" hidden={!ctx.shown("nna-secondary:email")}>
 {" "}<div className="field">
 {" "}<label htmlFor="nna-secondary-email">{"Correo electrónico"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-email").required}>{" *"}</span></label>
-<input aria-describedby="nna-secondary-email-help nna-secondary-email-error" id="nna-secondary-email" name="nna-secondary-email" placeholder="nombre@ejemplo.cl" type="email" {...ctx.bind("nna-secondary-email")} />
+<input aria-describedby="nna-secondary-email-help nna-secondary-email-error" id="nna-secondary-email" name="nna-secondary-email" placeholder="nombre@ejemplo.cl" type="email" autoComplete="email" inputMode="email" maxLength={254} {...ctx.bind("nna-secondary-email")} onBlur={e=>ctx.setValue("nna-secondary-email",cleanEmail(e.target.value))} />
 {" "}<p className="field-help" id="nna-secondary-email-help">
 </p>
 {" "}<p className="field-error" id="nna-secondary-email-error" hidden={!ctx.errors["nna-secondary-email"]}>{ctx.errors["nna-secondary-email"]}</p>

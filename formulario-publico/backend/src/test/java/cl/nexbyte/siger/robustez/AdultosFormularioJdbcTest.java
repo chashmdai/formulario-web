@@ -45,7 +45,7 @@ class AdultosFormularioJdbcTest {
     DatosFormulario.Relacion unknown(){person("afectado-1",Rol.AFECTADO_NNA,Map.of());return new DatosFormulario.Relacion("afectado-1",Map.of("datosDesconocidos","true"));}
     @Test void consultaDeclaradaConservaTextoCompletoSinAtribuirClaveUnica(){
         iniciar(Tipo.ADULTO_DECLARADO);var c=general();c.put("consulta-general-detalle","ñ".repeat(5000));c.put("email","sintetico@example.test");c.put("telefono","+56 9 1234 5678");var received=send(c);
-        var delivery=service.reclamar(1).getFirst().entrega();assertEquals(c,delivery.comunicacion().datos().campos());var p=delivery.comunicacion().personas().getFirst();
+        var delivery=service.reclamar(1).getFirst().entrega();assertEquals(ContactosFormulario.normalizar(data(c,List.of(),List.of())).campos(),delivery.comunicacion().datos().campos());var p=delivery.comunicacion().personas().getFirst();
         assertFalse(p.autenticada());assertTrue(p.modulo11());assertEquals(Fuente.DECLARACION_CIUDADANA,p.atributos().get("runNumero").fuente());assertFalse(mapper.writeValueAsString(received).contains("sintetico@example.test"));assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM public_delivery",Integer.class));
     }
     @ParameterizedTest @ValueSource(strings={"estudiante","independiente","prensa","otro"}) void entrevistaCuRespetaPerfilesYCamposActivos(String role){

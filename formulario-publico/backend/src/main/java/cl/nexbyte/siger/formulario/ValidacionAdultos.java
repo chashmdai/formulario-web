@@ -17,8 +17,8 @@ final class ValidacionAdultos {
         if(!selected.equals(byId.keySet()))invalid();
         var c=datos.campos();var allowed=new HashSet<>(Set.of("motivo","adult-region","adult-commune","adult-address","email","telefono","relato"));
         choice(c,"motivo",Set.of("consulta","vulneracion","promocion"),true);required(c,"adult-region");geo(c.get("adult-region"),c.get("adult-commune"));
-        var email=c.getOrDefault("email","");if(!email.isBlank()&&!email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))invalid();
-        var phone=c.getOrDefault("telefono","");if(!phone.isBlank()){var n=phone.replaceAll("\\D","");if(n.length()==11&&n.startsWith("56"))n=n.substring(2);if(!n.matches("9[0-9]{8}"))invalid();}
+        var email=c.getOrDefault("email","");if(!email.isBlank()&&!ContactosFormulario.correoValido(email))invalid();
+        var phone=c.getOrDefault("telefono","");if(!phone.isBlank()&&!ContactosFormulario.celularValido(phone))invalid();
         switch(c.get("motivo")){
             case "consulta"->{
                 if(!datos.personas().isEmpty()||!datos.instituciones().isEmpty())invalid();

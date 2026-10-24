@@ -1,5 +1,5 @@
 import type { FormErrors, FormValues } from './nnaRules';
-import { validMobile } from './nnaRules';
+import { canonicalMobile, normalizeContact, validEmail } from './contacts';
 import type { RelatedRole } from './PersonIdentity';
 import type { IdentityView } from './api';
 import { comunas, regiones } from './territorio';
@@ -35,7 +35,7 @@ export function adultValues(c:FormValues):Record<string,string>{
   }
   if(c.motivo==='vulneracion'){active.push('riesgo','relacion','hechos-region','hechos-commune','lugar','momento','identifica-responsables');if(c.relacion==='otro-familiar')active.push('relacion-familiar');}
   if(c.motivo==='promocion'){active.push('organizacion','actividad','publico','fecha-actividad','promocion-region','promocion-commune');if(c.organizacion==='si')active.push('tipo-organizacion','nombre-organizacion');}
-  return Object.fromEntries(active.filter(id=>c[id]).map(id=>[id,c[id]]));
+  return Object.fromEntries(active.filter(id=>c[id]).map(id=>[id,normalizeContact(id,c[id])]));
 }
 export function validateAdult(c:FormValues,complete=true):FormErrors{
   const errors:FormErrors={};
@@ -50,8 +50,8 @@ export function validateAdult(c:FormValues,complete=true):FormErrors{
   const clean=adultValues(c);
   for(const [id,value] of Object.entries(clean)){
     if(value.length>adultMaxLength(id))errors[id]=`Este campo admite hasta ${adultMaxLength(id)} caracteres.`;
-    if(id==='email'&&value&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))errors[id]='Revisa el formato del correo electrónico.';
-    if(id==='telefono'&&value&&!validMobile(value))errors[id]='Ingresa un celular chileno de 9 dígitos: +56 9 XXXX XXXX.';
+    if(id==='email'&&value&&!validEmail(value))errors[id]='Revisa el formato del correo electrónico.';
+    if(id==='telefono'&&value&&canonicalMobile(value)===null)errors[id]='Escribe los ocho dígitos después de +56 9.';
   }
   for(const prefix of ['adult','hechos','promocion']){
     if(prefix==='hechos'&&c.motivo!=='vulneracion'||prefix==='promocion'&&c.motivo!=='promocion')continue;

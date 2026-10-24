@@ -17,7 +17,7 @@ export interface NnaContext {
   full: boolean; step: number; attachments: Attachment[]; errors: FormErrors; uploading: boolean; fileFeedback: string;
   bind: (id: string) => TextControl;
   check: (id: string) => {checked: boolean; onChange: (e: ChangeEvent<HTMLInputElement>) => void; disabled: boolean};
-  value: (id: string) => string; shown: (id: string) => boolean; action: (id: string) => void;
+  setValue: (id:string,value:string)=>void;value: (id: string) => string; shown: (id: string) => boolean; action: (id: string) => void;
   onFiles: (e: ChangeEvent<HTMLInputElement>) => void;
 }
 interface Props {
@@ -117,7 +117,7 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
   useImperativeHandle(navigationRef, () => ({go: target => {if (full) document.getElementById(target === 1 ? 'nna-ident-title' : 'nna-story-title')?.focus();else void action(target === 1 ? 'nna-back' : 'nna-next');}}));
   const ctx: NnaContext = {journey, session, identityRef, full, step, attachments, errors, uploading,
     fileFeedback: uploading ? 'Estamos recibiendo tus archivos…' : errors['nna-files'] || (attachments.length ? attachments.map(file => file.nombre).join(' · ') : 'Ningún archivo seleccionado'),
-    value, shown, action: id => {void action(id);}, onFiles,
+    value, setValue:changed, shown, action: id => {void action(id);}, onFiles,
     bind: id => ({value: value(id), onChange: e => changed(id, e.target.value), required: required.includes(id) || id === 'nna-story', disabled: disabled(id), 'aria-invalid': !!errors[id], 'aria-errormessage': errors[id]?id+'-summary':undefined}),
     check: id => ({checked: value(id) === 'true', onChange: e => changed(id, String(e.target.checked)), disabled: working || uploading}),
   };

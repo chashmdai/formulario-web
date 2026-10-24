@@ -23,7 +23,7 @@ export interface AdultContext {
   journey:Journey;session:Session|null;identityRef:RefObject<IdentificationHandle|null>;cu:boolean;full:boolean;step:number;
   attachments:Attachment[];busy:boolean;uploading:boolean;errors:FormErrors;ready:boolean;blockIdentity:boolean;guidanceAcknowledged:boolean;
   reasonTitle:string;reasonText:string;fileFeedback:string;
-  value:(id:string)=>string;bind:(id:string)=>Control;check:(id:string)=>Check;radio:(name:string,value:string)=>Check & {value:string};
+  value:(id:string)=>string;setValue:(id:string,value:string)=>void;bind:(id:string)=>Control;check:(id:string)=>Check;radio:(name:string,value:string)=>Check & {value:string};
   required:(id:string)=>boolean;maxLength:(id:string)=>number;shown:(id:string)=>boolean;action:(id:string)=>void;
   communes:(prefix:string)=>readonly string[];onFiles:(e:ChangeEvent<HTMLInputElement>)=>void;
   people:(role:RelatedRole)=>ReactNode;count:(role:RelatedRole)=>number;
@@ -137,7 +137,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
   }
   useImperativeHandle(navigationRef,()=>({go:target=>{void navigate(target);}}));
   const ctx:AdultContext={journey,session,identityRef,attachments,cu:journey.tipo==='ADULTO_CU',full,step,busy:working,uploading,errors,ready,blockIdentity,guidanceAcknowledged,
-    value,shown,action,maxLength:adultMaxLength,required:id=>required.includes(id),communes:prefix=>comunas[value(`${prefix}-region`)]||[],onFiles,
+    value,setValue:changed,shown,action,maxLength:adultMaxLength,required:id=>required.includes(id),communes:prefix=>comunas[value(`${prefix}-region`)]||[],onFiles,
     reasonTitle:reasonCopy[reason]?.[0]||'',reasonText:reasonCopy[reason]?.[1]||'',
     fileFeedback:uploading?'Estamos recibiendo tus archivos…':errors.adjuntos||(attachments.length?attachments.map(f=>f.nombre).join(' · '):'Ningún archivo seleccionado'),
     count:role=>cards.filter(c=>c.role===role).length,

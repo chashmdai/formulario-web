@@ -75,4 +75,8 @@ describe('Recorridos adultos trasladados del mockup',()=>{
     await userEvent.click(within(card).getByRole('button',{name:'Quitar'}));await screen.findByText(/No pudimos quitar esta persona/);expect(byId('relacionado-1')).toBeTruthy();
     await userEvent.click(within(card).getByRole('button',{name:'Quitar'}));await waitFor(()=>expect(document.getElementById('relacionado-1')).toBeNull());expect(resetPerson).toHaveBeenLastCalledWith(journey.id,'relacionado-1');
   });
+  it('permite corregir celular y correo y revisa la representación canónica',async()=>{
+    const {review}=mount();await identity();await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.type(byId('telefono'),'12345678');await userEvent.type(byId('email'),'usuario@@correo.algo');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));expect(review).not.toHaveBeenCalled();await userEvent.clear(byId('email'));await userEvent.type(byId('email'),'Usuario+Alias@sub.correo.algo');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledOnce());expect(review.mock.calls[0][0].campos).toMatchObject({telefono:'+56912345678',email:'Usuario+Alias@sub.correo.algo'});
+  });
+
 });

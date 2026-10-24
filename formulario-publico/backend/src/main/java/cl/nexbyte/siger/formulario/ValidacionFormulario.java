@@ -29,8 +29,8 @@ public final class ValidacionFormulario {
         allowed.add(prefix+"-method");var method=c.get(prefix+"-method");
         if("celular".equals(method)||"email".equals(method)) {
             var key=prefix+"-"+method;allowed.add(key);required(c,key);var value=c.get(key);
-            if(method.equals("email")&&!value.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))invalid();
-            if(method.equals("celular")){var number=value.replaceAll("\\D","");if(number.startsWith("56")&&number.length()==11)number=number.substring(2);if(!number.matches("9[0-9]{8}"))invalid();}
+            if(method.equals("email")&&!ContactosFormulario.correoValido(value))invalid();
+            if(method.equals("celular")&&!ContactosFormulario.celularValido(value))invalid();
         } else if("social".equals(method)) {
             allowed.add(prefix+"-network");allowed.add(prefix+"-handle");required(c,prefix+"-handle");
             choice(c,prefix+"-network",Set.of("Instagram","TikTok","Snapchat","Discord","Facebook","X (Twitter)","otra"),true);

@@ -1,0 +1,65 @@
+{
+  "movilesValidos": [
+    [
+      "12345678",
+      "+56912345678"
+    ],
+    [
+      "912345678",
+      "+56912345678"
+    ],
+    [
+      "56912345678",
+      "+56912345678"
+    ],
+    [
+      "+56 9 1234 5678",
+      "+56912345678"
+    ],
+    [
+      "+56 (9) 1234-5678",
+      "+56912345678"
+    ],
+    [
+      "0056912345678",
+      "+56912345678"
+    ],
+    [
+      "",
+      ""
+    ]
+  ],
+  "movilesInvalidos": [
+    "123",
+    "212345678",
+    "+12345678",
+    "56+912345678",
+    "abc912345678",
+    "9912345678",
+    "+56 2 2345 6789",
+    "+44 20 1234 5678",
+    "++56912345678"
+  ],
+  "correosValidos": [
+    "usuario@correo.algo",
+    "Nombre+Tag@Sub.Correo.algo",
+    "  Usuario+Alias@sub.correo.algo  ",
+    "a_b/o'reilly@example.test"
+  ],
+  "correosInvalidos": [
+    "",
+    "usuario",
+    "usuario@",
+    "@correo.algo",
+    "usuario@correo",
+    "u@@a.b",
+    "u@a..b",
+    ".u@a.b",
+    "u..v@a.b",
+    "u v@a.b",
+    "u@-correo.algo",
+    "u@correo-.algo",
+    "u@correo.algo\r\nBcc:x@y.z",
+    "<u>@correo.algo"
+  ]
+}

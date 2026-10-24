@@ -276,3 +276,11 @@ html[data-theme] .paper:not([hidden]),html[data-theme] .conditional:not([hidden]
 @media(prefers-reduced-motion:reduce){html[data-theme]{scroll-behavior:auto!important}html[data-theme] *,html[data-theme] *::before,html[data-theme] *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 html[data-theme=contrast] :is(.paper,.side-card,.form-toolbar,.audience-card,.dialog,.repeat-card){border-color:#fff;box-shadow:none}html[data-theme=contrast] .paper[data-section-tone]>.paper-top,html[data-theme=contrast] .manual-status,html[data-theme=contrast] .context-card{background:#000}html[data-theme=contrast] .field :is(input,select,textarea):focus{outline:3px solid #ffed55}html[data-theme=contrast] dialog.dialog::backdrop{background:#000c;backdrop-filter:none}html[data-theme=contrast] .audience-card:hover{border-color:#ffed55}html[data-theme=contrast] .landing-orbit{border:1px solid #fff;background:#000}html[data-theme=contrast] :is(.voice-tag,.landing-mark){border-color:#fff}html[data-theme=contrast] .identity-source{border:1px solid #fff;background:#000;color:#fff}
 @media(forced-colors:active){.paper,.audience-card,.side-card,.form-toolbar,.dialog,.btn{border:1px solid CanvasText!important;box-shadow:none!important}.landing-decoration{display:none!important}:focus-visible{outline:3px solid Highlight!important}}
+
+/* Prefijo de celular separado de la edición del número local. */
+html[data-theme] .mobile-input{display:flex;align-items:stretch;min-width:0;border:1px solid var(--linea-fuerte);border-radius:10px;background:var(--field-bg);overflow:visible}
+html[data-theme] .mobile-prefix{display:flex;align-items:center;padding:0 14px;white-space:nowrap;border-right:1px solid var(--neutral-border);border-radius:9px 0 0 9px;background:var(--surface-muted);color:var(--content);font-size:1rem;font-weight:600}
+html[data-theme] .field .mobile-input input{min-width:0;width:100%;border:0;box-shadow:none;border-radius:0 9px 9px 0;background:transparent;outline:none}
+html[data-theme] .mobile-input:focus-within{outline:3px solid var(--focus);outline-offset:3px}
+html[data-theme] .mobile-input:has([aria-invalid=true]){border-color:var(--ui-danger)}
+html[data-theme] .mobile-input:has(:disabled){opacity:.65}
