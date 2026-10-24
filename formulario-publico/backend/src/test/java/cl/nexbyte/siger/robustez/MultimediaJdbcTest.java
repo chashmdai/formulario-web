@@ -109,4 +109,13 @@ class MultimediaJdbcTest{
   assertDoesNotThrow(()->ConfiguracionDatos.validar("jdbc:mysql://127.0.0.1:13306/robust_public_media_lab?sslMode=DISABLED&allowPublicKeyRetrieval=true",true));
   assertThrows(IllegalArgumentException.class,()->ConfiguracionDatos.validar("jdbc:mysql://127.0.0.1:13306/produccion?sslMode=DISABLED",true));assertThrows(IllegalArgumentException.class,()->ConfiguracionDatos.validar("jdbc:mysql://127.0.0.1:13306/robust_public_media_lab?sslMode=DISABLED",false));
  }
+
+ @Test void soloUnAnalisisYCancelaEnCursoSinPublicarNiBorrarElLotePrevio()throws Exception{
+  var prior=upload(text());publish(prior.id());var lote=media.lote(journey,session);var a=send(start("primero pendiente".getBytes(StandardCharsets.UTF_8)),"primero pendiente".getBytes(StandardCharsets.UTF_8));var b=send(start("segundo pendiente".getBytes(StandardCharsets.UTF_8)),"segundo pendiente".getBytes(StandardCharsets.UTF_8));
+  var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);media.close();
+  media=new CargasMultimedia(db,journeys,store,policy,path->{entered.countDown();try{if(!release.await(5,java.util.concurrent.TimeUnit.SECONDS))throw new IOException("Timeout controlado");return true;}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException(e);}},(path,format)->new CargasMultimedia.Inspeccion(format.tipo(),"DESCARGA",null),clock,mapper);
+  try{media.finalizar(journey,a.id(),session);assertTrue(entered.await(3,java.util.concurrent.TimeUnit.SECONDS));assertEquals(429,assertThrows(FalloTecnico.class,()->media.finalizar(journey,b.id(),session)).status);media.cancelar(journey,a.id(),session);assertTrue(Files.exists(store.original(a.id())));assertEquals(lote,media.lote(journey,session));}finally{release.countDown();}
+  long end=System.nanoTime()+3_000_000_000L;while(!Boolean.TRUE.equals(db.sql.queryForObject("SELECT released FROM media_upload WHERE id=?",Boolean.class,a.id().toString()))&&System.nanoTime()<end)Thread.sleep(5);
+  assertTrue(db.sql.queryForObject("SELECT released FROM media_upload WHERE id=?",Boolean.class,a.id().toString()));assertFalse(Files.exists(store.original(a.id())));assertTrue(Files.exists(store.original(prior.id())));assertEquals("CANCELADO",media.estado(journey,a.id(),session).estado());assertEquals(lote,media.lote(journey,session));
+ }
 }
