@@ -2,6 +2,10 @@
 
 Fecha de cliente: 2026-10-23. Continúa la identificación persistente del commit `1e6af92` y los componentes NNA de `9e8eafe`. No sustituye el Encargo Maestro.
 
+## Referencia vigente de integración
+
+El [baseline del 24/10/2026](BASELINE_FORMULARIO_PUBLICO_2026-10-24.md) describe la estructura exacta de la extensión, versiones de ACK por canal, evolución compatible y adaptación pendiente del consumidor SIGER. La normalización de contactos se aplica solo a capturas nuevas antes de firmarlas; las huellas de solicitud, reintentos, contenidos y firmas históricos se conservan. No se modifica el protocolo histórico V3.
+
 ## Alcance efectivo
 
 Implementado en Java/JDBC y probado con H2 y MySQL: recepción NNA con relato íntegro de 5000 caracteres; ubicación, nombre preferido, tratamiento, contacto primario/secundario y precauciones; identidad/procedencia tomada exclusivamente del recorrido de servidor; custodia técnica Ed25519; idempotencia por clave y propietario; congelación del recorrido; cola recuperable, reservas, reintentos, cuarentena y ACK institucional verificado. Las respuestas ciudadanas contienen estado y comprobantes, sin el agregado privado. Un comprobante de custodia no es un folio SIGER.

@@ -84,8 +84,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div className="field">
 {" "}<label htmlFor="nna-primary-celular">{"Número de celular"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-celular").required}>{" *"}</span></label>
 <MobileInput id="nna-primary-celular" name="nna-primary-celular" value={ctx.value("nna-primary-celular")} onValueChange={v=>ctx.setValue("nna-primary-celular",v)} disabled={ctx.bind("nna-primary-celular").disabled} required={ctx.bind("nna-primary-celular").required} aria-invalid={!!ctx.errors["nna-primary-celular"]} aria-describedby="nna-primary-celular-help nna-primary-celular-error" aria-errormessage={ctx.errors["nna-primary-celular"]?"nna-primary-celular-error":undefined} />
-{" "}<p className="field-help" id="nna-primary-celular-help">
-</p>
+{" "}<p className="field-help" id="nna-primary-celular-help">Escribe los ocho dígitos restantes. También puedes pegar el número completo.</p>
 {" "}<p className="field-error" id="nna-primary-celular-error" hidden={!ctx.errors["nna-primary-celular"]}>{ctx.errors["nna-primary-celular"]}</p>
 {" "}</div>
 {" "}</div>
@@ -172,8 +171,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div className="field">
 {" "}<label htmlFor="nna-secondary-celular">{"Número de celular"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-celular").required}>{" *"}</span></label>
 <MobileInput id="nna-secondary-celular" name="nna-secondary-celular" value={ctx.value("nna-secondary-celular")} onValueChange={v=>ctx.setValue("nna-secondary-celular",v)} disabled={ctx.bind("nna-secondary-celular").disabled} required={ctx.bind("nna-secondary-celular").required} aria-invalid={!!ctx.errors["nna-secondary-celular"]} aria-describedby="nna-secondary-celular-help nna-secondary-celular-error" aria-errormessage={ctx.errors["nna-secondary-celular"]?"nna-secondary-celular-error":undefined} />
-{" "}<p className="field-help" id="nna-secondary-celular-help">
-</p>
+{" "}<p className="field-help" id="nna-secondary-celular-help">Escribe los ocho dígitos restantes. También puedes pegar el número completo.</p>
 {" "}<p className="field-error" id="nna-secondary-celular-error" hidden={!ctx.errors["nna-secondary-celular"]}>{ctx.errors["nna-secondary-celular"]}</p>
 {" "}</div>
 {" "}</div>
