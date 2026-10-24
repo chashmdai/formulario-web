@@ -1,3 +1,23 @@
+# Checkpoint vigente — main publicado, contactos y baseline, 24/10/2026
+
+**Rama actual: `main`. Código integrado y publicado mediante push normal.** Primera publicación verificada: **`735013717e4190d63137e5cd693744df6e8f5d4a`**, HEAD local idéntico a `origin/main`. Esta actualización documental se publica después sobre el mismo código; verificar su HEAD contenedor con `git rev-parse HEAD` y `git ls-remote origin refs/heads/main`.
+
+Leer [BASELINE_FORMULARIO_PUBLICO_2026-10-24.md](BASELINE_FORMULARIO_PUBLICO_2026-10-24.md) y [CONSOLIDACION_MAIN_2026-10-24.md](CONSOLIDACION_MAIN_2026-10-24.md). Normalización: `4ad601f`; baseline: `ad18d1a`; consolidación: `7350137`. Todo el historial de RUN/SRCeI, adultos, NNA, custodia, adjuntos y pulido se conserva. Ramas anteriores intactas; no se publicó SIGER institucional.
+
+- **152 pruebas frontend**, lint/build correctos; backend **176 correctas + 1 omisión opcional en H2** y **176 + 1 en MySQL** aislado. No clases de carga.
+- Teléfonos móviles: prefijo fijo +56 9, ocho dígitos editables, pegado/corrección/borrado; captura canónica. Correos recortados, alias/subdominios admitidos y parte local intacta. Opcionales y contacto seguro conservados.
+- No se reescriben históricos ni firmas. Idempotencia de solicitud exacta preservada; prueba de documento histórico no normalizado en ambos motores. Sin nuevas migraciones ni cambios de V3.
+- Navegador: seis recorridos completos controlados también sobre HTTPS, 40 pegados; regresión visual de 110 estados. Sin consultas gubernamentales ni comunicaciones reales nuevas.
+- MySQL de laboratorio: 7 migraciones, 13 custodias y adjuntos protegidos sin modificación de sus CHECKSUM. Los datos de laboratorio de uso/borrador pueden evolucionar; no se recrearon bases o volúmenes.
+- JAR local desde `7350137`, PID observado **146720**, SHA-256 `908dc216d5c0fa6e4abeb96d656e394b4180e932192f01d6504d186ef50cd722`. HTTPS oficial local 443 → 18443; configuración privada y servicios Docker intactos. No es producción.
+- Respaldo previo y reversión sin alterar datos en el informe de consolidación. Evidencias privadas bajo `.local/evidencias/contactos-*`; no están en Git. Historial y archivos actuales auditados antes del push.
+
+**Estado del proyecto:** aproximadamente 96 % según evaluación operativa, no cobertura/certificación/aceptación definitiva. La UI y los requisitos continúan evolucionando. **Siguiente unidad autorizable: adaptar el consumidor SIGER** a `/integracion/v3/formulario-completo/entregas`, sus adjuntos, fuentes, firmas, reservas y ACK después de COMMIT. No reconstruir el formulario ni interpretar la extensión como ya integrada en SIGER. Estrés/hardening y producción siguen fuera de esta unidad.
+
+---
+
+## Checkpoints anteriores preservados como historial
+
 # Checkpoint vigente — Pulido UI/UX, 24 de octubre de 2026
 
 **Unidad visual y UX implementada**, desde `e46b905`, sin reconstruir el formulario. Rama actual: **`pulido-ui-formulario-2026-10-24`**. Commit de implementación: **`512614d`**. Leer [INFORME_UI_UX_2026-10-24.md](INFORME_UI_UX_2026-10-24.md). La rama anterior y sus commits se conservan; sin push.
