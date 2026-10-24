@@ -1,3 +1,4 @@
+import {AttachmentStatus} from '../ui/AttachmentStatus';
 import type { NnaContext } from "./NnaFlow";
 
 /** Estructura y textos del mockup institucional; la lógica reside en NnaFlow. */
@@ -41,7 +42,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 </span>
 </label>
 {" "}</div>
-{" "}<p aria-live="polite" className="file-feedback" id="nna-files-feedback">{ctx.fileFeedback}</p>
+{" "}<AttachmentStatus id="nna-files-feedback" files={ctx.attachments} pending={ctx.uploading} error={ctx.errors["nna-files"]} feedback={ctx.fileFeedback} />
 {" "}<button className="btn btn-secondary remove-files" hidden={!ctx.shown("nna-files-clear")} id="nna-files-clear" type="button" onClick={() => ctx.action("nna-files-clear")}>{"\n                      Quitar archivos seleccionados\n                    "}</button>
 {" "}</div>
 {" "}</div>

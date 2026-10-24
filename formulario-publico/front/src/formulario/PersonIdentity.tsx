@@ -93,7 +93,7 @@ export function PersonIdentity({journey,person,role,identityRef,children,onResol
         <button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>{invalidate();setNumero('');setDv('');void review(true);}}>Continuar sin RUN</button></div>
       <div className="manual-status" id={id('lookup')} role="status" aria-live="polite" hidden={!busy&&!failure&&!view?.runInformado}>{busy?'Estamos revisando los datos…':failure||view?.mensaje}</div>
       {failure&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>{void(view?.estado==='REVISADO'?save():view?.estado==='CONSULTANDO'||preserved||(!numero&&!dv)?refresh():review());}}>Volver a intentar</button>}
-      <p className="field-help">RUN opcional. Completa los antecedentes que conozcas. Este recorrido no consulta los registros de otras personas.</p>
+      <p className="field-help">Puedes informar un RUN si lo conoces. Los datos sobre otras personas se registran como información declarada.</p>
     </div>
     <div className="repeat-fields">
       {fields.filter(f=>(role==='AFECTADO_NNA'||f.key!=='edad')&&view?.camposFaltantes.includes(f.key)).map(f=><div className="field" data-identity-attr={f.suffix} key={f.key}>

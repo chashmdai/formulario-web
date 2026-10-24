@@ -1,0 +1,6 @@
+import type {Attachment} from '../formulario/NnaFlow';
+import {Icon} from './FormChrome';
+export function fileSize(bytes:number){return bytes<1024?`${bytes} B`:new Intl.NumberFormat('es-CL',{maximumFractionDigits:1}).format(bytes/(bytes<1048576?1024:1048576))+(bytes<1048576?' KB':' MB');}
+export function AttachmentStatus({id,files,pending,error,feedback}:{id:string;files:Attachment[];pending:boolean;error?:string;feedback:string}){
+ return <div id={id} className={`attachment-status ${error?'has-error':''}`}><div className="file-feedback" role={error?'alert':'status'} aria-live="polite">{pending&&<span className="ui-spinner" aria-hidden="true"/>}{pending?'Estamos revisando tus archivos…':error||(!files.length?feedback:'Archivos listos para enviar')}</div>{files.length>0&&<><ul className="attachment-list" aria-label={error?'Archivos que se mantienen':'Archivos recibidos'}>{files.map(file=><li key={file.id}><Icon name="paper"/><div><strong>{file.nombre}</strong><small>{fileSize(file.tamanio)}</small></div><span className="attachment-check"><Icon name="check" small/><span className="sr-only">Archivo recibido</span></span></li>)}</ul>{error&&<p className="field-help">Los archivos recibidos anteriormente se conservan.</p>}</>}</div>;
+}

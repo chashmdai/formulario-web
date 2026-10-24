@@ -60,7 +60,7 @@ try{
    await capture('paso3');await page.getByRole('button',{name:'Completo',exact:true}).click();await capture('completo');await page.locator('#theme-choice').selectOption('contrast');await capture('contraste');await page.locator('#theme-choice').selectOption('light');
    await review();await capture('revision');
    if(phase==='recepcion'){
-    const request=page.waitForRequest(r=>r.url().endsWith('/comunicaciones')&&r.method()==='POST');await page.getByRole('button',{name:'Enviar comunicación',exact:true}).click();const sent=await request;await page.locator('#communication-receipt').waitFor();assert.match(await page.locator('#communication-receipt').innerText(),/registro en SIGER está pendiente/);await capture('custodia');
+    const request=page.waitForRequest(r=>r.url().endsWith('/comunicaciones')&&r.method()==='POST');await page.getByRole('button',{name:'Enviar comunicación',exact:true}).click();const sent=await request;await page.locator('#communication-receipt').waitFor();assert.match(await page.locator('#communication-receipt').innerText(),/registro institucional está pendiente/);await capture('custodia');
     item.key=sent.headers()['idempotency-key'];item.body=sent.postDataJSON();const csrf=await (await context.request.get(origin+'/api/csrf')).json();
     const headers={[csrf.headerName]:csrf.token,'Idempotency-Key':item.key};const repeat=await context.request.post(sent.url(),{headers,data:item.body});assert.equal(repeat.status(),200);assert.equal((await repeat.json()).id,item.key);
     const conflict=await context.request.post(sent.url(),{headers,data:{...item.body,campos:{...item.body.campos,'adult-address':'cambio'}}});assert.equal(conflict.status(),409);item.checks.push('idempotencia-identica-y-conflicto');

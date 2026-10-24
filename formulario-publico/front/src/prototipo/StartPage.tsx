@@ -1,3 +1,4 @@
+import {useDialogFocus} from '../ui/useDialogFocus';
 import { useEffect, useRef, useState } from 'react';
 import '@fontsource/cabin/400.css';
 import '@fontsource/cabin/500.css';
@@ -12,6 +13,7 @@ import { ApiError, getSession } from '../api';
 import { getJourneyCapabilities, startJourney } from '../formulario/api';
 import './prototipo.css';
 import './inicio.css';
+import '../ui/experience.css';
 
 /** Portada institucional: registra el aviso y el recorrido antes de abrir el formulario o ClaveÚnica. */
 export default function StartPage({navigate=(url:string)=>window.location.assign(url)}:{navigate?:(url:string)=>void}={}) {
@@ -25,7 +27,7 @@ export default function StartPage({navigate=(url:string)=>window.location.assign
   });
   const [manualUnavailable, setManualUnavailable] = useState(false);
   const [privacyRoute, setPrivacyRoute] = useState<'cu' | 'manual' | null>(null);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);useDialogFocus(dialog);
   const [starting,setStarting]=useState(false),[startError,setStartError]=useState('');
   const pending=useRef(false);
   useEffect(() => {

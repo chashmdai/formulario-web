@@ -3,9 +3,7 @@ export function InstitutionalFooter({note}: {note?:string} = {}) { return <foote
         <div>
           <strong>Defensoría de la Niñez · Formulario Público</strong>
           <p>
-            {note || <>Versión de demostración para revisión. Las integraciones, el
-            tratamiento de datos y las autorizaciones de publicación requieren
-            validación institucional.</>}
+            {note || 'Tu información se utiliza para gestionar tu comunicación.'}
           </p>
         </div>
         <div aria-hidden="true" className="footer-dots">

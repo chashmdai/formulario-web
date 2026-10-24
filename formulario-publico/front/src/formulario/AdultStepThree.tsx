@@ -1,3 +1,4 @@
+import {AttachmentStatus} from '../ui/AttachmentStatus';
 import type { AdultContext } from "./AdultFlow";
 
 /** Estructura y textos trasladados del mockup institucional. */
@@ -120,7 +121,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 </svg>
 {" "}<div>
 {" "}<strong>{"Si hay peligro inmediato"}</strong>
-{" "}<p>{"\n                            Si existe peligro inmediato, contacta a los\n                            servicios de emergencia pertinentes. Este formulario\n                            no sustituye la atención urgente. El protocolo\n                            institucional está pendiente de aprobación.\n                          "}</p>
+{" "}<p>{"\n                            Si existe peligro inmediato, contacta a los\n                            servicios de emergencia pertinentes. Este formulario\n                            no sustituye la atención urgente.\n                          "}</p>
 {" "}</div>
 {" "}</div>
 {" "}<div className="field">
@@ -365,13 +366,13 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 </span>
 </label>
 {" "}</div>
-{" "}<p className="file-feedback" id="archivos-elegidos" aria-live="polite">{ctx.fileFeedback}</p>
+{" "}<AttachmentStatus id="archivos-elegidos" files={ctx.attachments} pending={ctx.uploading} error={ctx.errors.adjuntos} feedback={ctx.fileFeedback} />
 {" "}</div>
 {" "}<div className="manual-location">
 {" "}<div className="pane-head">
 {" "}<div>
 {" "}<h3>{"Ubicación informada por ti"}</h3>
-{" "}<p>{"Estos datos no los entrega la consulta SRCeI."}</p>
+{" "}<p>{"Indica dónde resides para orientar tu comunicación."}</p>
 {" "}</div>
 {" "}</div>
 {" "}<div className="field">
@@ -398,7 +399,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<option value="12">{"\n                                Magallanes y de la Antártica Chilena\n                              "}</option>
 {" "}</select>
 {" "}</div>
-{" "}<p className="field-help" id="adult-region-help">{"\n                            Región donde resides. La obligatoriedad está\n                            propuesta para esta revisión.\n                          "}</p>
+{" "}<p className="field-help" id="adult-region-help">{"\n                            Selecciona la región donde resides.\n                          "}</p>
 {" "}<p className="field-error" id="adult-region-error" hidden={!ctx.errors["adult-region"]}>{ctx.errors["adult-region"]}</p>
 {" "}</div>
 {" "}<div className="field">
@@ -416,7 +417,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="adult-address">{"Dirección\n                            "}<span className="muted-label">{"(si corresponde)"}</span>
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("adult-address")}>{" *"}</span>
 </label>
-<input aria-describedby="adult-address-help adult-address-error" id="adult-address" name="adult-address" placeholder="Dato declarado, no autocompletado desde SRCeI" type="text" {...ctx.bind("adult-address")} maxLength={ctx.maxLength("adult-address")} />
+<input aria-describedby="adult-address-help adult-address-error" id="adult-address" name="adult-address" placeholder="Calle, número o una referencia" type="text" {...ctx.bind("adult-address")} maxLength={ctx.maxLength("adult-address")} />
 {" "}<p className="field-help" id="adult-address-help">
 </p>
 {" "}<p className="field-error" id="adult-address-error" hidden={!ctx.errors["adult-address"]}>{ctx.errors["adult-address"]}</p>

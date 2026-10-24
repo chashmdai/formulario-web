@@ -1,3 +1,5 @@
+import {useDialogFocus} from '../ui/useDialogFocus';
+import {fileSize} from '../ui/AttachmentStatus';
 import { useEffect, useRef } from 'react';
 import type { IdentityView } from './api';
 import type { Attachment } from './NnaFlow';
@@ -20,17 +22,19 @@ function contact(c: Record<string,string>, prefix: string): string {
 export function ReviewNna({review, busy, locked, error, onBack, onSend, onCheck}: {
   review: NnaReview; busy: boolean; locked: boolean; error: string; onBack: () => void; onSend: () => void; onCheck: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);useDialogFocus(dialog);
   useEffect(() => {const current=dialog.current;current?.showModal();return () => current?.close();}, []);
+  useEffect(()=>{if(error)dialog.current?.querySelector<HTMLElement>('[role=alert]')?.scrollIntoView?.({block:'nearest',behavior:'auto'});},[error]);
   const c = review.campos;
+  const treatment=({nombre:'Usar mi nombre',ella:'Ella',el:'Él',elle:'Elle',noresponde:'Prefiero no responder'} as Record<string,string>)[c['nna-treatment']]||c['nna-treatment'];
   return <dialog className="dialog" id="vista-previa" ref={dialog} aria-labelledby="modal-titulo" aria-describedby="modal-descripcion" onCancel={e => {if (locked || busy) e.preventDefault();else onBack();}}>
-    <div className="dialog-head"><div><h2 id="modal-titulo">Revisión de tu comunicación</h2><p id="modal-descripcion">Solo se muestran los datos declarados en el formulario. Revisa tu comunicación antes de enviarla.</p></div>
+    <div className="dialog-head"><div><h2 id="modal-titulo">Revisión de tu comunicación</h2><p id="modal-descripcion">Revisa lo que nos contarás. Si quieres cambiar algo, puedes volver a tus respuestas.</p></div>
       <button type="button" className="dialog-close" aria-label="Cerrar revisión" disabled={busy || locked} onClick={onBack}><svg className="icon"><use href="#i-x" /></svg></button></div>
     <div className="dialog-body" id="resumen">
       <Section title="Sobre ti" rows={[
         ...Object.entries(review.identity.valoresDeclarados).map(([k,v]): [string,string] => [names[k] || k,v || '']),
-        ['RUN',review.identity.runInformado ? 'Informado. La consulta registral no autentica tu identidad.' : 'No informado'],
-        ['Nombre preferido',c['nna-preferred']],['Cómo referirnos a ti',c['nna-treatment'] === 'otra' ? c['nna-treatment-text'] : c['nna-treatment']],
+        ['RUN',review.identity.runInformado ? 'Informado por ti' : 'No informado'],
+        ['Nombre preferido',c['nna-preferred']],['Cómo referirnos a ti',c['nna-treatment'] === 'otra' ? c['nna-treatment-text'] : treatment],
         ['Región',regiones[c['nna-region']]],['Comuna',c['nna-commune']],
       ]} />
       <p className="field-help">Los antecedentes recuperados del Registro Civil se mantienen protegidos y no se muestran aquí.</p>
@@ -39,7 +43,7 @@ export function ReviewNna({review, busy, locked, error, onBack, onSend, onCheck}
         ['Seguridad del contacto',({yes:'Sí',unsure:'No estoy seguro o segura',no:'Necesito acordar otra forma'} as Record<string,string>)[c['nna-safe']]],['Precauciones',c['nna-contact-instructions']],
       ]} />
       <Section title="Tu comunicación" rows={[["Relato",c['nna-story']]]} />
-      <Section title="Archivos adjuntos" rows={review.attachments.length ? review.attachments.map((f,i) => [`Archivo ${i+1}`,`${f.nombre} · ${f.tamanio} bytes`]) : [['Archivos','Sin archivos adjuntos']]} />
+      <Section title="Archivos adjuntos" rows={review.attachments.length ? review.attachments.map((f,i) => [`Archivo ${i+1}`,`${f.nombre} · ${fileSize(f.tamanio)}`]) : [['Archivos','Sin archivos adjuntos']]} />
       {error && <p role="alert" className="field-error">{error}</p>}
     </div>
     <div className="dialog-foot"><p>Al enviar, tu comunicación se conserva para su gestión por la Defensoría.</p><div className="dialog-buttons">

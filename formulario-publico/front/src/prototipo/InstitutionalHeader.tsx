@@ -1,5 +1,6 @@
+import type {ReactNode} from 'react';
 import logo from './assets/logo.svg';
-export function InstitutionalHeader({theme, scale, onTheme, onIncrease, onDecrease, title = 'Formulario de contacto ciudadano', onHome}: {theme: string; scale: number; onTheme: (v: string) => void; onIncrease: () => void; onDecrease: () => void; title?: string; onHome?: () => void}) { return <><svg
+export function InstitutionalHeader({theme, scale, onTheme, onIncrease, onDecrease, title = 'Formulario de contacto', onHome, sessionAction}: {theme: string; scale: number; onTheme: (v: string) => void; onIncrease: () => void; onDecrease: () => void; title?: string; onHome?: () => void;sessionAction?:ReactNode}) { return <><svg
       aria-hidden="true"
       focusable="false"
       className="icon-sprite"
@@ -78,6 +79,7 @@ export function InstitutionalHeader({theme, scale, onTheme, onIncrease, onDecrea
           </div>
         </div>
         <div className="header-actions">
+          {sessionAction}
           <button
             aria-label="Volver al inicio"
             className="home-nav"

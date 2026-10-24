@@ -17,19 +17,19 @@ describe('NNA provisional', () => {
   });
   it('sin RUN prepara y envía datos declarados; una nueva carga empieza vacía', async () => {
     const user = userEvent.setup(); const first = render(<NnaForm />);
-    await screen.findByRole('button', { name: 'Revisar ingreso de prueba' });
+    await screen.findByRole('button', { name: 'Revisar mis respuestas' });
     await user.type(screen.getByLabelText('Primer nombre'), 'María José');
     await user.type(screen.getByLabelText('Primer apellido'), 'Del Río');
     await user.type(screen.getByLabelText('Región'), 'Región sintética');
     await user.type(screen.getByLabelText('Cuéntanos'), 'Relato sintético');
-    await user.click(screen.getByRole('button', { name: 'Revisar ingreso de prueba' }));
-    await user.click(await screen.findByRole('checkbox')); await user.click(screen.getByRole('button', { name: 'Enviar Comunicación de prueba' }));
-    expect(await screen.findByText(/Recepción técnica pendiente/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Revisar mis respuestas' }));
+    await user.click(await screen.findByRole('checkbox')); await user.click(screen.getByRole('button', { name: 'Enviar comunicación' }));
+    expect(await screen.findByText(/registro institucional está pendiente/)).toBeTruthy();
     expect(vi.mocked(api.nnaAdapter).mock.calls.at(-1)?.[0]).toMatchObject({ primerNombre: 'María José', primerApellido: 'Del Río', runNumero: null, runDv: null });
-    first.unmount(); render(<NnaForm />); await screen.findByRole('button', { name: 'Revisar ingreso de prueba' });
+    first.unmount(); render(<NnaForm />); await screen.findByRole('button', { name: 'Revisar mis respuestas' });
     expect((screen.getByLabelText('Primer nombre') as HTMLInputElement).value).toBe('');
     expect((screen.getByLabelText('Cuéntanos') as HTMLTextAreaElement).value).toBe('');
-    expect(screen.queryByText(/Identificador técnico de recepción/)).toBeNull();
+    expect(screen.queryByText(/Referencia de recepción/)).toBeNull();
   });
   it('no muestra campos de ingreso si está cerrado', async () => {
     vi.mocked(api.getNnaCapabilities).mockResolvedValue({ recepcionDisponible: false, avisoVersion: '', aviso: '' });

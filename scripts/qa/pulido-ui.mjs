@@ -1,0 +1,112 @@
+// Auditoría visual: toda API se responde en Playwright; ninguna escritura llega al backend.
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {inspectAccessibility} from './ui-accesibilidad.mjs';
+const require=createRequire(new URL('../../formulario-publico/front/package.json',import.meta.url)),{chromium}=require('playwright');
+const root=fileURLToPath(new URL('../../',import.meta.url)),phase=process.env.UI_PHASE||'despues';
+const output=path.join(root,'.local/evidencias/pulido-ui',phase),origin=process.env.UI_ORIGIN||'http://localhost:5173';
+if(phase==='antes'){try{await fs.access(path.join(output,'auditoria.json'));throw new Error('La evidencia anterior ya existe; usa otra fase.');}catch(e){if(e.code!=='ENOENT')throw e;}}
+await fs.mkdir(output,{recursive:true});
+const browser=await chromium.launch({headless:true,channel:'msedge'}),evidence=[];
+const empty=(id,role,cu=false)=>({personaId:id,estado:'REVISADO',autenticada:cu,runInformado:cu,camposFaltantes:cu?['fechaNacimiento','sexo']:role==='PRESENTADOR'?['primerNombre','segundoNombre','primerApellido','segundoApellido',...(id==='presentador-nna'?['edad']:['fechaNacimiento','sexo'])]:['primerNombre','segundoNombre','primerApellido','segundoApellido',...(role==='AFECTADO_NNA'?['edad']:[])],camposObligatorios:role==='PRESENTADOR'&&!cu?['primerNombre','primerApellido']:[],valoresDeclarados:{},mensaje:'Completa los datos solicitados. La revisión del RUN no acredita tu identidad.'});
+async function fixture(context,kind,{closed=false}={}){
+ const people=new Map(),calls=[],flags={rejectFiles:false,failSend:false,registered:false,lookupDelay:0,lookup:'empty'};
+ let journey=kind?{id:'11111111-1111-4111-8111-111111111111',tipo:kind,avisoVersion:kind==='NNA'?'NNA_1':'ADULTO_1',aceptaCanal:kind!=='NNA',estado:'BORRADOR',venceEn:'2026-10-25T00:00:00Z'}:null,receipt=null,files=[];
+ const proof={algoritmo:'Ed25519',keyId:'QA_VISUAL',payload:'controlado',firma:'controlada'};
+ await context.route('**/api/**',async route=>{
+  const r=route.request(),url=new URL(r.url()),p=url.pathname,m=r.method();calls.push({p,m});let data,status=200;
+  try{
+   const body=m==='POST'&&!p.endsWith('/adjuntos')?r.postDataJSON():null;
+   if(p==='/api/session')data={authenticated:kind==='ADULTO_CU',identity:kind==='ADULTO_CU'?{run:'12345678-5',nombres:'NOMBRE DE PRUEBA',apellidos:'APELLIDO DE PRUEBA',nombresComponentes:['NOMBRE','DE PRUEBA'],apellidosComponentes:['APELLIDO','DE PRUEBA']}:null,environment:'SANDBOX',loginAvailable:true};
+   else if(p==='/api/csrf')data={token:'QA_CONTROLADO',headerName:'X-CSRF-TOKEN',parameterName:'_csrf'};
+   else if(p==='/api/formulario/capacidades')data={disponible:true,avisoAdulto:'ADULTO_1',avisoNna:'NNA_1'};
+   else if(p.endsWith('/recepcion/capacidades'))data={adultos:!closed,nna:!closed};
+   else if(p.endsWith('/actual')){data=journey||{};if(!journey)status=404;}
+   else if(p==='/api/formulario/recorridos'&&m==='POST')data=journey={id:'11111111-1111-4111-8111-111111111111',tipo:body.tipo,avisoVersion:body.avisoVersion,aceptaCanal:body.aceptaCanalDigital,estado:'BORRADOR',venceEn:'2026-10-25T00:00:00Z'};
+   else if(p.endsWith('/adjuntos')){
+    if(m==='POST'&&flags.rejectFiles){status=400;data={};}else{if(m==='POST')files=[{id:'22222222-2222-4222-8222-222222222222',nombre:'antecedentes.txt',tamanio:2456,sha256:'a'.repeat(64),tipo:'text/plain',estado:'VALIDADO'}];if(m==='DELETE')files=[];data=files;}
+   }else if(p.endsWith('/comunicaciones')&&m==='POST'){
+    if(flags.failSend){status=503;data={};flags.failSend=false;}else{receipt={id:r.headers()['idempotency-key'],estado:'PENDIENTE_REGISTRO_SIGER',custodia:proof,registro:null};journey.estado='RECIBIDO';data=receipt;}
+   }else if(p.endsWith('/comunicacion')||p.includes('/comunicaciones/')){
+    data=receipt||{};if(!receipt)status=404;if(receipt&&flags.registered)data={...receipt,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'COM-2026-000123'},comprobante:proof}};
+   }else{
+    const person=/\/personas\/([^/]+)(?:\/(identificacion|declaracion))?$/.exec(p);assert(person,'API ajena al doble');const id=person[1];
+    if(m==='GET'){data=people.get(id)||{};if(!people.has(id))status=404;}
+    else if(m==='DELETE'){people.delete(id);status=204;}
+    else if(person[2]==='identificacion'){
+     if(flags.lookupDelay)await new Promise(resolve=>setTimeout(resolve,flags.lookupDelay));
+     data=empty(id,body.rol,kind==='ADULTO_CU'&&body.rol==='PRESENTADOR');data.runInformado=data.autenticada||!!body.runNumero;
+     if(body.runNumero&&flags.lookup==='complete'){data.camposFaltantes=[];data.camposObligatorios=[];}
+     if(body.runNumero&&flags.lookup==='partial'){data.camposFaltantes=['primerApellido'];data.camposObligatorios=['primerApellido'];}
+     people.set(id,data);
+    }else{data={...people.get(id),valoresDeclarados:body.atributos};people.set(id,data);}
+   }
+   await route.fulfill({status,...(status===204?{}:{contentType:'application/json',body:JSON.stringify(data)})});
+  }catch{await route.abort();throw new Error('Ruta QA sin doble controlado: '+p);}
+ });
+ await context.route('**/oauth2/**',route=>route.fulfill({status:503,body:'Acceso controlado en auditoría visual'}));
+ return {flags,calls};
+}
+async function snapshot(page,key,extra={}){
+ await page.evaluate(async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().filter(a=>a.effect?.getComputedTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});await page.screenshot({path:path.join(output,key+'.png'),fullPage:true});await page.screenshot({path:path.join(output,key+'-pantalla.png'),fullPage:false});
+ const metrics=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,theme:document.documentElement.dataset.theme,scale:document.getElementById('font-status')?.textContent,heading:document.querySelector('main h1,.hero h1')?.textContent,visibleText:document.body.innerText}));
+ const accessibility=phase==='antes'?null:await inspectAccessibility(page);evidence.push({key,...metrics,...extra,accessibility});if(accessibility)assert.equal(accessibility.contrast.failures.length,0,`${key}: contraste insuficiente`);if(accessibility)assert(accessibility.dialogFooterVisible,`${key}: acciones del diálogo fuera de pantalla`);assert(metrics.scrollWidth<=metrics.width,`${key}: desborde horizontal`);
+}
+async function identify(page,cu){if(cu){await page.locator('#adult-run:not(:disabled)').waitFor();return;}await page.locator('#adult-run').fill('12345678');await page.locator('#adult-run-dv').fill('5');await page.locator('#adult-names').waitFor();await page.locator('#adult-names').fill('NOMBRE');await page.locator('#adult-first').fill('APELLIDO');}
+async function reason(page,reason,topic='general'){
+ await page.locator('#adult-next').click();await page.locator('#motivo').waitFor();await page.locator('#motivo').selectOption(reason);
+ if(reason==='consulta'){if(await page.locator('#consulta-orientacion').isVisible()){await page.locator('#consulta-confirmada').check();await page.locator('#confirmar-orientacion').click();}await page.locator('#tema').selectOption(topic);if(topic==='estadisticas')await page.locator('#stats-confirm').check();}
+ await page.locator('#adult-next').click();await page.locator('#informacion').waitFor();
+}
+try{
+ for(const [size,width,height] of [['escritorio',1440,1000],['movil',390,844]]){
+  for(const theme of ['light','dark','contrast']){
+   const c=await browser.newContext({viewport:{width,height},locale:'es-CL'});await fixture(c,null);const p=await c.newPage();await p.goto(origin+'/?vista=inicio',{waitUntil:'domcontentloaded'});await p.locator('#start-adult').waitFor();await p.locator('#theme-choice').selectOption(theme);await snapshot(p,`inicio-${size}-${theme}`);if(theme==='light'){await p.locator('#start-adult').click();await snapshot(p,`acceso-${size}`);await p.locator('#use-manual').click();await snapshot(p,`privacidad-${size}`);
+   if(phase!=='antes'){const dialog=p.getByRole('dialog');const last=dialog.getByRole('button',{name:'Continuar',exact:true});await dialog.getByRole('radio',{name:/^Acepto/}).check();await last.focus();await p.keyboard.press('Tab');assert(await p.evaluate(()=>!!document.activeElement?.closest('dialog[open]')),'El foco sale del diálogo');await snapshot(p,`privacidad-${size}-teclado`);}}await c.close();
+  }
+  for(const [kind,name,why,topic] of [['ADULTO_DECLARADO','consulta','consulta','general'],['ADULTO_DECLARADO','promocion','promocion',''],['ADULTO_DECLARADO','vulneracion','vulneracion',''],['ADULTO_CU','cu','consulta','entrevista']]){
+   const c=await browser.newContext({viewport:{width,height},locale:'es-CL'}),mock=await fixture(c,kind),p=await c.newPage();const errors=[];p.on('pageerror',()=>errors.push('error JS'));
+   await p.goto(origin+`/?vista=formulario-adulto&modo=${kind==='ADULTO_CU'?'cu':'manual'}`,{waitUntil:'domcontentloaded'});await identify(p,kind==='ADULTO_CU');await snapshot(p,`${name}-${size}-identificacion`);await reason(p,why,topic);
+   await p.locator('#revisar').click();await p.locator('#adult-errors').waitFor();await snapshot(p,`${name}-${size}-errores`);
+   await p.locator('#adult-region').selectOption('13');await p.locator('#adult-commune').selectOption('Santiago');
+   if(why==='consulta'&&topic==='general')await p.locator('#consulta-general-detalle').fill('Quisiera orientación sobre los derechos de niños, niñas y adolescentes.');
+   if(topic==='entrevista'){await p.locator('#entrevista-motivo').fill('Conocer el trabajo de la Defensoría.');await p.locator('#entrevista-rol').selectOption('estudiante');await p.locator('#entrevista-entidad').fill('Institución educativa');}
+   if(why==='promocion'){await p.locator('input[name=organizacion][value=si]').check();await p.locator('#tipo-organizacion').selectOption('Establecimiento educacional');await p.locator('#nombre-organizacion').fill('Comunidad educativa');await p.locator('#actividad').selectOption('Taller');await p.locator('#publico').fill('Estudiantes y familias');await p.locator('#relato').fill('Nos gustaría conocer herramientas para promover los derechos de la niñez.');}
+   if(why==='vulneracion'){await p.locator('#riesgo-no').check();await p.locator('#relacion').selectOption('docente');await p.locator('#relato').fill('Quisiera informar una situación que afecta a un niño y recibir orientación.');await p.locator('#af-unknown-1').check();await p.locator('#identifica-responsables').check();await p.locator('#sb-kind-1').selectOption('institucion');await p.locator('#sb-entity-1').fill('Institución informada');await p.locator('#add-related-adult').click();await p.locator('#ra-relationship-1').selectOption('Testigo');}
+   await snapshot(p,`${name}-${size}-campos`);
+   if(phase!=='antes'&&name==='vulneracion'){
+    await p.getByRole('button',{name:'Completo',exact:true}).click();await snapshot(p,`adulto-${size}-completo`);
+    for(const theme of ['dark','contrast']){await p.locator('#theme-choice').selectOption(theme);await snapshot(p,`adulto-${size}-${theme}`);}
+    for(let i=0;i<3;i++)await p.locator('#font-increase').click();await snapshot(p,`adulto-${size}-texto130`);for(let i=0;i<3;i++)await p.locator('#font-decrease').click();await p.locator('#theme-choice').selectOption('light');await p.getByRole('button',{name:'Por pasos',exact:true}).click();
+   }
+   if(name==='consulta'){
+    mock.flags.rejectFiles=true;await p.locator('#adjuntos').setInputFiles({name:'antecedentes.txt',mimeType:'text/plain',buffer:Buffer.from('Datos sintéticos')});await p.locator('#archivos-elegidos').filter({hasText:'No pudimos'}).waitFor();await snapshot(p,`adjunto-rechazado-${size}`);mock.flags.rejectFiles=false;await p.locator('#adjuntos').setInputFiles({name:'antecedentes.txt',mimeType:'text/plain',buffer:Buffer.from('Datos sintéticos')});await p.locator('#archivos-elegidos').filter({hasText:'antecedentes.txt'}).waitFor();
+   }
+   await p.locator('#revisar').click();await p.locator('#vista-previa').waitFor();await snapshot(p,`${name}-${size}-revision`);
+   if(phase!=='antes'&&name==='consulta'){for(const theme of ['dark','contrast']){await p.evaluate(t=>{document.documentElement.dataset.theme=t;},theme);await snapshot(p,`revision-${size}-${theme}`);}await p.evaluate(()=>{document.documentElement.dataset.theme='light';});}
+   if(name==='consulta'){mock.flags.failSend=true;await p.locator('#vista-previa').getByRole('button',{name:'Enviar comunicación',exact:true}).click();await p.locator('#vista-previa [role=alert]').waitFor();await snapshot(p,`envio-error-${size}`);}
+   await p.locator('#vista-previa .btn-primary').click();await p.locator('#communication-receipt').waitFor();await snapshot(p,`${name}-${size}-recibido`);
+   if(name==='consulta'){mock.flags.registered=true;await p.getByRole('button',{name:'Actualizar estado'}).click();await snapshot(p,`registrado-${size}`);}
+   assert.deepEqual(errors,[]);await c.close();
+  }
+  const c=await browser.newContext({viewport:{width,height},locale:'es-CL'});await fixture(c,'NNA');const p=await c.newPage();await p.goto(origin+'/?vista=formulario-nna',{waitUntil:'domcontentloaded'});await p.locator('#nna-names').waitFor();await snapshot(p,`nna-${size}-paso1`);await p.locator('#nna-next').click();await snapshot(p,`nna-${size}-errores`);await p.locator('#nna-names').fill('NOMBRE');await p.locator('#nna-first').fill('APELLIDO');await p.locator('#nna-region').selectOption('13');await p.locator('#nna-primary-method').selectOption('email');await p.locator('#nna-primary-email').fill('contacto@example.invalid');await p.locator('#nna-safe').selectOption('unsure');await p.locator('#nna-extra-contact').check();await p.locator('#nna-secondary-method').selectOption('social');await p.locator('#nna-secondary-network').selectOption('otra');await p.locator('#nna-secondary-other-network').fill('Otra red');await p.locator('#nna-secondary-handle').fill('@contacto');await snapshot(p,`nna-${size}-contactos`);await p.locator('#nna-next').click();await p.locator('#nna-story').waitFor();await p.locator('#nna-story').fill('Quiero contar algo que me preocupa y pedir orientación.');await snapshot(p,`nna-${size}-paso2`);
+  if(phase!=='antes'){await p.getByRole('button',{name:'Completo',exact:true}).click();await p.locator('#nna-names').fill('');await p.getByRole('button',{name:'Por pasos',exact:true}).click();await p.locator('#nna-review').click();await p.locator('#nna-names').waitFor({state:'visible'});await snapshot(p,`nna-${size}-identificacion-por-corregir`);await p.locator('#nna-names').fill('NOMBRE');await p.locator('#nna-next').click();await p.locator('#nna-story').waitFor();}
+  for(const theme of ['dark','contrast']){await p.locator('#theme-choice').selectOption(theme);await snapshot(p,`nna-${size}-${theme}`);}await p.locator('#font-increase').click();await p.locator('#font-increase').click();await p.locator('#font-increase').click();await snapshot(p,`nna-${size}-texto130`);await p.locator('#theme-choice').selectOption('light');await p.locator('#nna-review').click();await p.locator('#vista-previa').waitFor();await snapshot(p,`nna-${size}-revision`);await p.locator('#vista-previa .btn-primary').click();await p.locator('#communication-receipt').waitFor();await snapshot(p,`nna-${size}-recibido`);await c.close();
+  const closed=await browser.newContext({viewport:{width,height},locale:'es-CL'});await fixture(closed,'ADULTO_DECLARADO',{closed:true});const cp=await closed.newPage();await cp.goto(origin+'/?vista=formulario-adulto&modo=manual',{waitUntil:'domcontentloaded'});await cp.locator('#adult-run').waitFor();await snapshot(cp,`recepcion-cerrada-${size}`);await closed.close();
+  if(phase!=='antes'){
+   const a=await browser.newContext({viewport:{width,height},locale:'es-CL',reducedMotion:'reduce'}),am=await fixture(a,'ADULTO_DECLARADO'),ap=await a.newPage();
+   await ap.goto(origin+'/?vista=formulario-adulto&modo=manual',{waitUntil:'domcontentloaded'});await identify(ap,false);
+   await ap.getByRole('button',{name:'Volver al inicio',exact:true}).click();await ap.getByRole('dialog').waitFor();await snapshot(ap,`salir-${size}`);await ap.keyboard.press('Escape');assert.equal(await ap.getByRole('dialog').count(),0);assert.equal(await ap.locator('#adult-names').inputValue(),'NOMBRE');
+   await ap.locator('#adult-next').click();await ap.locator('#motivo').selectOption('consulta');await ap.locator('#consulta-confirmada').check();await ap.locator('#confirmar-orientacion').click();await ap.locator('#tema').selectOption('empleo');await snapshot(ap,`empleo-${size}`);await ap.locator('#tema').selectOption('estadisticas');await snapshot(ap,`estadisticas-${size}-orientacion`);await ap.locator('#stats-confirm').check();await ap.locator('#adult-next').click();await snapshot(ap,`estadisticas-${size}-campos`);
+   await ap.getByRole('button',{name:'Tus datos',exact:true}).click();await ap.locator('#adult-run').fill('11111111');am.flags.lookup='partial';am.flags.lookupDelay=1600;await ap.locator('#adult-run-dv').fill('1');await ap.locator('#manual-status').filter({hasText:'Estamos revisando'}).waitFor();await snapshot(ap,`identificacion-${size}-carga`);await ap.locator('#adult-first').waitFor();assert.equal(await ap.locator('#adult-names').count(),0);await snapshot(ap,`identificacion-${size}-parcial`);
+   am.flags.lookup='complete';am.flags.lookupDelay=0;await ap.locator('#adult-run').fill('12345678');await ap.locator('#adult-run-dv').fill('5');await ap.locator('#adult-first').waitFor({state:'detached'});await snapshot(ap,`identificacion-${size}-completa`);const queriesBeforeReload=am.calls.filter(c=>c.m==='POST'&&c.p.endsWith('/identificacion')).length;await ap.reload({waitUntil:'domcontentloaded'});await ap.locator('#verify-manual:not(:disabled)').waitFor();assert.equal(am.calls.filter(c=>c.m==='POST'&&c.p.endsWith('/identificacion')).length,queriesBeforeReload);await snapshot(ap,`identificacion-${size}-restaurada`);
+   const motion=await ap.evaluate(()=>Array.from(document.querySelectorAll('*')).filter(e=>getComputedStyle(e).animationName!=='none'||getComputedStyle(e).transitionDuration.split(',').some(s=>parseFloat(s)>0)).length);assert.equal(motion,0);await a.close();
+   const nc=await browser.newContext({viewport:{width:Math.min(width,320),height},locale:'es-CL'});await fixture(nc,'NNA');const np=await nc.newPage();await np.goto(origin+'/?vista=formulario-nna',{waitUntil:'domcontentloaded'});await np.locator('#nna-names').waitFor();await np.getByRole('button',{name:'Completo',exact:true}).click();for(let i=0;i<3;i++)await np.locator('#font-increase').click();await snapshot(np,`nna-${size}-320-texto130-completo`);await nc.close();
+  }
+  console.log(`${phase}/${size}: recorridos controlados capturados`);
+ }
+}catch(e){console.log('Auditoría detenida: '+String(e.message));console.log(e.stack?.split('\n').slice(1,3).join('\n'));process.exitCode=1;}
+finally{await fs.writeFile(path.join(output,'auditoria.json'),JSON.stringify(evidence,null,2));await browser.close();}

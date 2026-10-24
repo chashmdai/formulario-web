@@ -21,7 +21,7 @@ type Check={checked:boolean;onChange:(e:ChangeEvent<HTMLInputElement>)=>void;dis
 export interface AdultNavigation {go:(step:number)=>void}
 export interface AdultContext {
   journey:Journey;session:Session|null;identityRef:RefObject<IdentificationHandle|null>;cu:boolean;full:boolean;step:number;
-  busy:boolean;uploading:boolean;errors:FormErrors;ready:boolean;blockIdentity:boolean;guidanceAcknowledged:boolean;
+  attachments:Attachment[];busy:boolean;uploading:boolean;errors:FormErrors;ready:boolean;blockIdentity:boolean;guidanceAcknowledged:boolean;
   reasonTitle:string;reasonText:string;fileFeedback:string;
   value:(id:string)=>string;bind:(id:string)=>Control;check:(id:string)=>Check;radio:(name:string,value:string)=>Check & {value:string};
   required:(id:string)=>boolean;maxLength:(id:string)=>number;shown:(id:string)=>boolean;action:(id:string)=>void;
@@ -53,6 +53,12 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
   const ready=!!reason&&(reason!=='consulta'||value('consulta-confirmada')==='true'&&['general','entrevista','estadisticas'].includes(topic)&&(topic!=='estadisticas'||value('stats-confirm')==='true'));
   const blockIdentity=reason==='consulta'&&(topic==='empleo'||topic==='estadisticas'&&!ready);
   function focusStep(target:number){requestAnimationFrame(()=>{const element=document.getElementById(['identificacion','motivo-seccion','informacion'][target-1]);element?.scrollIntoView?.({block:'start',behavior:'auto'});element?.querySelector<HTMLElement>('h2')?.focus({preventScroll:true});});}
+  function focusField(id:string){
+    const element=document.getElementById(id)||form.current?.querySelector<HTMLElement>(`[name="${id}"]`);
+    const section=element?.closest<HTMLElement>('section.paper');
+    if(section&&!full){const target=[`identificacion`,`motivo-seccion`,`informacion`].indexOf(section.id)+1;if(target){setStep(target);onStep?.(target);}}
+    requestAnimationFrame(()=>{element?.scrollIntoView?.({block:'center',behavior:'auto'});element?.focus();});
+  }
   function report(next:FormErrors){setErrors(next);if(Object.keys(next).length)requestAnimationFrame(()=>document.getElementById('adult-errors')?.focus());}
   function add(role:RelatedRole){
     if(cards.length>=29||sequence.current[role]>=99){setFailure('Has alcanzado el límite de personas de este recorrido. Continúa con las tarjetas existentes.');return;}
@@ -101,7 +107,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
     if(pending.current||uploading)return;pending.current=true;setWorking(true);setFailure('');
     const next={...validateAdult(values),...(errors.adjuntos?{adjuntos:errors.adjuntos}:{})};
     try {
-      const presenter=await identityRef.current?.save();if(!presenter||!mounted.current)return;
+      const presenter=await identityRef.current?.save();if(!mounted.current)return;if(!presenter){setStep(1);onStep?.(1);focusStep(1);return;}
       const publicPeople=new Map<string,IdentityView>();
       for(const card of activeCards(values,cards)){
         if(card.role==='PERSONA_SENALADA'&&card.kind==='institucion')continue;
@@ -130,7 +136,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
     else if(id==='agregar-afectado')add('AFECTADO_NNA');else if(id==='agregar-responsable')add('PERSONA_SENALADA');else if(id==='add-related-adult')add('ADULTO_RELACIONADO');
   }
   useImperativeHandle(navigationRef,()=>({go:target=>{void navigate(target);}}));
-  const ctx:AdultContext={journey,session,identityRef,cu:journey.tipo==='ADULTO_CU',full,step,busy:working,uploading,errors,ready,blockIdentity,guidanceAcknowledged,
+  const ctx:AdultContext={journey,session,identityRef,attachments,cu:journey.tipo==='ADULTO_CU',full,step,busy:working,uploading,errors,ready,blockIdentity,guidanceAcknowledged,
     value,shown,action,maxLength:adultMaxLength,required:id=>required.includes(id),communes:prefix=>comunas[value(`${prefix}-region`)]||[],onFiles,
     reasonTitle:reasonCopy[reason]?.[0]||'',reasonText:reasonCopy[reason]?.[1]||'',
     fileFeedback:uploading?'Estamos recibiendo tus archivos…':errors.adjuntos||(attachments.length?attachments.map(f=>f.nombre).join(' · '):'Ningún archivo seleccionado'),
@@ -145,7 +151,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],n
   return <>
     {(working||uploading)&&<p role="status">Estamos revisando o guardando tus datos…</p>}
     <form id="formulario" data-audience="adult" autoComplete="off" noValidate ref={form} onSubmit={e=>e.preventDefault()} aria-busy={working||uploading} inert={working||uploading}>
-      <div className="error-summary" id="adult-errors" tabIndex={-1} role="alert" hidden={!Object.keys(errors).length}><p>Revisa estos campos para continuar:</p><ul>{Object.entries(errors).map(([id,message])=><li key={id} id={id+'-summary'}><a href={`#${id}`} onClick={e=>{e.preventDefault();(document.getElementById(id)||form.current?.querySelector<HTMLElement>(`[name="${id}"]`))?.focus();}}>{message}</a></li>)}</ul></div>
+      <div className="error-summary" id="adult-errors" tabIndex={-1} role="alert" hidden={!Object.keys(errors).length}><p>Revisa estos campos para continuar:</p><ul>{Object.entries(errors).map(([id,message])=><li key={id} id={id+'-summary'}><a href={`#${id}`} onClick={e=>{e.preventDefault();focusField(id);}}>{message}</a></li>)}</ul></div>
       {failure&&<p className="field-error" role="alert">{failure}</p>}
       <AdultStepOne ctx={ctx} /><AdultStepTwo ctx={ctx} /><AdultStepThree ctx={ctx} />
       {step===3||full?<button type="button" className="btn btn-secondary remove-files" hidden={!attachments.length&&!errors.adjuntos} disabled={working||uploading} onClick={()=>{void clearFiles();}}>Quitar archivos seleccionados</button>:null}

@@ -37,7 +37,7 @@ try {
         await page.locator('#nna-files-feedback').filter({hasText:'respaldo.txt'}).waitFor();
         await page.locator('#nna-review').click();await page.getByRole('dialog').waitFor({state:'visible'});await capture('revision');
         await page.getByRole('button',{name:'Enviar comunicación',exact:true}).click();await page.locator('#communication-receipt').waitFor();
-        assert.match(await page.locator('#communication-receipt').innerText(),/registro en SIGER está pendiente/);await capture('custodia');
+        assert.match(await page.locator('#communication-receipt').innerText(),/registro institucional está pendiente/);await capture('custodia');
         await page.reload({waitUntil:'domcontentloaded'});await page.locator('#communication-receipt').waitFor();await capture('recarga');
       }
       assert.deepEqual(errors,[],`${kind}/${size}: error JavaScript`);await context.close();console.log(`${kind}/${size}: recorrido capturado y sin desborde`);

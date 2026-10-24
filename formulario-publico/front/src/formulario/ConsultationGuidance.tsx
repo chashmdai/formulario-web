@@ -1,7 +1,8 @@
+import {useDialogFocus} from '../ui/useDialogFocus';
 import { useEffect, useRef } from "react";
 import type { AdultContext } from "./AdultFlow";
 export function ConsultationGuidance({ctx}:{ctx:AdultContext}) {
- const dialog=useRef<HTMLDialogElement>(null);
+ const dialog=useRef<HTMLDialogElement>(null);useDialogFocus(dialog);
  useEffect(()=>{const current=dialog.current;current?.showModal();return()=>current?.close();},[]);
  return (<dialog aria-describedby="orientacion-desc" aria-labelledby="orientacion-title" className="dialog orientation-dialog" id="consulta-orientacion" ref={dialog} onCancel={() => ctx.action("orientacion-close")}>{" "}<div className="dialog-head">{" "}<div>{" "}<span className="mini-tag">{"PASO PREVIO"}</span>{" "}<h2 id="orientacion-title">{"¿Qué necesitas comunicar?"}</h2>{" "}<p id="orientacion-desc">{"\n            Consulta las vías disponibles antes de ingresar tus antecedentes\n            personales.\n          "}</p>{" "}</div>{" "}<button aria-label="Cerrar orientación" className="dialog-close" id="orientacion-close" type="button" onClick={() => ctx.action("orientacion-close")}>{" "}<svg className="icon">
 <use href="#i-x">

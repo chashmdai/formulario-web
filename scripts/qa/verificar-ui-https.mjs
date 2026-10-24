@@ -1,0 +1,11 @@
+import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import fs from 'node:fs/promises';import path from 'node:path';import assert from 'node:assert/strict';
+const root=fileURLToPath(new URL('../../',import.meta.url)),require=createRequire(new URL('../../formulario-publico/front/package.json',import.meta.url)),{chromium}=require('playwright'),out=path.join(root,'.local/evidencias/pulido-ui');
+const index=await fs.readFile(path.join(root,'formulario-publico/front/dist/index.html'),'utf8'),asset=index.match(/src=\"([^\" ]+\.js)\"/)[1];
+const browser=await chromium.launch({headless:true,channel:'msedge'}),results=[];
+try{for(const [size,width,height] of [['escritorio',1440,1000],['movil',390,844]]){
+ const c=await browser.newContext({viewport:{width,height},locale:'es-CL'}),p=await c.newPage(),errors=[];let api=0;
+ await c.route('**/api/**',route=>{api++;return route.abort();});await c.route('**/oauth2/**',route=>route.abort());p.on('pageerror',()=>errors.push('error JS'));
+ const response=await p.goto('https://claveunica.formularioadulto.defensorianinez.gob.cl/?vista=inicio',{waitUntil:'domcontentloaded'});assert.equal(response.status(),200);await p.locator('#start-adult').waitFor();await p.evaluate(()=>document.fonts.ready);assert.equal((await p.locator('.landing-copy h1').innerText()).replace(/\s+/g,' '),'Estamos aquí para escucharte.');
+ const css=await p.evaluate(()=>({logo:document.querySelector('.logo').getBoundingClientRect().width,header:document.querySelector('.site-header').getBoundingClientRect().height,overflow:document.documentElement.scrollWidth>innerWidth,scripts:Array.from(document.scripts).map(s=>s.src).filter(Boolean)}));assert.equal(css.overflow,false);assert(css.scripts.some(s=>s.endsWith(asset)));assert.deepEqual(errors,[]);assert.equal(api,0);await p.screenshot({path:path.join(out,`https-local-${size}.png`),fullPage:true});results.push({size,status:response.status(),tlsVerificado:true,apiLlamadas:api,errores:errors.length,...css});await c.close();
+}}finally{await fs.writeFile(path.join(out,'https-local.json'),JSON.stringify(results,null,2));await browser.close();}
+console.log('HTTPS local: interfaz compilada verificada en ambos tamaños, sin llamadas API ni errores JavaScript.');

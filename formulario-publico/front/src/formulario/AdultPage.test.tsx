@@ -70,4 +70,11 @@ describe('Cierre de adulto con API controlada',()=>{
   it('si la sesión CU termina retira el formulario y exige autenticación de nuevo',async()=>{
     exists=true;cu=true;render(<AdultPage mode="cu" />);await screen.findByDisplayValue('NOMBRE');loggedOut=true;fireEvent(window,new Event('focus'));await screen.findByRole('heading',{name:'Ingresa con tu ClaveÚnica'});await waitFor(()=>expect(screen.queryByDisplayValue('NOMBRE')).toBeNull());expect(posts).toHaveLength(0);
   });
+  it('una sesión CU sin recorrido vigente vuelve a la portada institucional',async()=>{
+    cu=true;exists=false;render(<Entry/>);
+    expect(await screen.findByRole('heading',{name:'Estamos aquí para escucharte.'})).toBeTruthy();
+    expect(screen.queryByRole('button',{name:'Revisar Comunicación'})).toBeNull();
+    expect(posts).toHaveLength(0);
+  });
+
 });

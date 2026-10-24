@@ -11,7 +11,7 @@ export function AudienceSelection({onNna, onAdult}: {onNna: () => void; onAdult:
             ><span>DEFENSORÍA DE LA NIÑEZ · FORMULARIO DE CONTACTO</span>
           </p>
           <h1 id="landing-title" tabIndex={-1}>
-            Estamos aquí para escucharte.
+            Estamos aquí para <span>escucharte.</span>
           </h1>
           <p>
             Queremos conocer tu consulta, solicitud o situación. Para comenzar,
@@ -24,6 +24,7 @@ export function AudienceSelection({onNna, onAdult}: {onNna: () => void; onAdult:
           <span className="landing-mark"
             ><svg className="icon"><use href="#i-heart"></use></svg
           ></span>
+          <span className="voice-tag">Tu voz importa.</span><span className="voice-dot"/><span className="voice-dot two"/>
         </div>
       </div>
       <h2 className="selection-title">¿Quién está completando el formulario?</h2>
@@ -75,8 +76,8 @@ export function AudienceSelection({onNna, onAdult}: {onNna: () => void; onAdult:
         <svg aria-hidden="true" className="icon small">
           <use href="#i-lock"></use></svg
         ><span
-          >Tu privacidad importa. Completa solo los datos necesarios. Esta
-          versión es de demostración y no registra ni envía información.</span
+          >Tu privacidad importa. Completa solo los datos necesarios y revisa tus respuestas antes de enviarlas.</span
         >
       </div>
+      <ol className="landing-steps" aria-label="Cómo funciona"><li><b aria-hidden="true">1</b>Elige quién nos escribe</li><li><b aria-hidden="true">2</b>Cuéntanos qué necesitas</li><li><b aria-hidden="true">3</b>Revisa y envía tu comunicación</li></ol>
     </main>; }

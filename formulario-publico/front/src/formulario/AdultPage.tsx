@@ -1,3 +1,6 @@
+import {FormToolbar, FormProgress, LoadingState} from '../ui/FormChrome';
+import {ReceiptPanel} from '../ui/ReceiptPanel';
+import {ExitDialog} from '../ui/ExitDialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '@fontsource/cabin/400.css';
 import '@fontsource/cabin/500.css';
@@ -21,8 +24,10 @@ import type { CompleteCapture, SubmissionState } from './submission';
 import { usePreferences } from './preferences';
 import '../prototipo/prototipo.css';
 import '../prototipo/inicio.css';
+import '../ui/experience.css';
 
 export default function AdultPage({initialJourney,mode='manual'}:{initialJourney?:Journey;mode?:'manual'|'cu'}){
+  const [dirty,setDirty]=useState(false),[exit,setExit]=useState(false);
   const [journey,setJourney]=useState<Journey|null>(null),[session,setSession]=useState<Session|null>(null),[available,setAvailable]=useState(false);
   const [full,setFull]=useState(false),[step,setStep]=useState(1),[retry,setRetry]=useState(0),[loading,setLoading]=useState(true);
   const [privacy,setPrivacy]=useState(false),[fatal,setFatal]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[locked,setLocked]=useState(false);
@@ -69,24 +74,25 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
   function download(value:unknown,name:string){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url);}
   const authenticated=journey?.tipo!=='ADULTO_CU'||session?.authenticated;
   return <>
-    <a className="skip" href="#principal">Saltar al formulario</a><InstitutionalHeader {...preferences} title="Formulario para personas adultas" onHome={()=>window.location.assign('/?vista=inicio')} />
+    <a className="skip" href="#principal">Saltar al formulario</a><InstitutionalHeader {...preferences} title="Formulario para personas adultas" sessionAction={session?.authenticated&&kind==='ADULTO_CU'&&csrf&&<form action="/auth/logout" method="post" className="session-action"><input type="hidden" name={csrf.parameterName} value={csrf.token} /><button className="btn btn-secondary" type="submit">Cerrar sesión</button></form>} onHome={()=>{if(dirty&&!receipt)setExit(true);else window.location.assign('/?vista=inicio');}} />
     <div className="shell" id="form-experience"><section className="hero" aria-labelledby="titulo"><div className="hero-text"><p className="eyebrow"><span className="accent-line" aria-hidden="true" /> Comunícate con la Defensoría</p><h1 id="titulo">¿En qué podemos ayudarte?</h1><p id="hero-description">Completa solo los datos necesarios y cuéntanos por qué te comunicas con la Defensoría.</p></div></section>
-      <div className="form-toolbar" aria-label="Presentación del formulario"><div className="toolbar-title"><span className="toolbar-overline">TU FORMULARIO</span><strong id="view-current">Persona adulta · {kind==='ADULTO_CU'?'ClaveÚnica':'Identificación declarada'}</strong><small>Ambiente de pruebas · Usa solo datos de prueba</small></div><div className="toolbar-controls"><span className="step-info" id="step-info" aria-live="polite">{full?'Formulario completo':`Paso ${step} de 3`}</span><div className="view-toggle" role="group" aria-label="Forma de visualizar el formulario"><button type="button" aria-pressed={!full} onClick={()=>setFull(false)}>Por pasos</button><button type="button" aria-pressed={full} onClick={()=>setFull(true)}>Completo</button></div></div></div>
-      <div className="page-layout" id="public-surface"><aside className="side-column" aria-label="Etapas del formulario"><div className="side-card"><span className="side-kicker">Tu comunicación</span><h2 className="side-title">{full?'Formulario completo':'Paso a paso'}</h2><ol className="journey" id="journey-adult">{[['Identificación','Solo los datos necesarios'],['Motivo de contacto','Elige la alternativa'],['Tu comunicación','Detalles y personas relacionadas']].map(([title,caption],i)=><li key={title} className={step===i+1?'active':''}><span className="journey-num">0{i+1}</span><div><a href={`#${['identificacion','motivo-seccion','informacion'][i]}`} onClick={e=>{e.preventDefault();navigation.current?.go(i+1);}}>{title}</a><small>{caption}</small></div></li>)}</ol></div><div className="side-note"><div className="side-note-title"><svg className="icon small"><use href="#i-info" /></svg> Sobre esta versión</div><p>Ambiente de pruebas. Completa solo los datos necesarios.</p></div></aside>
-        <main className="form-area" id="principal" tabIndex={-1}>
-          {(loading||busy&&!review)&&<p role="status">Estamos abriendo o revisando tu formulario…</p>}
+      <FormToolbar title={kind==='ADULTO_CU'?'Persona adulta · ClaveÚnica':'Persona adulta · Identificación con RUN'} full={full} step={step} total={3} onView={setFull} />
+      <div className="page-layout" id="public-surface"><FormProgress step={step} full={full} disabled={loading||!journey||!!receipt||!!fatal||!authenticated} onNavigate={target=>navigation.current?.go(target)} />
+        <main className="form-area" id="principal" tabIndex={-1} onChangeCapture={()=>setDirty(true)}>
+          {(loading||busy&&!review&&!receipt)&&<LoadingState />}
           {fatal&&<div className="paper"><div className="paper-body"><p role="alert">{fatal}</p><button type="button" className="btn btn-primary" onClick={()=>{setLoading(true);setFatal('');setRetry(v=>v+1);}}>Reintentar</button></div></div>}
-          {error&&!review&&<p className="field-error" role="alert">{error}</p>}
+          {error&&!review&&!receipt&&<p className="field-error" role="alert">{error}</p>}
           {journey&&!authenticated&&!receipt&&<section className="paper"><div className="paper-body"><h2>Ingresa con tu ClaveÚnica</h2><p>Necesitas verificar tu identidad para continuar por este acceso.</p>{session?.loginAvailable?<ClaveUnicaButton />:<p role="status">El inicio con ClaveÚnica está temporalmente cerrado.</p>}</div></section>}
           {journey&&files&&authenticated&&!loading&&!fatal&&!receipt&&<>
-            {!available&&<p role="status" className="field-help">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
+            {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
             <AdultFlow key={journey.id} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(capture,presenter,people,attached)=>{setError('');setReview({capture,presenter,people,files:attached});}} />
           </>}
-          {receipt&&<section className="paper receipt" id="communication-receipt" aria-live="polite"><div className="paper-body"><div className="receipt-mark"><svg className="icon" aria-hidden="true"><use href="#i-check" /></svg></div><h2 className="paper-title">{receipt.estado==='REGISTRADA_SIGER'?'Comunicación registrada':'Recibimos tu comunicación'}</h2><p>{receipt.estado==='REGISTRADA_SIGER'?`Folio: ${receipt.registro!.registro.folio}`:'Tu comunicación se conserva en el Formulario Público. Su registro en SIGER está pendiente.'}</p><p className="receipt-reference">Referencia de recepción: {receipt.id}</p><button type="button" className="btn btn-secondary" onClick={()=>download(receipt.custodia,`comprobante-custodia-${receipt.id}.json`)}>Descargar comprobante de recepción</button>{' '}{receipt.registro&&<button type="button" className="btn btn-secondary" onClick={()=>download(receipt.registro,`comprobante-institucional-${receipt.id}.json`)}>Descargar comprobante institucional</button>}{' '}<button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>{void check();}}>Actualizar estado</button></div></section>}
+          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={()=>{void check();}} />}
         </main></div></div>
-    {session?.authenticated&&kind==='ADULTO_CU'&&csrf&&<form action="/auth/logout" method="post" className="shell"><input type="hidden" name={csrf.parameterName} value={csrf.token} /><button className="btn btn-secondary" type="submit">Cerrar sesión</button></form>}
+
     {privacy&&<PrivacyDialog busy={busy} error={error} onClose={()=>window.location.assign('/?vista=inicio')} onAccept={()=>{void accept();}} />}
     {review&&!receipt&&<ReviewAdult review={review} session={session} busy={busy} locked={locked} error={error} onBack={()=>{setReview(null);requestAnimationFrame(()=>document.getElementById('revisar')?.focus());}} onSend={()=>{void send();}} onCheck={()=>{void check();}} />}
-    <InstitutionalFooter note="Ambiente de pruebas. Usa solo datos de prueba." />
+    {exit&&<ExitDialog onStay={()=>setExit(false)} onLeave={()=>window.location.assign('/?vista=inicio')} />}
+    <InstitutionalFooter />
   </>;
 }

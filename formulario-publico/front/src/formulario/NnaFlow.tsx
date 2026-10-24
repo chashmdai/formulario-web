@@ -11,10 +11,10 @@ import type { FormErrors } from './nnaRules';
 export interface Attachment {id: string; nombre: string; tamanio: number; sha256: string; estado: string}
 export interface AttachmentPort {replace: (files: File[]) => Promise<Attachment[]>; clear: () => Promise<void>}
 export interface NnaNavigation {go: (step: number) => void}
-type TextControl = {value: string; onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void; required: boolean; disabled: boolean; 'aria-invalid': boolean};
+type TextControl = {value: string; onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void; required: boolean; disabled: boolean; 'aria-invalid': boolean; 'aria-errormessage'?: string};
 export interface NnaContext {
   journey: Journey; session: Session | null; identityRef: RefObject<IdentificationHandle | null>;
-  full: boolean; step: number; errors: FormErrors; uploading: boolean; fileFeedback: string;
+  full: boolean; step: number; attachments: Attachment[]; errors: FormErrors; uploading: boolean; fileFeedback: string;
   bind: (id: string) => TextControl;
   check: (id: string) => {checked: boolean; onChange: (e: ChangeEvent<HTMLInputElement>) => void; disabled: boolean};
   value: (id: string) => string; shown: (id: string) => boolean; action: (id: string) => void;
@@ -90,7 +90,9 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
     setWorking(true);
     try {
       const identity = await identityRef.current?.save();
-      if (!mounted.current || !identity || Object.keys(next).length) return;
+      if (!mounted.current) return;
+      if (!identity) {setStep(1);onStep?.(1);focusStep(1);return;}
+      if (Object.keys(next).length) return;
       if (id === 'nna-next') {setStep(2);onStep?.(2);focusStep(2);}
       else await onReview(nnaValues(values), identity, attachments);
     } catch {if (mounted.current) setFailure('No pudimos revisar tu comunicación. Inténtalo nuevamente.');}
@@ -113,15 +115,15 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
       .finally(() => {element.value = '';if (mounted.current) setUploading(false);});
   }
   useImperativeHandle(navigationRef, () => ({go: target => {if (full) document.getElementById(target === 1 ? 'nna-ident-title' : 'nna-story-title')?.focus();else void action(target === 1 ? 'nna-back' : 'nna-next');}}));
-  const ctx: NnaContext = {journey, session, identityRef, full, step, errors, uploading,
+  const ctx: NnaContext = {journey, session, identityRef, full, step, attachments, errors, uploading,
     fileFeedback: uploading ? 'Estamos recibiendo tus archivos…' : errors['nna-files'] || (attachments.length ? attachments.map(file => file.nombre).join(' · ') : 'Ningún archivo seleccionado'),
     value, shown, action: id => {void action(id);}, onFiles,
-    bind: id => ({value: value(id), onChange: e => changed(id, e.target.value), required: required.includes(id) || id === 'nna-story', disabled: disabled(id), 'aria-invalid': !!errors[id]}),
+    bind: id => ({value: value(id), onChange: e => changed(id, e.target.value), required: required.includes(id) || id === 'nna-story', disabled: disabled(id), 'aria-invalid': !!errors[id], 'aria-errormessage': errors[id]?id+'-summary':undefined}),
     check: id => ({checked: value(id) === 'true', onChange: e => changed(id, String(e.target.checked)), disabled: working || uploading}),
   };
   return <form autoComplete="off" data-audience="nna" id="formulario-nna" noValidate ref={form} onSubmit={e => e.preventDefault()} aria-busy={working || uploading}>
     <div className="nna-progress" hidden={full}><span id="nna-step-label">Paso {step} de 2</span><div className="nna-track" role="progressbar" aria-label="Avance del formulario" aria-valuemin={1} aria-valuemax={2} aria-valuenow={step}><span id="nna-progress-fill" style={{width: step === 1 ? '50%' : '100%'}}></span></div></div>
-    <div className="error-summary" id="nna-errors" role="alert" tabIndex={-1} hidden={!Object.keys(errors).length}><p>Revisa estos campos para continuar:</p><ul>{Object.entries(errors).map(([id, message]) => <li key={id}><a href={`#${id}`} onClick={() => document.getElementById(id)?.focus()}>{message}</a></li>)}</ul></div>
+    <div className="error-summary" id="nna-errors" role="alert" tabIndex={-1} hidden={!Object.keys(errors).length}><p>Revisa estos campos para continuar:</p><ul>{Object.entries(errors).map(([id, message]) => <li key={id} id={id+'-summary'}><a href={`#${id}`} onClick={e => {e.preventDefault();const element=document.getElementById(id);const target=id==='nna-story'||id==='nna-files'?2:1;if(!full){setStep(target);onStep?.(target);}requestAnimationFrame(()=>{element?.scrollIntoView?.({block:'center',behavior:'auto'});element?.focus();});}}>{message}</a></li>)}</ul></div>
     {failure && <p role="alert" className="field-error">{failure}</p>}
     <NnaStepOne ctx={ctx} /><NnaStepTwo ctx={ctx} />
   </form>;

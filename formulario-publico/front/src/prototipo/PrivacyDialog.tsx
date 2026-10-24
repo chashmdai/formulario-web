@@ -1,8 +1,9 @@
+import {useDialogFocus} from '../ui/useDialogFocus';
 import { useEffect, useRef, useState } from 'react';
 
 /** Aviso institucional del prototipo. Elección del canal en memoria; no acredita identidad. */
 export function PrivacyDialog({onClose, onAccept, busy=false, error=''}: {onClose: () => void; onAccept: () => void; busy?:boolean; error?:string}) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);useDialogFocus(dialog);
   const homeButton = useRef<HTMLButtonElement>(null);
   const fieldset = useRef<HTMLFieldSetElement>(null);
   const focusChoice = useRef(false);

@@ -16,7 +16,7 @@ describe('Ingreso y Comunicación', () => {
     first.unmount(); render(<App />);
     expect((await screen.findByLabelText('Mensaje') as HTMLTextAreaElement).value).toBe('');
     expect((screen.getByLabelText('RUN') as HTMLInputElement).value).toBe(identity.run);
-    expect(screen.queryByText(/Identificador técnico de recepción/)).toBeNull();
+    expect(screen.queryByText(/Referencia de recepción/)).toBeNull();
   });
   it('muestra RUN y DV de origen y solo dos componentes sin alterar la identidad completa', async () => {
     const structured = { ...identity, runNumero: '44444444', runDv: '4', nombresComponentes: ['  María José  ', 'De los ángeles', 'Tercero', 'Cuarto'], apellidosComponentes: ['Del Río', 'González de la Fuente', 'Tercero'] };
@@ -48,7 +48,7 @@ describe('Ingreso y Comunicación', () => {
     expect(link.getAttribute('href')).toBe('/oauth2/authorization/claveunica');
     expect(link.getAttribute('target')).toBeNull();
     expect(document.querySelector('input[type=password]')).toBeNull();
-    expect(await screen.findByText(/pendiente de habilitación/)).toBeTruthy();
+    expect(await screen.findByText(/acceso con ClaveÚnica no está disponible/)).toBeTruthy();
   });
   it('bloquea identidad y solo envía el mensaje a la vista previa', async () => {
     vi.mocked(api.getSession).mockResolvedValue({ authenticated: true, identity, environment: 'SANDBOX', loginAvailable: true });

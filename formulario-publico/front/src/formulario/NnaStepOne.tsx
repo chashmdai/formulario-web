@@ -18,17 +18,11 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<IdentificationControls journey={ctx.journey} session={ctx.session} nna identityRef={ctx.identityRef}>
 <GeoFields ctx={ctx} />
 </IdentificationControls>{" "}{" "}{" "}<div className="nna-help-identity" id="nna-identity-help-panel">
-<label className="ack-checkbox">
-<input type="checkbox" disabled aria-describedby="nna-assistance-policy" />
-<span>
-<strong>Necesito ayuda para indicar mi nombre o apellido.</strong>
-<small className="assistance-copy" id="nna-assistance-policy">Puedes pedir ayuda a alguien de confianza para completar primer nombre, primer apellido y región. La excepción para omitir estos datos está pendiente de validación institucional.</small>
-</span>
-</label>
+<p id="nna-assistance-policy"><strong>¿Necesitas ayuda para completar tus datos?</strong> Puedes pedir apoyo a alguien de confianza. Para continuar necesitamos tu primer nombre, primer apellido y región.</p>
 </div>
 {" "}<div className="nna-subsection">
 {" "}<h3>{"¿Cómo te gustaría que te llamemos?"}</h3>
-{" "}<p className="section-intro">{"\n                    Es opcional. Nos ayuda a saber cómo prefieres que nos\n                    dirijamos a ti; no sustituye tus datos de identificación.\n                  "}</p>
+{" "}<p className="section-intro">{"\n                    Es opcional. Queremos dirigirnos a ti de una forma que te haga sentir a gusto.\n                  "}</p>
 {" "}<div className="form-grid">
 {" "}<div className="field">
 {" "}<label htmlFor="nna-preferred">{"Nombre que prefieres usar\n                        "}<span className="muted-label">{"(opcional)"}</span>
@@ -51,7 +45,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<option value="noresponde">{"\n                            Prefiero no responder\n                          "}</option>
 {" "}</select>
 {" "}</div>
-{" "}<p className="field-help" id="nna-treatment-help">{"\n                        Opcional. No estamos preguntando tu sexo registral.\n                      "}</p>
+{" "}<p className="field-help" id="nna-treatment-help">{"\n                        Elige la forma que prefieras o deja esta pregunta en blanco.\n                      "}</p>
 {" "}<p className="field-error" id="nna-treatment-error" hidden={!ctx.errors["nna-treatment"]}>{ctx.errors["nna-treatment"]}</p>
 {" "}</div>
 {" "}</div>
@@ -233,7 +227,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}</div>
 {" "}<div className="step-actions">
-{" "}<span>{"Sin RUN no se consulta Registro Civil. Los antecedentes\n                    recuperados no se muestran en esta vista."}</span>
+{" "}<span>{"Puedes continuar sin RUN. Revisarás tu comunicación antes de enviarla."}</span>
 <button className="btn btn-primary" id="nna-next" type="button" onClick={() => ctx.action("nna-next")} hidden={ctx.full}>{"\n                    Continuar\n                    "}<svg aria-hidden="true" className="icon small">
 {" "}<use href="#i-arrow">
 </use>

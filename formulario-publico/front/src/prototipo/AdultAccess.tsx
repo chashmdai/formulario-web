@@ -34,7 +34,7 @@ export function AdultAccess({dialogRef, onClose, onManual, onCu, manualUnavailab
           </p>
           <ClaveUnicaButton onClick={event => { event.preventDefault(); onCu(); }} />
           <p className="access-footnote">
-            El acceso oficial utiliza la sesión validada por el servidor.
+            Tu contraseña se ingresa únicamente en el sitio oficial de ClaveÚnica.
           </p>
         </div>
         <div className="access-secondary">
@@ -45,8 +45,7 @@ export function AdultAccess({dialogRef, onClose, onManual, onCu, manualUnavailab
               <use href="#i-arrow"></use>
             </svg></button
           ><small
-            >Necesitarás tu RUN y datos de identificación para intentar una
-            comprobación registral.</small
+            >Podrás continuar con tu RUN y completar los datos que te solicitemos.</small
           >
         </div>
       </div>

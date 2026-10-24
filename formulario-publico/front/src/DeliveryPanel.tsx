@@ -39,7 +39,7 @@ export function DeliveryPanel({ mensaje, adapter = adultAdapter }: { mensaje: st
       keys.current.set(input, key);
       setDelivery(await adapter.send(mensaje, key, capabilities.avisoVersion));
     }
-    catch { setError('No pudimos confirmar la respuesta. El envío puede haber llegado al servidor. Reintenta aquí con los mismos datos y la misma clave. Si recargas, se perderá esta consulta; lo aceptado en MySQL se conserva.'); }
+    catch { setError('No pudimos confirmar la respuesta. El envío puede haber sido recibido. Reintenta aquí con los mismos datos para evitar duplicados. Comprueba su estado antes de cerrar esta pestaña.'); }
     finally { setBusy(false); }
   }
   async function refresh() {
@@ -49,13 +49,13 @@ export function DeliveryPanel({ mensaje, adapter = adultAdapter }: { mensaje: st
     catch { setError('No se pudo consultar el estado. Reintenta en esta pestaña antes de recargar.'); }
     finally { setBusy(false); }
   }
-  return <section className="notice" aria-label="Entrega de prueba">
+  return <section className="notice" aria-label="Recepción de tu comunicación">
     <h3>Recepción y registro de la Comunicación</h3><p>{capabilities?.aviso}</p>
-    {!delivery && <><label><input type="checkbox" checked={read} onChange={e => setRead(e.target.checked)} /> He leído el aviso de esta demostración.</label>
-      <button type="button" className="primary" disabled={busy || !read || !mensaje.trim()} onClick={() => { void send(); }}>Enviar Comunicación de prueba</button></>}
-    {delivery && <div role="status"><p>Identificador técnico de recepción: {delivery.id}</p><p>{registration
+    {!delivery && <><label><input type="checkbox" checked={read} onChange={e => setRead(e.target.checked)} /> He leído el aviso de privacidad.</label>
+      <button type="button" className="primary" disabled={busy || !read || !mensaje.trim()} onClick={() => { void send(); }}>Enviar comunicación</button></>}
+    {delivery && <div role="status"><p>Referencia de recepción: {delivery.id}</p><p>{registration
       ? 'Comunicación registrada en SIGER.'
-      : 'Recepción técnica pendiente de confirmación de registro en SIGER. Aún no disponemos del folio ni del comprobante institucional definitivo.'}</p>
+      : 'Tu comunicación fue recibida. Su registro institucional está pendiente; aún no se ha emitido el folio.'}</p>
       {registration && <dl><dt>Folio institucional</dt><dd>{registration.folio}</dd><dt>Identificador de Comunicación</dt><dd>{registration.comunicacionId}</dd><dt>Fecha de registro</dt><dd>{new Date(registration.registradaEn).toLocaleString('es-CL')}</dd><dt>Canal de origen</dt><dd>{registration.canalOrigen}</dd></dl>}
       <button type="button" disabled={busy} onClick={() => { void refresh(); }}>Consultar recepción en SIGER</button></div>}
     {registration && delivery?.comprobante && <p><a href={adapter.receiptUrl(delivery.id)} download>Descargar comprobante definitivo de registro en SIGER</a></p>}

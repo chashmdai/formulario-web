@@ -19,16 +19,16 @@ export function NnaForm() {
     setPrepared(true);
   }
   return <section className="card" aria-labelledby="nna-title">
-    <h2 id="nna-title">Cuéntanos · Formulario NNA provisional</h2>
-    <p className="notice">Solo laboratorio. Tus datos son declarados: este formulario no verifica tu identidad. No ingreses datos personales reales.</p>
+    <h2 id="nna-title">Queremos escucharte</h2>
+    <p className="notice">Puedes contarnos lo que necesitas con tus propias palabras. Los datos que informes no verifican tu identidad.</p>
     {!available ? <p role="status">El ingreso NNA está deshabilitado.</p> : <>
       <form onSubmit={review} autoComplete="off">
-        <fieldset disabled={prepared}><legend>Datos provisionales</legend><div className="identity-grid">
+        <fieldset disabled={prepared}><legend>Sobre ti</legend><div className="identity-grid">
           {fields.map(f => <label key={f.key}>{f.label}<input name={f.key} required={f.required} maxLength={f.max} value={data[f.key] ?? ''} autoComplete="off" onChange={e => setData({ ...data, [f.key]: e.target.value === '' && !f.required ? null : e.target.value })} /></label>)}
         </div><label>Cuéntanos<textarea required maxLength={2000} rows={6} value={message} autoComplete="off" onChange={e => setMessage(e.target.value)} /></label>
-        <p>{message.length} / 2000 caracteres</p><button className="primary">Revisar ingreso de prueba</button></fieldset>
+        <p>{message.length} / 2000 caracteres</p><button className="primary">Revisar mis respuestas</button></fieldset>
       </form>
-      {prepared && <><p>Datos listos para el envío de prueba. Al recargar se inicia un formulario vacío; una recepción ya aceptada se conserva en el servidor.</p><DeliveryPanel mensaje={message} adapter={adapter} /></>}
+      {prepared && <><p>Tus datos están listos para revisar. Si aún no has enviado y recargas la página, deberás completar de nuevo el formulario.</p><DeliveryPanel mensaje={message} adapter={adapter} /></>}
       {error && <p role="alert">{error}</p>}
     </>}
   </section>;

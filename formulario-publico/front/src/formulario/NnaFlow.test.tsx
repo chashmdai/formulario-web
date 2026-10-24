@@ -42,12 +42,12 @@ describe('Recorrido NNA del mockup', () => {
     expect(review.mock.calls[0][0]).toEqual({'nna-region': '13', 'nna-primary-method': 'unsafe', 'nna-story': 'Relato sintético para revisar.'});
     expect(review.mock.calls[0][1].autenticada).toBe(false);expect(review.mock.calls[0][2]).toEqual([]);
   });
-  it('no avanza si falta región y no permite usar la excepción pendiente para omitir identificación', async () => {
+  it('no avanza si falta región y explica los mínimos de identificación', async () => {
     const {review, step} = mount();await identity();
     await userEvent.selectOptions(screen.getByRole('combobox', {name: /¿Cómo podemos contactarte/}), 'unsafe');
     await userEvent.click(screen.getByRole('button', {name: 'Continuar'}));
     expect(screen.getAllByText('Completa Región.').length).toBeGreaterThan(0);expect(step).not.toHaveBeenCalled();expect(review).not.toHaveBeenCalled();
-    expect((screen.getByRole('checkbox', {name: /Necesito ayuda/}) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText(/necesitamos tu primer nombre, primer apellido y región/)).toBeTruthy();
   });
   it('la comuna es opcional, depende de región y se limpia al cambiarla', async () => {
     mount();await identity();const commune = screen.getByRole('combobox', {name: /^Comuna/}) as HTMLSelectElement;

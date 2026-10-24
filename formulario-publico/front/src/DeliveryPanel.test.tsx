@@ -21,9 +21,9 @@ describe('Recepción pública e incorporación institucional', () => {
     vi.mocked(api.getCapabilities).mockResolvedValue({recepcionDisponible:true,aviso:'Prueba',avisoVersion:'laboratorio-v1'});
     vi.mocked(api.sendCommunication).mockResolvedValueOnce({id:'legacy-id',estado:'CONFIRMADA_SIGER',confirmacion:null});
     render(<DeliveryPanel mensaje="Ingreso legado" />);const user=userEvent.setup();
-    const send=await screen.findByRole('button',{name:'Enviar Comunicación de prueba'});
+    const send=await screen.findByRole('button',{name:'Enviar comunicación'});
     await user.click(screen.getByRole('checkbox'));await user.click(send);
-    expect(await screen.findByText(/pendiente de confirmación de registro/)).toBeTruthy();
+    expect(await screen.findByText(/registro institucional está pendiente/)).toBeTruthy();
     expect(screen.queryByRole('link',{name:/comprobante definitivo/})).toBeNull();
     expect(screen.queryByText('Folio institucional')).toBeNull();
   });
@@ -31,7 +31,7 @@ describe('Recepción pública e incorporación institucional', () => {
     vi.mocked(api.getCapabilities).mockResolvedValue({ recepcionDisponible: false, aviso: '', avisoVersion: 'demo-local-v1' });
     render(<DeliveryPanel mensaje="Mensaje" />);
     expect(await screen.findByText(/recepción de Comunicaciones está deshabilitada/)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Enviar Comunicación de prueba' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Enviar comunicación' })).toBeNull();
   });
   it('exige aviso, conserva clave al reintentar y distingue custodia pública de confirmación SIGER', async () => {
     vi.mocked(api.getCapabilities).mockResolvedValue({ recepcionDisponible: true, aviso: 'Aviso de prueba', avisoVersion: 'demo-local-v1' });
@@ -40,7 +40,7 @@ describe('Recepción pública e incorporación institucional', () => {
     vi.mocked(api.getDelivery).mockResolvedValue({ id: 'test-id', estado: 'REGISTRADA_SIGER', confirmacion: null, comprobante: receipt, registroInstitucional: { registro: { comunicacionId: 'communication-id', operacionPublicaId: 'test-id', numeroFolio: 1, folio: 'COM-000001', registradaEn: '2026-10-14T23:00:00Z', canalOrigen: 'FORMULARIO_WEB_PUBLICO' }, comprobante: receipt } });
     render(<DeliveryPanel mensaje="Mensaje de prueba" />);
     const user = userEvent.setup();
-    const send = await screen.findByRole('button', { name: 'Enviar Comunicación de prueba' });
+    const send = await screen.findByRole('button', { name: 'Enviar comunicación' });
     expect((send as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole('checkbox'));
     await user.click(send);
@@ -49,7 +49,7 @@ describe('Recepción pública e incorporación institucional', () => {
     await waitFor(() => expect(api.sendCommunication).toHaveBeenCalledTimes(2));
     const calls = vi.mocked(api.sendCommunication).mock.calls;
     expect(calls[0]).toEqual(calls[1]); expect(calls[0][0]).toBe('Mensaje de prueba'); expect(calls[0][2]).toBe('demo-local-v1');
-    expect(await screen.findByText(/Recepción técnica pendiente de confirmación/)).toBeTruthy();
+    expect(await screen.findByText(/registro institucional está pendiente/)).toBeTruthy();
     expect(screen.queryByRole('link', {name: /comprobante definitivo/})).toBeNull();
     expect(screen.queryByText('COM-000001')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Consultar recepción en SIGER' }));

@@ -17,7 +17,7 @@ const metadata: {key: IdentityField; suffix: string; label: string; type?: strin
   {key: 'primerApellido', suffix: 'first', label: 'Primer apellido'},
   {key: 'segundoApellido', suffix: 'second', label: 'Segundo apellido'},
   {key: 'fechaNacimiento', suffix: 'birth', label: 'Fecha de nacimiento', type: 'date', help: 'Puedes completar este dato si lo conoces (opcional).'},
-  {key: 'sexo', suffix: 'sex', label: 'Sexo registral', help: 'No equivale a identidad de género ni a la forma de trato.'},
+  {key: 'sexo', suffix: 'sex', label: 'Sexo registral', help: 'Este dato no define cómo prefieres que nos dirijamos a ti.'},
   {key: 'edad', suffix: 'age', label: 'Edad', type: 'number', help: 'Déjalo en blanco si no la sabes.'},
 ];
 
@@ -215,7 +215,7 @@ export function IdentificationControls({journey, session, nna = false, children,
       </div>
     </div>
     <p className="field-help" id={`${prefix}-run-help`}>{nna ? 'Es opcional. Escribe el número y el dígito verificador por separado, o continúa sin RUN.'
-      : cu ? 'RUN de la identidad autenticada en tu sesión.' : 'Es obligatorio. Escribe el número y el dígito verificador en casillas separadas.'}</p>
+      : cu ? 'Este RUN corresponde a tu ingreso con ClaveÚnica.' : 'Es obligatorio. Escribe el número y el dígito verificador en casillas separadas.'}</p>
     <p className="field-error" hidden={!errors.run} id={`${prefix}-run-error`}>{errors.run}</p>
   </div>;
   return <>
@@ -227,7 +227,7 @@ export function IdentificationControls({journey, session, nna = false, children,
     <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={(nna && !knowsRun) || preservedRun}>
       {runControls}
       {!cu && <div className="lookup-actions" id={nna ? undefined : 'manual-verify'}>
-        <button className="btn btn-primary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy || !restored} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
+        <button className="btn btn-secondary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy || !restored} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
         {!nna && statusMarkup}
         {nna && <button className="btn btn-secondary" id="nna-skip-run" type="button" disabled={busy} onClick={() => changeKnowsRun(false)}>Continuar sin RUN</button>}
       </div>}
@@ -244,7 +244,7 @@ export function IdentificationControls({journey, session, nna = false, children,
         return <div className="field" data-identity-attr={m.suffix} key={m.key}>
           <label htmlFor={id}>{m.label}{(['segundoApellido', 'edad'].includes(m.key) || (nna && m.key === 'segundoNombre')) && <span className="muted-label"> {m.key === 'edad' ? '(opcional)' : '(si corresponde)'}</span>}
             {required && <span aria-hidden="true" className="required-mark"> *</span>}{!nna && <span className="identity-source" id={`source-${m.suffix}`}>{sourceFor(m.key)}</span>}</label>
-          {m.key === 'sexo' ? <div className="select-wrap"><select {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Hombre</option><option value="I">Indeterminado</option><option value="U">No hay información</option></select></div>
+          {m.key === 'sexo' ? <div className="select-wrap"><select {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></select></div>
             : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : 500} {...(m.key === 'edad' ? {min: 0, max: 17, inputMode: 'numeric' as const} : {})} {...(['primerNombre','segundoNombre','primerApellido','segundoApellido'].includes(m.key) ? {'data-name-part': true} : {})} />}
           <p className="field-help" id={`${id}-help`}>{m.help}</p><p className="field-error" id={`${id}-error`} hidden={!errors[m.key]}>{errors[m.key]}</p>
         </div>;
@@ -253,7 +253,7 @@ export function IdentificationControls({journey, session, nna = false, children,
       {identity && !identity.apellidosComponentes && <div className="field"><label htmlFor="adult-cu-apellidos">Apellidos</label><input id="adult-cu-apellidos" value={identity.apellidos} readOnly /></div>}
       {children}
     </div>
-    {!nna && <p className="field-help" id="adult-source-help">{cu ? 'La identidad proviene de ClaveÚnica. Los antecedentes registrales complementarios se incorporan internamente.'
-      : 'La comprobación del RUN y la obtención de antecedentes no autentican a quien presenta la Comunicación.'}</p>}
+    {!nna && <p className="field-help" id="adult-source-help">{cu ? 'Los datos de tu ingreso con ClaveÚnica no se pueden editar aquí.'
+      : 'Informar un RUN no reemplaza la verificación de identidad con ClaveÚnica.'}</p>}
   </>;
 }

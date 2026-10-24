@@ -1,3 +1,5 @@
+import {useDialogFocus} from '../ui/useDialogFocus';
+import {fileSize} from '../ui/AttachmentStatus';
 import { useEffect, useRef } from 'react';
 import type { Session } from '../api';
 import type { IdentityView } from './api';
@@ -11,16 +13,17 @@ const enumKeys=new Set(['motivo','tema','consulta-confirmada','stats-confirm','e
 function translated(key:string,value:string){if(key.endsWith('-region')||key==='region')return regiones[value]||value;return enumKeys.has(key)?options[value]||value:value;}
 function Section({title,values}:{title:string;values:Record<string,string>}){return <section className="dialog-section"><h3>{title}</h3><dl>{Object.entries(values).filter(([,v])=>v).map(([key,value])=><div className="summary-row" key={key}><dt>{labels[key]||key}</dt><dd>{translated(key,value)}</dd></div>)}</dl></section>;}
 export function ReviewAdult({review,session,busy,locked,error,onBack,onSend,onCheck}:{review:AdultReview;session:Session|null;busy:boolean;locked:boolean;error:string;onBack:()=>void;onSend:()=>void;onCheck:()=>void}){
-  const dialog=useRef<HTMLDialogElement>(null);useEffect(()=>{const current=dialog.current;current?.showModal();return()=>current?.close();},[]);
+  const dialog=useRef<HTMLDialogElement>(null);useDialogFocus(dialog);useEffect(()=>{const current=dialog.current;current?.showModal();return()=>current?.close();},[]);
   const identity=review.presenter.autenticada&&session?.authenticated&&session.identity?{RUN:session.identity.run,Nombres:session.identity.nombres,Apellidos:session.identity.apellidos}:review.presenter.valoresDeclarados;
+  useEffect(()=>{if(error)dialog.current?.querySelector<HTMLElement>('[role=alert]')?.scrollIntoView?.({block:'nearest',behavior:'auto'});},[error]);
   const counts=new Map<string,number>();
   return <dialog className="dialog" id="vista-previa" ref={dialog} aria-labelledby="modal-titulo" aria-describedby="modal-descripcion" onCancel={e=>{if(busy||locked)e.preventDefault();else onBack();}}>
-    <div className="dialog-head"><div><h2 id="modal-titulo">Revisión de tu comunicación</h2><p id="modal-descripcion">Solo se muestran datos visibles o declarados en el formulario. Revisa tus respuestas antes de enviar.</p></div><button type="button" className="dialog-close" aria-label="Cerrar revisión" disabled={busy||locked} onClick={onBack}><svg className="icon"><use href="#i-x" /></svg></button></div>
+    <div className="dialog-head"><div><h2 id="modal-titulo">Revisión de tu comunicación</h2><p id="modal-descripcion">Este es el resumen de lo que nos contarás. Puedes volver al formulario si necesitas cambiar algo.</p></div><button type="button" className="dialog-close" aria-label="Cerrar revisión" disabled={busy||locked} onClick={onBack}><svg className="icon"><use href="#i-x" /></svg></button></div>
     <div className="dialog-body" id="resumen"><Section title={review.presenter.autenticada?'Identidad autenticada con ClaveÚnica':'Identificación declarada'} values={identity as Record<string,string>} />
       <p className="field-help">Los antecedentes recuperados del Registro Civil se mantienen protegidos y no se muestran aquí.</p><Section title="Tu comunicación" values={review.capture.campos} />
       {review.capture.personas.map(p=>{const kind=p.personaId.split('-')[0],number=(counts.get(kind)||0)+1;counts.set(kind,number);const v=review.people.get(p.personaId);return <Section key={p.personaId} title={`${kind==='afectado'?'NNA':kind==='relacionado'?'Persona adulta relacionada':'Persona señalada'} ${number}`} values={{...v?.valoresDeclarados,RUN:v?.runInformado?'Informado':'No informado',...p.detalles}} />;})}
       {review.capture.instituciones.map((entity,i)=><Section key={i} title={`Institución ${i+1}`} values={{...entity}} />)}
-      <Section title="Archivos adjuntos" values={Object.fromEntries(review.files.length?review.files.map((file,i)=>[`Archivo ${i+1}`,`${file.nombre} · ${file.tamanio} bytes`]):[['Archivos','Sin archivos adjuntos']])} />
+      <Section title="Archivos adjuntos" values={Object.fromEntries(review.files.length?review.files.map((file,i)=>[`Archivo ${i+1}`,`${file.nombre} · ${fileSize(file.tamanio)}`]):[['Archivos','Sin archivos adjuntos']])} />
       {error&&<p role="alert" className="field-error">{error}</p>}</div>
     <div className="dialog-foot"><p>Al enviar, tu comunicación se conserva para su gestión por la Defensoría.</p><div className="dialog-buttons"><button type="button" className="btn btn-secondary" disabled={busy||locked} onClick={onBack}>Volver al formulario</button>{locked&&error&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={onCheck}>Comprobar recepción</button>}<button type="button" className="btn btn-primary" disabled={busy} onClick={onSend}>{busy?'Enviando…':locked?'Reintentar el mismo envío':'Enviar comunicación'}</button></div></div>
   </dialog>;

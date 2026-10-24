@@ -86,16 +86,13 @@ export function AdultStepTwo({ctx}: {ctx:AdultContext}) {return (
 <strong>{"Informe Anual ↗"}</strong>
 <small>{"Balance institucional y situación de derechos"}</small>
 </a>
-{" "}<div className="resource-link pending-resource">
-{" "}<strong>{"Otra fuente institucional"}</strong>
-<small>{"Por definir con la Defensoría"}</small>
-{" "}</div>
+
 {" "}</div>
 {" "}<label className="ack-checkbox">
 <input id="stats-confirm" type="checkbox" {...ctx.check("stats-confirm")} />
 <span>{"Ya revisé el material disponible y todavía necesito\n                        solicitar antecedentes estadísticos que no\n                        encontré."}</span>
 </label>
-{" "}<p className="field-help">{"\n                      Solo al confirmar se habilitan los campos para describir\n                      la necesidad específica. La atención de estas solicitudes\n                      está sujeta a la definición institucional.\n                    "}</p>
+{" "}<p className="field-help">{"\n                      Confirma que revisaste las fuentes y describe la información que todavía necesitas.\n                    "}</p>
 {" "}</div>
 {" "}</div>
 {" "}</div>

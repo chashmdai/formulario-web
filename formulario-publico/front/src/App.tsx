@@ -1,3 +1,10 @@
+import '@fontsource/cabin/400.css';
+import '@fontsource/cabin/700.css';
+import {InstitutionalHeader} from './prototipo/InstitutionalHeader';
+import {InstitutionalFooter} from './prototipo/InstitutionalFooter';
+import {usePreferences} from './formulario/preferences';
+import './prototipo/prototipo.css';
+import './prototipo/inicio.css';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, getCsrf, getSession, previewCommunication } from './api';
@@ -6,8 +13,10 @@ import { ClaveUnicaButton } from './ClaveUnicaButton';
 import { DeliveryPanel } from './DeliveryPanel';
 import { NnaForm } from './nna/NnaForm';
 import './styles.css';
+import './ui/experience.css';
 
 export default function App() {
+  const preferences=usePreferences(false);
   const nna = new URLSearchParams(window.location.search).get("formulario") === "nna";
   const [session, setSession] = useState<Session | null>(null);
   const [csrf, setCsrf] = useState<Csrf | null>(null);
@@ -45,19 +54,17 @@ export default function App() {
   }
 
   return <>
-    <header><div className="brand"><span className="brand-mark" aria-hidden="true">D</span><div><strong>Defensoría de la Niñez</strong><span>Formulario Público · Atención ciudadana</span></div></div>
-      {session && session.environment !== 'PRODUCTION' && <span className="environment">Ambiente de pruebas · {session.environment}</span>}
-    </header>
-    <main>
+    <InstitutionalHeader {...preferences} onHome={()=>window.location.assign('/?vista=inicio')} />
+    <main className="shell legacy-content">
       <div className="intro"><span className="eyebrow">Portal ciudadano</span><h1>Tu voz es importante.</h1>
-        <p>{nna ? "Prototipo NNA: solo para pruebas con datos sintéticos." : "Inicia sesión para verificar tu identidad y preparar una Comunicación a la Defensoría de la Niñez."}</p><nav aria-label="Formulario"><a href="/">Acceso adulto con ClaveÚnica</a> · <a href="/?formulario=nna">Formulario NNA provisional</a></nav></div>
+        <p>{nna ? "Puedes contarnos lo que te pasa o pedir orientación." : "Inicia sesión para verificar tu identidad y preparar una Comunicación a la Defensoría de la Niñez."}</p><nav aria-label="Formulario"><a href="/">Acceso adulto con ClaveÚnica</a> · <a href="/?formulario=nna">Formulario para niñas, niños y adolescentes</a></nav></div>
       {error && <p className="notice error" role="alert">{error}</p>}
       {!session && !error && <p role="status">Conectando con el Formulario Público…</p>}
       {!nna && session && !session.authenticated && <section className="card login" aria-labelledby="login-title">
         <div className="step">01 · Verifica tu identidad</div><h2 id="login-title">Ingresa con tu ClaveÚnica</h2>
         <p>Continuarás al sitio oficial de Gobierno Digital. Luego regresarás al Formulario Público con tus datos verificados.</p>
         <ClaveUnicaButton />
-        {!session.loginAvailable && <p className="notice" role="status">El inicio de sesión está pendiente de habilitación del callback institucional.</p>}
+        {!session.loginAvailable && <p className="notice" role="status">El acceso con ClaveÚnica no está disponible en este momento. Inténtalo más tarde.</p>}
         {new URLSearchParams(window.location.search).get('auth') === 'failed' && <p className="notice error" role="alert">No pudimos validar el retorno de autenticación. Vuelve a iniciar sesión desde el Formulario Público.</p>}
         {new URLSearchParams(window.location.search).get('session') === 'closed' && <p role="status">Tu sesión se cerró. Si el ingreso anterior falló, vuelve a intentarlo.</p>}
       </section>}
@@ -80,7 +87,7 @@ export default function App() {
         </div>
         <form onSubmit={(event) => { void submit(event); }} className="communication">
           <div className="step">02 · Prepara una Comunicación</div><h2>Cuéntanos lo que quieres comunicar</h2>
-          <p>Primero revisa el mensaje junto a tu identidad. El envío de prueba, cuando está habilitado, es un paso posterior.</p>
+          <p>Revisa tu mensaje y tus datos antes de enviarlos.</p>
           <label htmlFor="mensaje">Mensaje</label><textarea id="mensaje" required maxLength={2000} rows={5} value={mensaje} onChange={(e) => { setMensaje(e.target.value); setPreview(null); }} />
           <span className="counter">{mensaje.length} / 2000 caracteres</span>
           <button className="primary" disabled={busy || !mensaje.trim()}>{busy ? 'Preparando…' : 'Revisar Comunicación'}</button>
@@ -89,6 +96,6 @@ export default function App() {
       </section>}
       {nna && <NnaForm />}
       {!nna && <aside className="privacy"><strong>Tu identidad, protegida</strong><p>El Formulario Público recibe tu RUN y nombre desde ClaveÚnica. Tu contraseña se ingresa exclusivamente en el sitio oficial.</p></aside>}
-    </main><footer>Defensoría de la Niñez · Formulario Público</footer>
+    </main><InstitutionalFooter />
   </>;
 }
