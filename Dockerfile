@@ -11,6 +11,7 @@ WORKDIR /build/backend
 COPY formulario-publico/backend/pom.xml ./
 RUN mvn -B -ntp dependency:go-offline
 COPY formulario-publico/backend/src ./src
+COPY formulario-publico/front/src/formulario/territorio.json /build/front/src/formulario/territorio.json
 COPY --from=frontend /build/front/dist /build/front/dist
 RUN mvn -B -ntp verify
 

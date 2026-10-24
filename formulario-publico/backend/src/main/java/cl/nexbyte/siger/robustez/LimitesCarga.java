@@ -8,6 +8,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component @Order(-200)
 public final class LimitesCarga extends OncePerRequestFilter{
     private final Semaphore admission;private final int capacity;private final int maxBytes;
+    private final Semaphore uploads=new Semaphore(2);
     private final LongAdder rejected=new LongAdder(),oversized=new LongAdder();
     public LimitesCarga(Environment env){
         capacity=env.getProperty("recepcion.limites.concurrentes",Integer.class,64);maxBytes=env.getProperty("recepcion.limites.bytes",Integer.class,8192);
@@ -19,13 +20,17 @@ public final class LimitesCarga extends OncePerRequestFilter{
         var uri=request.getRequestURI();var type=request.getContentType();
         boolean guarded=Set.of("POST","PUT").contains(request.getMethod())&&(uri.startsWith("/api/comunicaciones")||uri.startsWith("/api/nna/")||uri.startsWith("/api/formulario/")||uri.startsWith("/integracion/")||uri.startsWith("/operacion/"));
         if(!guarded){chain.doFilter(request,response);return;}
-        if(request.getContentLengthLong()>maxBytes){oversized.increment();reject(response,413);return;}
-        if(!admission.tryAcquire()){rejected.increment();reject(response,429);return;}
+        boolean upload=uri.matches("/api/formulario/recorridos/[a-fA-F0-9-]{36}/adjuntos")&&type!=null&&type.toLowerCase(Locale.ROOT).startsWith("multipart/form-data");
+        int limit=upload?26*1024*1024:uri.matches("/api/formulario/recorridos/[a-fA-F0-9-]{36}/comunicaciones")?65536:maxBytes;
+        if(upload&&request.getContentLengthLong()<0){reject(response,411);return;}
+        if(request.getContentLengthLong()>limit){oversized.increment();reject(response,413);return;}
+        if(upload&&!uploads.tryAcquire()){rejected.increment();reject(response,429);return;}
+        if(!admission.tryAcquire()){if(upload)uploads.release();rejected.increment();reject(response,429);return;}
         try{
             // Solo JSON: no consumir formularios de logout/CSRF ni cambiar su semántica.
             if(type!=null&&type.toLowerCase(Locale.ROOT).startsWith("application/json")){
-                var bytes=request.getInputStream().readNBytes(maxBytes+1);
-                if(bytes.length>maxBytes){oversized.increment();reject(response,413);return;}
+                var bytes=request.getInputStream().readNBytes(limit+1);
+                if(bytes.length>limit){oversized.increment();reject(response,413);return;}
                 var wrapped=new HttpServletRequestWrapper(request){
                     public ServletInputStream getInputStream(){
                         var input=new ByteArrayInputStream(bytes);
@@ -37,7 +42,7 @@ public final class LimitesCarga extends OncePerRequestFilter{
                 };
                 chain.doFilter(wrapped,response);
             }else chain.doFilter(request,response);
-        }finally{admission.release();}
+        }finally{admission.release();if(upload)uploads.release();}
     }
     private static void reject(HttpServletResponse response,int status)throws IOException{
         response.setStatus(status);response.setContentType("application/problem+json");response.setCharacterEncoding("UTF-8");

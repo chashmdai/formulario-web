@@ -6,5 +6,5 @@ import tools.jackson.core.StreamReadFeature;
 @Configuration
 public class JsonEstricto {
     @Bean JsonFactoryBuilderCustomizer jsonLimites(){return builder->builder.enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
-        .streamReadConstraints(StreamReadConstraints.builder().maxNestingDepth(16).maxStringLength(4096).maxNumberLength(30).build());}
+        .streamReadConstraints(StreamReadConstraints.builder().maxNestingDepth(16).maxStringLength(5000).maxNumberLength(30).build());}
 }

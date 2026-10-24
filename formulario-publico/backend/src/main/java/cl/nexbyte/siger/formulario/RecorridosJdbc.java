@@ -40,6 +40,12 @@ public final class RecorridosJdbc {
         return new Recorrido(id,tipo,aviso,acepta,"BORRADOR",Instant.ofEpochMilli(expires));
     }
     public Recorrido consultar(UUID id,String session) {return recorrido(fila(id,session,false));}
+    // Solo dentro de la transacción de custodia/adjuntos; comparte el lock con las declaraciones.
+    Recorrido bloquearBorrador(UUID id,String session) {var row=fila(id,session,true);editable(row);return recorrido(row);}
+    void recibida(UUID id,String session) {
+        bloquearBorrador(id,session);
+        if(db.sql.update("UPDATE citizen_journey SET state='RECIBIDO' WHERE id=? AND state='BORRADOR'",id.toString())!=1)throw new FalloTecnico(409);
+    }
     public void cancelar(UUID id,String session) {
         db.transaction(()->{fila(id,session,true);db.sql.update("UPDATE citizen_journey SET state='CANCELADO' WHERE id=? AND state='BORRADOR'",id.toString());return null;});
     }

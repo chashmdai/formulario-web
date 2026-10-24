@@ -90,7 +90,7 @@ public final class IdentificacionCiudadana {
         p.atributos().forEach((key,value)->{if(value.fuente()==Fuente.DECLARACION_CIUDADANA && CAMPOS.contains(key)) declared.put(key,value.valor());});
         // Los campos declarados siguen siendo editables, los recuperados nunca se exponen.
         missing.addAll(declared.keySet());
-        var required=new HashSet<>(Set.of("primerNombre","primerApellido")); required.retainAll(missing);
+        var required=new HashSet<>(p.rol()==Rol.PRESENTADOR?Set.of("primerNombre","primerApellido"):Set.<String>of()); required.retainAll(missing);
         return new Vista(p.id(),"REVISADO",p.autenticada(),p.runNumero()!=null,Set.copyOf(missing),Set.copyOf(required),Map.copyOf(declared),
                 "Completa los datos solicitados. La revisión del RUN no acredita tu identidad.");
     }

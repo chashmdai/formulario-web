@@ -12,6 +12,20 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Configuration @Profile("jdbc-reception") @ConditionalOnProperty(name="formulario.habilitado",havingValue="true")
 public class FormularioConfiguration {
+    @Bean TerritorioFormulario territorioFormulario(JsonMapper mapper)throws java.io.IOException{return new TerritorioFormulario(mapper);}
+    @Bean ValidacionFormulario validacionFormulario(TerritorioFormulario territorio){return new ValidacionFormulario(territorio);}
+    @Bean AdjuntosFormulario adjuntosFormulario(BaseJdbc db,RecorridosJdbc recorridos,Environment env){
+        int port=env.getProperty("formulario.adjuntos.clamav-port",Integer.class,0);
+        AdjuntosFormulario.Escaner scanner=port==0?bytes->{throw new java.io.IOException("Inspección no configurada");}:new EscanerClamAv(port);
+        return new AdjuntosFormulario(db,recorridos,scanner);
+    }
+    @Bean RecepcionFormularioJdbc recepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario files,JsonMapper mapper,ValidacionFormulario validation,Environment env)throws java.io.IOException {
+        return new RecepcionFormularioJdbc(db,recorridos,files,mapper,validation,env.getRequiredProperty("publico.comprobante.key-id"),
+            cl.nexbyte.siger.robustez.ComprobanteDigital.privatePem(Files.readString(Path.of(env.getRequiredProperty("publico.comprobante.private-key")))),
+            cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.trusted-keys"))),
+            cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.institutional-trusted-keys"))),
+            Clock.systemUTC(),env.getProperty("formulario.recepcion.habilitada",Boolean.class,false)&&env.getProperty("publico.recepcion.aviso-validado",Boolean.class,false));
+    }
     @Bean RecorridosJdbc recorridosJdbc(BaseJdbc db,JsonMapper mapper,ClientePisee client,Environment env) throws java.io.IOException {
         if(env.matchesProfiles("production","prod")||!"SANDBOX".equals(env.getProperty("siger.claveunica.environment","SANDBOX")))
             throw new IllegalStateException("Recorridos nuevos aún limitados a laboratorio Sandbox");

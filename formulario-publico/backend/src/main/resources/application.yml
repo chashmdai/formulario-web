@@ -4,6 +4,11 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 26MB
+      file-size-threshold: 0B
 server:
   max-http-request-header-size: 8KB
   tomcat:
