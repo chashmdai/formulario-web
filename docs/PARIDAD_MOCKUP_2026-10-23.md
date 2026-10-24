@@ -1,3 +1,11 @@
+# Presentación vigente · Pulido UI/UX, 24/10/2026
+
+La autorización expresa de pulido visual sustituye la exigencia anterior de igualdad visual estricta con el mockup. Se conservaron los recorridos y las reglas institucionales, con una presentación nueva que reutiliza logo, Cabin y paleta existentes. Implementación `512614d`, rama `pulido-ui-formulario-2026-10-24`.
+
+La matriz actual de 110 estados, los 22 pares comparativos y los resultados de accesibilidad/regresión se detallan en [INFORME_UI_UX_2026-10-24.md](INFORME_UI_UX_2026-10-24.md). Las posiciones, anchos y afirmaciones de conservación exacta del CSS que siguen corresponden al historial anterior, no al diseño vigente.
+
+---
+
 > **Unidad RUN/SRCeI, 24/10/2026:** se mantiene el formulario y su presentación. La revisión del presentador ahora se dispara tras 650 ms de RUN/DV válido; el botón original sigue disponible. Los terceros conservan declaración opcional sin consultar registros. Se verificaron recepción adulta DEV y recorrido NNA móvil real local; no se inicia una nueva campaña de paridad completa. Evidencia y límites en [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md).
 
 # Estado actualizado de paridad — 24 de octubre de 2026

@@ -1,3 +1,25 @@
+# Checkpoint vigente — Pulido UI/UX, 24 de octubre de 2026
+
+**Unidad visual y UX implementada**, desde `e46b905`, sin reconstruir el formulario. Rama actual: **`pulido-ui-formulario-2026-10-24`**. Commit de implementación: **`512614d`**. Leer [INFORME_UI_UX_2026-10-24.md](INFORME_UI_UX_2026-10-24.md). La rama anterior y sus commits se conservan; sin push.
+
+- Portada, componentes, tipografía, espaciados, formularios, tarjetas relacionadas, adjuntos, revisión y comprobantes refinados con activos institucionales originales.
+- Progreso visible en móvil, foco y navegación de errores entre pasos, confirmación de salida, ciclos de Tab en diálogos, reducción de movimiento y tres temas. Avisos legales y todos los controles de seguridad se mantienen.
+- Recepción pendiente conserva su estado real: no se presenta folio sin registro institucional confirmado. Reintentos, objeto firmado y protección de identidad no cambian.
+- Frontend: **107 correctas**, lint/build correctos. Backend H2: **169 correctas y 1 omisión opcional**, sin clases de carga. Backend, migraciones, contratos, logo y botón oficial CU sin cambios; fixtures V3 idénticos.
+- Comparativa: `.local/evidencias/pulido-ui/comparativa.html` / `http://localhost:5175/comparativa.html`. **76 estados antes y 110 después**, 152/220 PNG, más verificaciones HTTPS. Matriz compilada: 6.171 muestras de contraste de texto sin fallos; sin desbordes ni acciones de diálogo fuera de pantalla.
+- La misma matriz completa de **110 estados** pasó además en el HTTPS oficial local con sus políticas de contenido, siempre con API interceptada. Evidencia adicional: `pulido-ui/https-integrado/`.
+- Todos los recorridos visuales usan dobles controlados de API en Playwright. **Cero consultas gubernamentales y cero comunicaciones reales nuevas**. No repetir integración DEV para esta unidad.
+- MySQL: mismos conteos y CHECKSUM en 12 tablas, 7 migraciones, 13 custodias. Evidencia reducida sin valores personales. No se recrearon bases ni volúmenes.
+- HTTPS oficial 443 → JAR nativo 18443 actualizado con el frontend compilado. PID observado **75047** y hash `baf036b32c51cf03a15e8b1d6f6c5b7254de803389a808667f6f6d335353faec`; comprobar PID/configuración antes de operar. Configuración privada y servicios Docker intactos.
+- Respaldo anterior verificable: `.local/evidencias/pulido-ui/rollback-e46b905.jar`, hash `2e3e644570493d29d71e9ffb8cc99f502d1f8d780fa9cf337822e23b4fcf8f06`. Reversión del servicio documentada sin tocar MySQL.
+- Galería local de evidencias en 5175; la aplicación se prueba en el HTTPS oficial. La vista previa compilada 5174 es solo auxiliar de QA y no se debe usar para comunicaciones reales.
+
+**Al retomar:** inspeccionar rama/status/diff/log y este informe. No reconstruir ni repetir CU/PISEE, ni desplegar o hacer push. Consumidor SIGER, campaña de estrés y hardening siguen pendientes de su encargo separado. La presentación refinada no implica certificación productiva, legal o WCAG. Las custodias existentes siguen pendientes del ACK institucional real.
+
+---
+
+## Checkpoint anterior conservado íntegramente
+
 # Checkpoint vigente — RUN → SRCeI automático, 24 de octubre de 2026
 
 **Unidad RUN → SRCeI cerrada en laboratorio.** Leer primero [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md). Se partió de `3b398d5`, con rama `integracion-siger-linux-2026` limpia y todos los avances anteriores conservados. Las secciones siguientes son historial; las menciones a disparador pendiente o PISEE deshabilitado ya no describen el estado vigente.
