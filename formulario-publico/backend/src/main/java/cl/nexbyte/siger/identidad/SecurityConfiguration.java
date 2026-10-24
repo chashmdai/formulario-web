@@ -98,6 +98,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/", "/index.html", "/assets/**", "/favicon.svg", "/api/session", "/api/csrf",
                                 "/oauth2/authorization/claveunica", "/redirect", "/logout", "/auth/session-expired", "/error").permitAll()
                         .requestMatchers("/api/nna/**").permitAll()
+                        .requestMatchers("/api/formulario/**").permitAll()
                         .requestMatchers("/api/comunicaciones/**", "/api/comunicaciones", "/api/identidad/atributos").hasRole("CIUDADANO").anyRequest().denyAll())
                 .requestCache(cache -> cache.disable())
                 .securityContext(context -> context.securityContextRepository(contextRepository))

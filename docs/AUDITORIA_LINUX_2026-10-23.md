@@ -53,3 +53,7 @@ Este registro es incremental. Ninguna capacidad pendiente se considera terminada
 - **PENDIENTE de implementación:** formularios completos y condicionales, adulto sin CU, enriquecimiento/persistencia registral, adjuntos, evolución de campos para consumidor y Compose integrado/operación productiva. No son bloqueos que requieran detener desarrollo independiente.
 
 Detalles y reproducción: `PISEE_LINUX.md`, `LINUX_DOCKER.md`, `PARIDAD_MOCKUP_2026-10-23.md`. El encargo integral sigue abierto.
+
+## Continuación: identificación persistente
+
+Backend de recorridos por sesión y procedencia individual implementado y probado con dobles SRCeI controlados en H2/MySQL. Estado: **SIMULADO_VALIDADO**, 114 correctas/4 opcionales omitidas de 118; las integraciones reales anteriores se conservan. Nuevas migraciones aditivas V5/V6, API separada y protección de datos/propiedad/CSRF/quotas; no se cambió V3 ni se modificó SIGER. [Detalle, alcance exacto y reproducción](RECORRIDOS_IDENTIFICACION.md). Siguen pendientes las pantallas conectadas y el agregado/envío completo; un borrador de identificación no constituye una Comunicación recibida.

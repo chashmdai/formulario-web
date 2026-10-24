@@ -17,7 +17,7 @@ public final class LimitesCarga extends OncePerRequestFilter{
     public Map<String,Number> metricas(){return Map.of("capacidad",capacity,"activas",capacity-admission.availablePermits(),"rechazadas429",rejected.sum(),"rechazadas413",oversized.sum());}
     protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain)throws IOException,ServletException{
         var uri=request.getRequestURI();var type=request.getContentType();
-        boolean guarded=Set.of("POST","PUT").contains(request.getMethod())&&(uri.startsWith("/api/comunicaciones")||uri.startsWith("/api/nna/")||uri.startsWith("/integracion/")||uri.startsWith("/operacion/"));
+        boolean guarded=Set.of("POST","PUT").contains(request.getMethod())&&(uri.startsWith("/api/comunicaciones")||uri.startsWith("/api/nna/")||uri.startsWith("/api/formulario/")||uri.startsWith("/integracion/")||uri.startsWith("/operacion/"));
         if(!guarded){chain.doFilter(request,response);return;}
         if(request.getContentLengthLong()>maxBytes){oversized.increment();reject(response,413);return;}
         if(!admission.tryAcquire()){rejected.increment();reject(response,429);return;}
