@@ -63,9 +63,19 @@ No se emitió un ACK institucional real en esta comprobación ni se atribuyó un
 ## Pendientes y siguiente paso exacto
 
 1. **Adultos:** trasladar desde el HTML existente las tres etapas, motivos consulta/vulneración/promoción, orientación, preguntas condicionales, personas relacionadas/instituciones y ubicación/contactos. Reutilizar los controles de identificación ya persistentes y los adjuntos existentes. No rediseñar ni usar los simuladores del HTML.
-2. Completar y probar `ValidacionFormulario` para `ADULTO_CU` y `ADULTO_DECLARADO`; actualmente la recepción ampliada de adultos responde 503 deliberadamente. Mantener CU autenticada, RUN declarado y atributos SRCeI separados. Extender la captura compatible sin alterar V1–V7 ya aplicadas.
+2. Las reglas backend adultas están implementadas y probadas (avance descrito abajo). La recepción ampliada de adultos sigue cerrada con `formulario.adultos.habilitado=false` hasta completar React. Mantener CU autenticada, RUN declarado y atributos SRCeI separados, sin alterar V1–V7 ya aplicadas.
 3. Conectar acceso adulto/aviso de privacidad al recorrido persistente y su revisión/envío; conservar el OIDC ya validado en `443`. Verificar la aplicación integrada sin reconfigurar esa infraestructura innecesariamente.
 4. Ampliar matriz visual/funcional con adultos, personas múltiples y estados registrales sintéticos. Mantener separadas las pruebas sintéticas y las pruebas reales autorizadas.
 5. La adaptación del consumidor institucional al documento completo y su ACK real sigue pendiente de autorización para ese repositorio; no inventar compatibilidad ni truncar datos.
 
 Reversión local: detener únicamente el proceso NNA; cerrar sus banderas/controles conservando filas, claves y adjuntos. Para revertir ClamAV, detener su servicio antes de restaurar el respaldo y recargar sus unidades; no desinstalar ni borrar firmas/configuración de forma automática. No borrar el esquema local, volúmenes o información recibida. El servicio anterior en `443` no depende del laboratorio NNA.
+
+## Avance posterior: backend adulto
+
+`ValidacionAdultos` valida consulta general, los cuatro perfiles de entrevista, estadísticas con las dos confirmaciones, vulneración con riesgo/relación/parentesco, y promoción con o sin organización. Empleo se deriva al canal oficial y no se recibe como postulación. Se rechazan campos inactivos, tipos no admitidos, contactos/ubicaciones/fechas inválidos y narrativas mayores de 5000 caracteres.
+
+La custodia selecciona únicamente el presentador y las personas referenciadas en la captura activa; no incluye datos de tarjetas retiradas ni de otros motivos. Valida NNA afectados con algún antecedente o declaración de datos desconocidos, adultos relacionados opcionales, personas señaladas con algún dato/alias/vínculo e instituciones declaradas. No convierte estas personas en identidades autenticadas. No cambian el esquema firmado ya recibido ni las migraciones.
+
+Pruebas nuevas: 18 escenarios/casos en `AdultosFormularioJdbcTest`, incluidos procedencia mixta, CU con prueba de sesión, RUN declarado, múltiples personas, instituciones, descarte de campos inactivos, custodia y ACK adulto sintético. Regresión funcional H2 y MySQL: 164 pruebas descubiertas, 163 correctas, una opcional omitida. Por precaución del anfitrión se excluyeron explícitamente las clases `Carga*Test`; no se ejecutó una campaña de carga. Logs `adultos-regresion-{h2,mysql}-20261024.log`.
+
+`formulario.adultos.habilitado` es una bandera adicional, cerrada por defecto y sin modificar la configuración privada del laboratorio. La API de capacidades comunica su habilitación efectiva. **Próximo trabajo:** componentes React adultos y tarjetas de personas, conectados a estos DTO/validadores y al aviso de privacidad; después pruebas funcionales y visuales antes de habilitar la bandera.

@@ -8,7 +8,8 @@ public final class ValidacionFormulario {
     private final TerritorioFormulario territorio;
     public ValidacionFormulario(TerritorioFormulario territorio){this.territorio=territorio;}
     public void validar(Tipo tipo,DatosFormulario datos,List<Persona> personas) {
-        if(tipo!=Tipo.NNA)throw new cl.nexbyte.siger.robustez.FalloTecnico(503); // Habilitar adultos solo al completar sus reglas y pruebas.
+        if(tipo==null||datos==null||personas==null)invalid();
+        if(tipo!=Tipo.NNA){new ValidacionAdultos(territorio).validar(tipo,datos,personas);return;}
         if(!datos.personas().isEmpty()||!datos.instituciones().isEmpty())invalid();
         if(personas.size()!=1||!personas.getFirst().id().equals("presentador-nna")||personas.getFirst().rol()!=Rol.PRESENTADOR||personas.getFirst().autenticada()||!completa(personas.getFirst()))invalid();
         var c=datos.campos();var allowed=new HashSet<>(Set.of("nna-region","nna-commune","nna-preferred","nna-treatment","nna-contact-instructions","nna-story","nna-primary-method","nna-extra-contact"));

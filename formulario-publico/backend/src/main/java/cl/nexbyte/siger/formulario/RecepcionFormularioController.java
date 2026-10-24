@@ -18,7 +18,7 @@ public class RecepcionFormularioController {
     private RecepcionFormularioJdbc enabled(HttpServletRequest request){seguro(request);var s=service.getIfAvailable();if(s==null)throw new FalloTecnico(503);return s;}
     private AdjuntosFormulario adjuntos(HttpServletRequest request){seguro(request);var s=files.getIfAvailable();if(s==null)throw new FalloTecnico(503);return s;}
     private static <T>ResponseEntity<T> ok(T value){return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(value);}
-    @GetMapping("/recepcion/capacidades") ResponseEntity<Map<String,Boolean>> capacidades(){var s=service.getIfAvailable();return ok(Map.of("nna",s!=null&&s.disponible(),"adultos",false));}
+    @GetMapping("/recepcion/capacidades") ResponseEntity<Map<String,Boolean>> capacidades(){var s=service.getIfAvailable();return ok(Map.of("nna",s!=null&&s.disponible(),"adultos",s!=null&&s.adultosDisponibles()));}
     @PostMapping("/recorridos/{id}/comunicaciones") ResponseEntity<RecepcionFormularioJdbc.Estado> recibir(@PathVariable UUID id,@RequestHeader("Idempotency-Key") UUID key,@RequestBody DatosFormulario datos,HttpServletRequest request){
         return ok(enabled(request).recibir(key,id,SesionIngreso.actual(request),datos));
     }

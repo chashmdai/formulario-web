@@ -15,15 +15,20 @@ public final class RecepcionFormularioJdbc {
     private final BaseJdbc db;private final RecorridosJdbc recorridos;private final AdjuntosFormulario adjuntos;
     private final JsonMapper mapper;private final ValidacionFormulario validation;private final ControlesOperacion controles;
     private final String keyId;private final PrivateKey key;private final Map<String,PublicKey> trust,institutional;
-    private final Clock clock;private final boolean enabled;
+    private final Clock clock;private final boolean enabled,adultos;
     public RecepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario adjuntos,JsonMapper mapper,ValidacionFormulario validation,
             String keyId,PrivateKey key,Map<String,PublicKey> trust,Map<String,PublicKey> institutional,Clock clock,boolean enabled){
+        this(db,recorridos,adjuntos,mapper,validation,keyId,key,trust,institutional,clock,enabled,false);
+    }
+    public RecepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario adjuntos,JsonMapper mapper,ValidacionFormulario validation,
+            String keyId,PrivateKey key,Map<String,PublicKey> trust,Map<String,PublicKey> institutional,Clock clock,boolean enabled,boolean adultos){
         this.db=db;this.recorridos=recorridos;this.adjuntos=adjuntos;this.mapper=mapper;this.validation=validation;this.controles=new ControlesOperacion(db);
-        this.keyId=keyId;this.key=key;this.trust=Map.copyOf(trust);this.institutional=Map.copyOf(institutional);this.clock=clock;this.enabled=enabled;
+        this.keyId=keyId;this.key=key;this.trust=Map.copyOf(trust);this.institutional=Map.copyOf(institutional);this.clock=clock;this.enabled=enabled;this.adultos=adultos;
         if(institutional.values().stream().anyMatch(trust.values()::contains))throw new IllegalArgumentException("Separar firmantes públicos e institucionales");
         ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",UUID.randomUUID(),clock.instant(),"CUSTODIA_PUBLICA","0".repeat(64),"0".repeat(64),"FORMULARIO_PUBLICO_DDN","VERIFICACION"),keyId,key,mapper).verificar(trust,mapper);
     }
     public boolean disponible(){try{var c=controles.estado();return enabled&&c.aceptarNuevos()&&c.contingencia().equals("NORMAL");}catch(org.springframework.dao.DataAccessException e){return false;}}
+    public boolean adultosDisponibles(){return adultos&&disponible();}
     public Estado recibir(UUID id,UUID journey,String session,DatosFormulario datos){
         if(id==null||journey==null||datos==null)throw new FalloTecnico(400);sesion(session);
         String hash=CanonFormulario.huella("SOLICITUD",List.of(journey,session,datos),mapper);
@@ -33,7 +38,9 @@ public final class RecepcionFormularioJdbc {
             // Otro hilo con la misma clave puede haber confirmado mientras esperábamos el lock del recorrido.
             var repeated=previa(id,journey,session,hash);if(repeated!=null)return repeated;
             if(!disponible())throw new FalloTecnico(503);
-            var people=recorridos.personasInternas(journey,session);validation.validar(route.tipo(),datos,people);
+            if(route.tipo()!=Tipo.NNA&&!adultos)throw new FalloTecnico(503);
+            var selected=new HashSet<String>();selected.add(route.tipo()==Tipo.NNA?"presentador-nna":"presentador-adulto");datos.personas().forEach(p->selected.add(p.personaId()));
+            var people=recorridos.personasInternas(journey,session,selected);validation.validar(route.tipo(),datos,people);
             var files=adjuntos.internos(journey);
             if(!new HashSet<>(datos.adjuntos()).equals(new HashSet<>(files.stream().map(AdjuntosFormulario.Descriptor::id).toList())))throw new IllegalArgumentException("Adjuntos no corresponden al recorrido");
             for(var f:files)adjuntos.contenido(journey,f.id());

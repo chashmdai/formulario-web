@@ -187,8 +187,12 @@ public final class RecorridosJdbc {
     }
     /** Solo para construir el agregado en servidor; no conectar esta salida directamente a un controller. */
     public List<Persona> personasInternas(UUID journey,String session) {
+        return personasInternas(journey,session,null);
+    }
+    List<Persona> personasInternas(UUID journey,String session,Set<String> seleccionadas) {
         fila(journey,session,false);
-        var rows=db.sql.queryForList("SELECT body,query_state FROM citizen_person WHERE journey_id=? ORDER BY person_id",journey.toString());
+        var rows=db.sql.queryForList("SELECT person_id,body,query_state FROM citizen_person WHERE journey_id=? ORDER BY person_id",journey.toString()).stream()
+            .filter(row->seleccionadas==null||seleccionadas.contains(row.get("person_id").toString())).toList();
         if(rows.stream().anyMatch(r->!"REVISADO".equals(r.get("query_state"))))throw new FalloTecnico(409);
         return rows.stream().map(r->leer(r.get("body").toString())).toList();
     }
