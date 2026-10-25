@@ -1,5 +1,9 @@
 # Checkpoint · receptor transitorio integral · 25/10/2026
 
+## Cierre técnico posterior
+
+El [cierre de auditoría de concurrencia y observabilidad](CIERRE_TECNICO_V10_2026-10-25.md) corrige hold/retirada, amplía indicadores y registra la nueva regresión de 259 pruebas por motor. Agrega únicamente índices V11; las cifras de implementación y evidencia SIGER siguientes conservan su ejecución original. No implica despliegue ni activación de retiradas.
+
 ## Publicación posterior y vigencia
 
 Este checkpoint conserva el cierre técnico de `a557245`/`c971c42`, realizado antes del push. La [consolidación en main](CONSOLIDACION_MAIN_2026-10-25.md) publica íntegramente ese trabajo y actualiza el README, sin ejecutar nuevas regresiones ni desplegar infraestructura. Las menciones a rama local/sin publicación más abajo son el registro de aquella ejecución. Para estado publicado, usar el documento de consolidación y las referencias Git.

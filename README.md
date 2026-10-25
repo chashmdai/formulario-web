@@ -8,7 +8,7 @@ Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexby
 
 **El Formulario es un receptor transitorio. SIGER institucional es el registro y la custodia definitiva.** Este repositorio recibe, valida, conserva temporalmente y entrega información íntegra; después puede retirar sus copias públicas cuando se acreditan las garantías necesarias. No es una segunda base institucional permanente.
 
-**[Arquitectura vigente](docs/ARQUITECTURA_RECEPTOR_TRANSITORIO.md)** · **[Checkpoint técnico y pruebas](docs/CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md)** · **[Publicación y continuidad](docs/CONSOLIDACION_MAIN_2026-10-25.md)** · **[Contratos](contratos/README.md)** · **[Operación multimedia](docs/OPERACION_MULTIMEDIA.md)**
+**[Cierre técnico y observabilidad](docs/CIERRE_TECNICO_V10_2026-10-25.md)** · **[Arquitectura vigente](docs/ARQUITECTURA_RECEPTOR_TRANSITORIO.md)** · **[Checkpoint técnico y pruebas](docs/CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md)** · **[Publicación y continuidad](docs/CONSOLIDACION_MAIN_2026-10-25.md)** · **[Contratos](contratos/README.md)** · **[Operación multimedia](docs/OPERACION_MULTIMEDIA.md)**
 
 > **Referencia · 25/10/2026.** Main reúne el baseline funcional, multimedia y receptor transitorio V10. **Publicación de código no significa despliegue:** los laboratorios existentes siguen en V7/V8, con el mantenimiento nuevo y la retirada deshabilitados. La estimación operativa del **96 %** no es cobertura de pruebas, certificación, aceptación definitiva ni autorización productiva. El baseline sigue siendo evolutivo.
 
@@ -80,7 +80,7 @@ La entrega completa se realiza por **`/integracion/v3/formulario-completo/entreg
 
 **ACK no equivale a permiso de borrado.** La retirada exige además garantía independiente vigente, retención técnica cumplida, integridad y ausencia de bloqueo. Pendientes, cuarentenas o discrepancias se conservan. Detalles: [custodia completa](docs/CUSTODIA_FORMULARIO_COMPLETO.md), [contrato multimedia 1.1](contratos/formulario-completo-multimedia-v1.1.md) y [arquitectura transitoria](docs/ARQUITECTURA_RECEPTOR_TRANSITORIO.md).
 
-## 4. Persistencia y evolución V1–V10
+## 4. Persistencia y evolución V1–V11
 
 Las migraciones Flyway están duplicadas por motor en [`db/publico/h2`](formulario-publico/backend/src/main/resources/db/publico/h2) y [`db/publico/mysql`](formulario-publico/backend/src/main/resources/db/publico/mysql). **No se editan migraciones aplicadas**; la cuenta de aplicación no es la cuenta migradora.
 
@@ -92,6 +92,7 @@ Las migraciones Flyway están duplicadas por motor en [`db/publico/h2`](formular
 | V8 | Cargas multimedia por bloques, originales/derivadas privados, metadatos y reservas |
 | V9 | Intención durable de retirada, bloqueo de conservación, marcas de bytes retirados y liberación recuperable |
 | V10 | Recibos mínimos, retirada de payloads/identidad MySQL, garantías independientes y lease de mantenimiento |
+| V11 | Solo índices operativos para selección y observabilidad; V1–V10 y documentos intactos |
 
 Mientras la Comunicación está pendiente se mantiene íntegra. Después de satisfacer los controles, se retiran originales, derivadas, bloques y BLOB; se pone `citizen_submission.body` a NULL, se eliminan personas/historiales y se limpian nombres ciudadanos. El camino histórico también minimiza `public_delivery`, sustituyendo el RUN de propiedad por HMAC. Las reservas se liberan una sola vez.
 
@@ -128,10 +129,12 @@ Sesión propietaria, CSRF, privacidad, límites y cuotas protegen los recorridos
 |---|---|
 | `GET /integracion/v3/custodia/candidatos` | IDs/colas a verificar, sin atributos ciudadanos |
 | `POST /integracion/v3/custodia/garantias` | Recibir evidencia firmada adicional al ACK |
-| `GET /operacion/v1/custodia` | Estado agregado del mantenimiento y payloads |
+| `GET /operacion/v1/custodia` | Estados/edad por cola, garantías, holds, retención, recuperación, minimización y capacidad |
 | `POST /operacion/v1/custodia/conservacion` | Activar/retirar hold por Comunicación, con auditoría |
 
 El programador Spring usa delay fijo de cinco minutos, lotes acotados, exclusión de solapamiento y lease persistido recuperable. Guardias por recorrido coordinan cargas, análisis, lecturas y retirada: un recurso ocupado se pospone sin detener la recepción de otros. Las garantías ausentes/vencidas o un hold conservan las copias. La selección rota para evitar que bloqueados impidan revisar el resto.
+
+Hold y decisión irreversible se serializan mediante filas bloqueadas en BD: un hold confirmado antes impide pasar a `RETIRANDO`; después, activarlo devuelve **409**. Verificar no retrocede `RETIRANDO`, `LIBERADA` ni `MINIMIZADA`. Las operaciones largas de filesystem quedan fuera de la transacción. Ver [máquina de estados, métricas y regresiones](docs/CIERRE_TECNICO_V10_2026-10-25.md).
 
 Una intención de retirada durable precede a borrar bytes. La liberación contable y las marcas se confirman transaccionalmente; la minimización del payload/personas/recibo es otra transacción. Los fallos conservan lo necesario y permiten reintentar sin descontar reservas dos veces. El CLI offline V9 sigue disponible para diagnóstico; **no es el mecanismo periódico normal**.
 
@@ -240,16 +243,16 @@ El [modelo reproducible](scripts/qa/modelar-receptor-transitorio.py) supone lleg
 
 ## 10. Evidencia, despliegue y continuidad
 
-Resultados **de la unidad de implementación anterior**, conservados en esta publicación; no se presentan como regresiones ejecutadas nuevamente:
+Resultados locales del [cierre técnico de concurrencia y observabilidad](docs/CIERRE_TECNICO_V10_2026-10-25.md); la evidencia SIGER/restore indicada como anterior no se repitió:
 
 | Batería | Resultado verificado |
 |---|---|
 | Frontend | 160 correctas, 18 archivos; lint y build correctos |
-| Backend H2 / MySQL aislado | En cada motor: 245 descubiertas, 243 correctas, dos omisiones opcionales, cero fallos/errores |
+| Backend H2 / MySQL aislado | En cada motor: 259 descubiertas, 257 correctas, dos omisiones opcionales, cero fallos/errores |
 | Backup/restore e inventario Python | Nueve + siete correctas |
 | Programador/HTTP Spring | Motor y timer reales con datos sintéticos; MockMvc con TLS simulado, no handshake de infraestructura |
-| Artefacto SIGER existente | Clases reales sobre H2 en disco, documentos 1.0/1.1, COM/ACK, respaldo/restauración y lectura íntegra tras retirada/cierre de BD pública |
-| Restore público MySQL V10 | Dos recibos minimizados restaurados y firmas verificadas |
+| Artefacto SIGER existente — evidencia anterior | Clases reales sobre H2 en disco, documentos 1.0/1.1, COM/ACK, respaldo/restauración y lectura íntegra tras retirada/cierre de BD pública |
+| Restore público MySQL V10 — evidencia anterior | Dos recibos minimizados restaurados y firmas verificadas |
 
 Las dos omisiones son workers reales (`MEDIA_REAL_CHECK`) y recuperación de proceso opcional (`recuperacion.real`). El [checkpoint](docs/CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) separa esas pruebas de la evidencia multimedia anterior. Los máximos físicos de 150/250 MiB, trayecto publicado y continuidad de borrador entre sesiones tras reinicio siguen pendientes de calificación. [CI](.github/workflows/ci.yml) ejecuta pruebas aisladas en Ubuntu; no se afirma que un run remoto haya pasado sin comprobarlo.
 
@@ -257,7 +260,7 @@ Las dos omisiones son workers reales (`MEDIA_REAL_CHECK`) y recuperación de pro
 |---|---|
 | Laboratorio integrado | `robust_public_local`, V7; multimedia apagada; integraciones Sandbox/DEV existentes conservadas |
 | Laboratorio multimedia | `robust_public_media_lab`, V8; multimedia activa solo allí |
-| Código publicado | Migraciones V1–V10, agente, motor y pruebas incluidos; publicar no aplica migraciones |
+| Código publicado | Migraciones V1–V11, agente, motor y pruebas incluidos; publicar no aplica migraciones |
 | Mantenimiento / retirada nuevos | `ciclo-vida.online-habilitado=false` y `ciclo-vida.eliminacion.habilitada=false` —o ausentes— en ambos laboratorios |
 | Producción | No habilitada; guardas existentes de recorridos Sandbox/perfiles de laboratorio intactas |
 

@@ -101,6 +101,12 @@ Se coordina por recorrido: escritura/cancelación/análisis/lectura de archivos 
 
 Se reutiliza la secuencia V9: intención durable → retirada de bytes → transacción de reserva/marca final. La minimización de MySQL es otra transacción: recibo mínimo sellado, retirada de personas/historiales/nombres, body=NULL y fase MINIMIZADA se confirman juntos. Si falla, conserva el payload íntegro y reintenta; los archivos ya transferidos no se descuentan dos veces. No se considera una ausencia sin marca/evidencia como éxito.
 
+### Cierre de auditoría: hold y observabilidad
+
+El [cierre técnico V10](CIERRE_TECNICO_V10_2026-10-25.md) corrige la carrera entre conservación y retirada. La transición a RETIRANDO y el hold se serializan mediante filas `citizen_submission`/`custody_lifecycle` bloqueadas en ese orden, también entre instancias. Un hold confirmado antes prevalece; después de la frontera irreversible se rechaza activarlo con HTTP 409. Verificar conserva RETIRANDO/LIBERADA/MINIMIZADA; las operaciones largas de filesystem están fuera de la transacción. La cola histórica resuelve hold y minimización en una única transacción de su fila.
+
+`GET /operacion/v1/custodia` desglosa `completo`/`historico`: estados, edad pendiente, garantías ausentes/vencidas/vigentes por vencimiento, holds, retención, retiradas/recuperación y minimizadas. Incluye ejecución/lease y capacidad, sin proyectar UUID ni datos ciudadanos. Reservas contables, cuota y libre físico son magnitudes distintas. La respuesta operativa sustituye los antiguos grupos de longitud de payload por este esquema; no cambia documentos 1.0/1.1. V11 agrega solo índices, sin reescribir V1–V10. Las banderas existentes siguen cerradas.
+
 ### Parámetros técnicos adoptados para 25 GB
 
 - Postconfirmación: **24 horas** desde la primera observación válida, configurables. Históricos no se retrofechan. Antes de cumplir el plazo se conservan; después también se conservan si falta una garantía vigente. No se aplican acortamientos implícitos a plazos ya asignados.
