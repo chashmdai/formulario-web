@@ -1,0 +1,17 @@
+# SOLO en SIGER/agente privado institucional. Nunca en el servidor público.
+# Valores literales privados; cuenta SELECT sobre SIGER y respaldo/restauración automática del ingreso.
+garantia.origen.db.url=jdbc:mysql://localhost:3306/SIGER?sslMode=VERIFY_IDENTITY&connectTimeout=3000&socketTimeout=30000
+garantia.origen.db.user=REEMPLAZAR_LECTOR_ORIGEN
+garantia.origen.db.password=REEMPLAZAR_PRIVADAMENTE
+garantia.origen.archivo=/srv/siger/archivo
+# Paquetes durables por Comunicación en medio INSTITUCIONAL independiente. Nunca en el público.
+garantia.respaldo.directorio=/srv/siger-backup-ingresos
+garantia.restauracion.scratch=/var/lib/siger-verificador
+# El agente crea/restaura automáticamente; no requiere una restauración SQL manual por cada lote.
+garantia.public-keys=/etc/siger-verificador/public-keys.json
+garantia.institution-keys=/etc/siger-verificador/institution-keys.json
+# Nuevo rol criptográfico: no reutilizar clave privada de SIGER, Formulario, CU o SSH.
+garantia.key-id=verificador-institucional-1
+garantia.private-key=/etc/siger-verificador/private-key.pem
+garantia.public.origin=https://REEMPLAZAR_HOST_FORMULARIO
+garantia.public.integration-token=REEMPLAZAR_PRIVADAMENTE

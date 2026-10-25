@@ -1,0 +1,12 @@
+[Unit]
+Description=Garantias periodicas de custodia independiente (instalar solo en entorno institucional)
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=15min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=siger-garantia-custodia.service
+
+[Install]
+WantedBy=timers.target

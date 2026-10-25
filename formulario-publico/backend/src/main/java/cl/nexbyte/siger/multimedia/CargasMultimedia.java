@@ -24,11 +24,11 @@ public final class CargasMultimedia implements AutoCloseable{
  private static UUID uuid(Object v){return v==null?null:UUID.fromString(v.toString());}
  private static long number(Map<String,Object> r,String key){return ((Number)r.get(key)).longValue();}
  private Map<String,Object> row(UUID journey,UUID id,String session,boolean lock){journeys.consultar(journey,session);var rows=db.sql.queryForList("SELECT * FROM media_upload WHERE id=? AND journey_id=?"+(lock?" FOR UPDATE":""),id.toString(),journey.toString());if(rows.isEmpty())throw new FalloTecnico(404);return rows.getFirst();}
- private <T>T guard(java.util.function.Supplier<T> work){try(var lock=store.guardia()){return work.get();}catch(IOException e){throw new FalloTecnico(503);}}
+ private <T>T guard(UUID journey,java.util.function.Supplier<T> work){try(var route=store.lectura(journey);var lock=store.guardia()){return work.get();}catch(IOException e){throw new FalloTecnico(503);}}
  private static void hash(String value){if(value==null||!value.matches("[a-f0-9]{64}"))throw new IllegalArgumentException("SHA-256 requerido");}
  public Estado iniciar(UUID journey,String session,Inicio request){
   if(request==null)throw new IllegalArgumentException("Archivo requerido");var name=policy.nombre(request.nombre());policy.tamanio(name,request.tamanio());hash(request.sha256());
-  return guard(()->db.transaction(()->{
+  return guard(journey,()->db.transaction(()->{
    journeys.bloquearBorrador(journey,session);var cap=db.sql.queryForMap("SELECT reserved_bytes FROM media_capacity WHERE id=1 FOR UPDATE");
    var same=db.sql.queryForList("SELECT id FROM media_upload WHERE journey_id=? AND expected_size=? AND expected_sha256=? AND state NOT IN ('CANCELADO','RECHAZADO','EXPIRADO')",journey.toString(),request.tamanio(),request.sha256());if(!same.isEmpty())return estado(journey,uuid(same.getFirst().get("id")),session);
    long attempts=db.sql.queryForObject("SELECT COUNT(*) FROM media_upload u JOIN citizen_journey j ON j.id=u.journey_id WHERE j.owner_session=? AND u.created_ms>?",Long.class,session,clock.millis()-86400000);
@@ -43,7 +43,8 @@ public final class CargasMultimedia implements AutoCloseable{
   }));
  }
  public List<Estado> listar(UUID journey,String session){journeys.consultar(journey,session);return db.sql.queryForList("SELECT id FROM media_upload WHERE journey_id=? AND state NOT IN ('CANCELADO','EXPIRADO') ORDER BY created_ms,id",String.class,journey.toString()).stream().map(id->estado(journey,UUID.fromString(id),session)).toList();}
- public Estado estado(UUID journey,UUID id,String session){var r=row(journey,id,session,false);var missing=new ArrayList<Integer>();
+ public Estado estado(UUID journey,UUID id,String session){try(var lock=store.lectura(journey)){return estadoProtegido(journey,id,session);}catch(IOException fail){throw new FalloTecnico(503);}}
+ private Estado estadoProtegido(UUID journey,UUID id,String session){var r=row(journey,id,session,false);var missing=new ArrayList<Integer>();
   if(!"VALIDADO".equals(r.get("state")))for(var c:db.sql.queryForList("SELECT chunk_index,size_bytes FROM media_chunk WHERE upload_id=? ORDER BY chunk_index",id.toString())){int idx=((Number)c.get("chunk_index")).intValue();try{var file=store.bloque(id,idx);if(!Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS)||Files.size(file)!=number(c,"size_bytes"))missing.add(idx);}catch(IOException e){missing.add(idx);}}
   AdjuntosFormulario.Descriptor descriptor="VALIDADO".equals(r.get("state"))?descriptor(r):null;
   return new Estado(id,r.get("name").toString(),number(r,"expected_size"),r.get("expected_sha256").toString(),number(r,"offset_bytes"),policy.bloque(),r.get("state").toString(),(String)r.get("error_code"),List.copyOf(missing),descriptor);
@@ -53,7 +54,7 @@ public final class CargasMultimedia implements AutoCloseable{
   hash(checksum);var current=row(journey,id,session,false);journeys.consultar(journey,session);long total=number(current,"expected_size"),start=Math.multiplyExact((long)index,policy.bloque());if(index<0||start<0||start>=total||length>=0&&length!=Math.min(policy.bloque(),total-start))throw new FalloTecnico(413);
   if(!"RECIBIENDO".equals(current.get("state"))||number(current,"expires_ms")<=clock.millis())throw new FalloTecnico(409);
   final long blockLength=Math.min(policy.bloque(),total-start);
-  return guard(()->{
+  return guard(journey,()->{
    Path temp;try{if(store.espacio()<blockLength+policy.libreMinimo())throw new FalloTecnico(507);temp=store.temporal();}catch(IOException e){throw new FalloTecnico(503);}
    try{if(!store.recibir(input,blockLength,temp).equals(checksum))throw new FalloTecnico(422);
     return db.transaction(()->{journeys.bloquearBorrador(journey,session);var r=row(journey,id,session,true);if(!"RECIBIENDO".equals(r.get("state"))||number(r,"expires_ms")<=clock.millis())throw new FalloTecnico(409);
@@ -63,31 +64,31 @@ public final class CargasMultimedia implements AutoCloseable{
      if(existing.isEmpty()){db.sql.update("INSERT INTO media_chunk(upload_id,chunk_index,size_bytes,sha256) VALUES(?,?,?,?)",id.toString(),index,blockLength,checksum);db.sql.update("UPDATE media_upload SET offset_bytes=?,touched_ms=? WHERE id=?",start+blockLength,clock.millis(),id.toString());}
      return estado(journey,id,session);
     });
-   }catch(IOException e){throw new FalloTecnico(503);}finally{try{Files.deleteIfExists(temp);}catch(IOException ignored){}}
+   }catch(IOException e){throw new FalloTecnico(503);}finally{try{store.liberarTemporal(temp);}catch(IOException ignored){}}
   });
  }
  public Estado finalizar(UUID journey,UUID id,String session){
   var before=row(journey,id,session,false);if("VALIDADO".equals(before.get("state")))return estado(journey,id,session);
   if("ANALIZANDO".equals(before.get("state"))&&number(before,"lease_until_ms")>clock.millis())return estado(journey,id,session);
   if(!analyzing.tryAcquire())throw new FalloTecnico(429);var lease=UUID.randomUUID();
-  try{guard(()->db.transaction(()->{journeys.bloquearBorrador(journey,session);var r=row(journey,id,session,true);
+  try{guard(journey,()->db.transaction(()->{journeys.bloquearBorrador(journey,session);var r=row(journey,id,session,true);
    if(number(r,"expires_ms")<=clock.millis()||!Set.of("RECIBIENDO","REINTENTABLE","ANALIZANDO").contains(r.get("state"))||"ANALIZANDO".equals(r.get("state"))&&number(r,"lease_until_ms")>clock.millis()||number(r,"offset_bytes")!=number(r,"expected_size")||!estado(journey,id,session).bloquesFaltantes().isEmpty())throw new FalloTecnico(409);
    db.sql.update("UPDATE media_upload SET state='ANALIZANDO',lease_id=?,lease_until_ms=?,error_code=NULL WHERE id=?",lease.toString(),clock.millis()+180000,id.toString());return null;
   }));running.add(id);executor.execute(()->{try{analizar(journey,id,session,lease);}finally{running.remove(id);analyzing.release();try{liberarCancelado(id);}catch(RuntimeException retained){/* Se conserva para saneamiento controlado. */}}});return estado(journey,id,session);}catch(RuntimeException e){running.remove(id);analyzing.release();throw e;}
  }
  private void analizar(UUID journey,UUID id,String session,UUID lease){
-  String phase="ENSAMBLAR";try(var lock=store.guardia()){
+  String phase="ENSAMBLAR";try(var route=store.lectura(journey);var lock=store.guardia()){
    var r=row(journey,id,session,false);var file=store.ensamblar(id,number(r,"expected_size"),policy.bloque());if(Files.size(file)!=number(r,"expected_size")||!AlmacenPrivado.huella(file).equals(r.get("expected_sha256")))throw new IllegalArgumentException("Integridad completa inválida");
    phase="ANTIVIRUS";if(!scanner.limpio(file))throw new IllegalArgumentException("Archivo rechazado");phase="INSPECTOR";var result=inspector.examinar(file,policy.formato(r.get("name").toString()));
    if(!policy.formato(r.get("name").toString()).tipo().equals(result.tipo()))throw new IllegalArgumentException("Tipo distinto");String pngHash=null;long pngSize=0;
-   phase="DERIVADA";if(result.png()!=null){if(result.png().length>2*1024*1024)throw new IOException("Representación excesiva");var temp=store.temporal();Files.write(temp,result.png(),StandardOpenOption.TRUNCATE_EXISTING);try(var c=java.nio.channels.FileChannel.open(temp,StandardOpenOption.WRITE)){c.force(true);}store.publicar(temp,store.derivada(id));pngHash=AlmacenPrivado.huella(store.derivada(id));pngSize=Files.size(store.derivada(id));}
+   phase="DERIVADA";if(result.png()!=null){if(result.png().length>2*1024*1024)throw new IOException("Representación excesiva");var temp=store.temporal();try{Files.write(temp,result.png(),StandardOpenOption.TRUNCATE_EXISTING);try(var c=java.nio.channels.FileChannel.open(temp,StandardOpenOption.WRITE)){c.force(true);}store.publicar(temp,store.derivada(id));pngHash=AlmacenPrivado.huella(store.derivada(id));pngSize=Files.size(store.derivada(id));}finally{store.liberarTemporal(temp);}}
    phase="CONFIRMAR";final String derived=pngHash;final long derivedSize=pngSize;db.transaction(()->{journeys.bloquearBorrador(journey,session);var live=row(journey,id,session,true);if(!lease.toString().equals(live.get("lease_id"))||!"ANALIZANDO".equals(live.get("state")))return null;
     db.sql.update("UPDATE media_upload SET state='VALIDADO',media_type=?,view_kind=?,preview_sha256=?,preview_size=?,lease_until_ms=0,touched_ms=? WHERE id=?",result.tipo(),result.vista(),derived,derivedSize,clock.millis(),id.toString());db.event("MULTIMEDIA",id.toString(),"ANALISIS_COMPLETO");return null;});
    try{store.borrarBloques(id);}catch(IOException retained){/* Un temporal retenido no cambia la validez del original. */}
   }catch(Exception failure){db.event("MULTIMEDIA",id.toString(),"FALLO_"+phase+"_"+failure.getClass().getSimpleName());String state=failure instanceof IllegalArgumentException?"RECHAZADO":"REINTENTABLE";db.sql.update("UPDATE media_upload SET state=?,error_code=?,lease_until_ms=0 WHERE id=? AND lease_id=? AND state='ANALIZANDO'",state,state.equals("RECHAZADO")?"CONTENIDO_NO_ADMITIDO":"INSPECCION_NO_DISPONIBLE",id.toString(),lease.toString());}
  }
- public void cancelar(UUID journey,UUID id,String session){guard(()->db.transaction(()->{journeys.bloquearBorrador(journey,session);var r=row(journey,id,session,true);if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=? AND journey_id=?",Integer.class,id.toString(),journey.toString())>0)throw new FalloTecnico(409);if("EXPIRADO".equals(r.get("state")))throw new FalloTecnico(409);db.sql.update("UPDATE media_upload SET state='CANCELADO',lease_until_ms=0,expires_ms=? WHERE id=?",clock.millis(),id.toString());db.event("MULTIMEDIA",id.toString(),"CARGA_CANCELADA");return null;}));if(!running.contains(id))liberarCancelado(id);}
- private void liberarCancelado(UUID id){guard(()->{
+ public void cancelar(UUID journey,UUID id,String session){guard(journey,()->db.transaction(()->{journeys.bloquearBorrador(journey,session);var r=row(journey,id,session,true);if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=? AND journey_id=?",Integer.class,id.toString(),journey.toString())>0)throw new FalloTecnico(409);if("EXPIRADO".equals(r.get("state")))throw new FalloTecnico(409);db.sql.update("UPDATE media_upload SET state='CANCELADO',lease_until_ms=0,expires_ms=? WHERE id=?",clock.millis(),id.toString());db.event("MULTIMEDIA",id.toString(),"CARGA_CANCELADA");return null;}));if(!running.contains(id))liberarCancelado(id);}
+ private void liberarCancelado(UUID id){var owners=db.sql.queryForList("SELECT journey_id FROM media_upload WHERE id=?",String.class,id.toString());if(owners.isEmpty())return;UUID journey=UUID.fromString(owners.getFirst());guard(journey,()->{
   var rows=db.sql.queryForList("SELECT state,released FROM media_upload WHERE id=?",id.toString());if(rows.isEmpty()||!"CANCELADO".equals(rows.getFirst().get("state"))||Boolean.TRUE.equals(rows.getFirst().get("released")))return null;
   if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=?",Integer.class,id.toString())>0)throw new FalloTecnico(409);
   try{store.borrarNoRecibido(id);}catch(IOException e){throw new FalloTecnico(503);}
@@ -98,7 +99,7 @@ public final class CargasMultimedia implements AutoCloseable{
  public Lote lote(UUID journey,String session){journeys.consultar(journey,session);var files=activos(journey);return new Lote(revision(files),files);}
  public Lote confirmar(UUID journey,String session,Manifest request){
   if(request==null||request.ids()==null||request.ids().stream().anyMatch(Objects::isNull)||request.ids().size()>policy.cantidad()||new HashSet<>(request.ids()).size()!=request.ids().size())throw new FalloTecnico(413);
-  return guard(()->{
+  return guard(journey,()->{
    journeys.consultar(journey,session);
    for(var id:request.ids()){
     var legacy=db.sql.queryForList("SELECT storage_kind FROM citizen_attachment WHERE id=? AND journey_id=?",id.toString(),journey.toString());
@@ -119,7 +120,7 @@ public final class CargasMultimedia implements AutoCloseable{
   var candidates=db.sql.queryForList("SELECT id,journey_id,state,reserved_bytes FROM media_upload u WHERE expires_ms<=? AND released=FALSE AND state IN ('RECIBIENDO','REINTENTABLE','RECHAZADO','CANCELADO','EXPIRADO') AND NOT EXISTS(SELECT 1 FROM citizen_attachment a WHERE a.id=u.id) AND NOT EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=u.journey_id)",clock.millis());var result=new ArrayList<Limpieza>();
   if(apply&&analyzing.availablePermits()==0)throw new FalloTecnico(409);
   for(var c:candidates){UUID id=uuid(c.get("id")),journey=uuid(c.get("journey_id"));result.add(new Limpieza(id,c.get("state").toString(),number(c,"reserved_bytes")));if(!apply)continue;
-   guard(()->{boolean marked=db.transaction(()->{
+   guard(journey,()->{boolean marked=db.transaction(()->{
     var owners=db.sql.queryForList("SELECT owner_session FROM citizen_journey WHERE id=?",journey.toString());if(owners.isEmpty())return false;String owner=owners.getFirst().get("owner_session").toString();journeys.bloquearBorrador(journey,owner);var live=row(journey,id,owner,true);
     if(number(live,"expires_ms")>clock.millis()||"ANALIZANDO".equals(live.get("state"))||Boolean.TRUE.equals(live.get("released"))||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=?",Integer.class,id.toString())>0)return false;
     db.sql.update("UPDATE media_upload SET state='EXPIRADO' WHERE id=?",id.toString());return true;});
@@ -137,7 +138,7 @@ public final class CargasMultimedia implements AutoCloseable{
  }
  public RecursoPrivado representacion(UUID journey,UUID id,String session,AdjuntosFormulario files){var view=vista(journey,id,session);
   if(Boolean.TRUE.equals(db.sql.queryForObject("SELECT bytes_retired FROM citizen_attachment WHERE id=? AND journey_id=?",Boolean.class,id.toString(),journey.toString())))throw new FalloTecnico(410);
-  if(view.representacion().equals("IMAGEN_DERIVADA")){try{var p=store.derivada(id);store.verificar(p,view.tamanioDerivada(),view.huellaDerivada());return new RecursoPrivado("vista-"+id+".png",view.tamanioDerivada(),view.huellaDerivada(),"image/png",()->Files.newInputStream(p,LinkOption.NOFOLLOW_LINKS));}catch(IOException e){throw new FalloTecnico(503);}}
+  if(view.representacion().equals("IMAGEN_DERIVADA")){try{var p=store.derivada(id);store.verificar(p,view.tamanioDerivada(),view.huellaDerivada());return new RecursoPrivado("vista-"+id+".png",view.tamanioDerivada(),view.huellaDerivada(),"image/png",()->store.abrir(journey,p));}catch(IOException e){throw new FalloTecnico(503);}}
   if(view.originalInline())return files.recurso(journey,id,session);throw new FalloTecnico(415);
  }
  public Map<String,Object> capacidad(){return Map.of("reservados",db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class),"limite",policy.global(),"libresFilesystem",store.espacio(),"minimoLibre",policy.libreMinimo(),"analisisActivos",1-analyzing.availablePermits(),"alertaCuota",db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class)>=policy.global()*8/10,"alertaEspacio",store.espacio()<policy.libreMinimo()+2*policy.video());}

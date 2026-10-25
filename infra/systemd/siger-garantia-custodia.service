@@ -1,0 +1,19 @@
+[Unit]
+Description=Verificar custodia SIGER y restauracion; enviar garantia minima al Formulario
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=siger-verificador
+Group=siger-verificador
+UMask=0077
+ExecStart=/usr/bin/java -Dloader.main=cl.nexbyte.siger.custodia.EmisorGarantiaCustodia -cp /opt/siger-verificador/formulario-publico.jar org.springframework.boot.loader.launch.PropertiesLauncher --config /etc/siger-verificador/garantia.properties --enviar
+TimeoutStartSec=10min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/siger /etc/siger-verificador /opt/siger-verificador
+ReadWritePaths=/srv/siger-backup-ingresos /var/lib/siger-verificador
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

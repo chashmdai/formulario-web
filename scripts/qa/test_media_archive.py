@@ -32,7 +32,7 @@ class LifecycleBackupSafety(unittest.TestCase):
    queries=[]
    def fake(args,sql):
     queries.append(sql)
-    if 'information_schema.columns' in sql:return ['1' if version==9 else '0']
+    if 'information_schema.columns' in sql:return ['1' if version==9 and "column_name='bytes_retired'" in sql else '0']
     if 'SELECT COUNT(*)' in sql:return ['0']
     return []
    with tempfile.TemporaryDirectory() as root,patch.object(archive,'command',side_effect=fake):
@@ -53,6 +53,14 @@ class LifecycleBackupSafety(unittest.TestCase):
    if 'information_schema.columns' in sql:return ['1']
    if 'LEFT JOIN' in sql and 'storage_retirement' in sql:return ['1']
    return ['0']
+  with tempfile.TemporaryDirectory() as root,patch.object(archive,'command',side_effect=fake):
+   with self.assertRaises(ValueError):archive.verify_database(types.SimpleNamespace(),'sintetica',Path(root))
+ def test_v10_payload_ausente_sin_recibo_no_es_una_retirada_valida(self):
+  def fake(args,sql):
+   if 'information_schema.columns' in sql:return ['1']
+   if 'LEFT JOIN' in sql and 'custody_lifecycle' in sql:return ['1']
+   if 'COUNT(*)' in sql:return ['0']
+   return []
   with tempfile.TemporaryDirectory() as root,patch.object(archive,'command',side_effect=fake):
    with self.assertRaises(ValueError):archive.verify_database(types.SimpleNamespace(),'sintetica',Path(root))
 if __name__=='__main__':unittest.main()

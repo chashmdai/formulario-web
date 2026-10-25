@@ -53,6 +53,14 @@ def verify_database(args,db,root):
   if invalid!=['0']:raise ValueError('Retirada sin intención finalizada; no se omite verificación del original')
   invalid=command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment a JOIN `{db}`.media_upload u ON u.id=a.id WHERE a.bytes_retired=TRUE AND u.released=FALSE;")
   if invalid!=['0']:raise ValueError('Retirada con reserva no liberada; respaldo no consistente')
+ has_minimum=command(args,f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='citizen_submission' AND column_name='content_retired';")==['1']
+ if has_minimum:
+  bad=command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_submission s LEFT JOIN `{db}`.custody_lifecycle c ON c.submission_id=s.id WHERE (s.content_retired=TRUE AND (s.body IS NOT NULL OR s.minimal_receipt IS NULL OR c.phase IS NULL OR c.phase<>'MINIMIZADA')) OR (s.content_retired=FALSE AND s.body IS NULL);")
+  if bad!=['0']:raise ValueError('Payload ausente sin evidencia mínima o fase coherente')
+  bad=command(args,f"SELECT COUNT(*) FROM `{db}`.public_delivery WHERE (content_retired=TRUE AND (body IS NOT NULL OR minimal_receipt IS NULL OR owner_run IS NOT NULL OR legacy_ack IS NOT NULL)) OR (content_retired=FALSE AND body IS NULL);")
+  if bad!=['0']:raise ValueError('Minimización histórica incoherente')
+  bad=command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_submission s WHERE s.content_retired=TRUE AND (EXISTS(SELECT 1 FROM `{db}`.citizen_person p WHERE p.journey_id=s.journey_id) OR EXISTS(SELECT 1 FROM `{db}`.citizen_identity_history h WHERE h.journey_id=s.journey_id));")
+  if bad!=['0']:raise ValueError('Identidad residual en una Comunicación minimizada')
  for row in command(args,f"SELECT id,expected_size,expected_sha256 FROM `{db}`.media_upload WHERE state='VALIDADO' AND released=FALSE;"):
   key,size,sha=row.split('\t');uuid.UUID(key);path=root/'objects'/key
   if not path.is_file() or path.is_symlink() or path.stat().st_size!=int(size) or digest(path)!=sha:raise ValueError('Carga validada no íntegra')

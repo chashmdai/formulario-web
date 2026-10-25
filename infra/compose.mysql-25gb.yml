@@ -1,0 +1,13 @@
+# Overlay optativo. NO se aplico al laboratorio. Requiere respaldos externos restaurables.
+# Combinar con la definicion MySQL existente y revisar montajes/certificados privados.
+services:
+  mysql:
+    command:
+      - --mysqlx=OFF
+      - --skip-name-resolve
+      - --binlog-row-image=MINIMAL
+      - --binlog-expire-logs-seconds=259200
+      - --max-binlog-size=67108864
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "3"}

@@ -15,6 +15,8 @@ public final class RecepcionFormularioJdbc {
     private final BaseJdbc db;private final RecorridosJdbc recorridos;private final AdjuntosFormulario adjuntos;
     private final JsonMapper mapper;private final ValidacionFormulario validation;private final ControlesOperacion controles;
     private final String keyId;private final PrivateKey key;private final Map<String,PublicKey> trust,institutional;
+    private java.util.function.BooleanSupplier admision=()->true;
+    public RecepcionFormularioJdbc admision(java.util.function.BooleanSupplier guard){this.admision=Objects.requireNonNull(guard);return this;}
     private final Clock clock;private final boolean enabled,adultos;
     public RecepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario adjuntos,JsonMapper mapper,ValidacionFormulario validation,
             String keyId,PrivateKey key,Map<String,PublicKey> trust,Map<String,PublicKey> institutional,Clock clock,boolean enabled){
@@ -27,7 +29,7 @@ public final class RecepcionFormularioJdbc {
         if(institutional.values().stream().anyMatch(trust.values()::contains))throw new IllegalArgumentException("Separar firmantes públicos e institucionales");
         ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",UUID.randomUUID(),clock.instant(),"CUSTODIA_PUBLICA","0".repeat(64),"0".repeat(64),"FORMULARIO_PUBLICO_DDN","VERIFICACION"),keyId,key,mapper).verificar(trust,mapper);
     }
-    public boolean disponible(){try{var c=controles.estado();return enabled&&c.aceptarNuevos()&&c.contingencia().equals("NORMAL");}catch(org.springframework.dao.DataAccessException e){return false;}}
+    public boolean disponible(){try{var c=controles.estado();return admision.getAsBoolean()&&enabled&&c.aceptarNuevos()&&c.contingencia().equals("NORMAL");}catch(org.springframework.dao.DataAccessException e){return false;}}
     public boolean multimediaDisponible(){return adjuntos.multimediaDisponible();}
     public boolean adultosDisponibles(){return adultos&&disponible();}
     public Estado recibir(UUID id,UUID journey,String session,DatosFormulario datos){
@@ -72,6 +74,12 @@ public final class RecepcionFormularioJdbc {
         if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();return estado(UUID.fromString(row.get("id").toString()),row);
     }
     private Estado estado(UUID id,Map<String,Object> row){
+        if(Boolean.TRUE.equals(row.get("content_retired"))) {
+            try {var c=cl.nexbyte.siger.custodia.ReciboMinimo.validar(row.get("minimal_receipt").toString(),id,trust,institutional,mapper);
+                if(!"COMPLETO".equals(c.cola())||!c.recorridoId().toString().equals(row.get("journey_id"))||!"CONFIRMADA".equals(row.get("state"))||!c.registro().equals(mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class)))throw new IllegalArgumentException();
+                return new Estado(id,"REGISTRADA_SIGER",c.custodia(),c.registro());
+            }catch(RuntimeException invalid){throw new FalloTecnico(503);}
+        }
         var delivery=leer(row.get("body").toString(),id);
         if(row.get("ack")==null)return new Estado(id,"PENDIENTE_REGISTRO_SIGER",delivery.custodia(),null);
         try{var ack=mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class);delivery.validarRegistro(ack,institutional,mapper);
@@ -118,7 +126,9 @@ public final class RecepcionFormularioJdbc {
     public void confirmar(UUID id,UUID lease,RegistroInstitucional ack){
         if(id==null||lease==null||ack==null)throw new FalloTecnico(400);
         db.transaction(()->{
-            var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE id=? FOR UPDATE",id.toString());if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();var delivery=leer(row.get("body").toString(),id);
+            var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE id=? FOR UPDATE",id.toString());if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();
+            if(Boolean.TRUE.equals(row.get("content_retired"))) {if(!estado(id,row).registro().equals(ack))throw new FalloTecnico(409);return null;}
+            var delivery=leer(row.get("body").toString(),id);
             try{delivery.validarRegistro(ack,institutional,mapper);}catch(IllegalArgumentException invalid){throw new FalloTecnico(409);}
             if(row.get("ack")!=null){var previous=mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class);delivery.validarRegistro(previous,institutional,mapper);if(!previous.equals(ack))throw new FalloTecnico(409);return null;}
             if(!"RESERVADA".equals(row.get("state"))||!lease.toString().equals(row.get("lease_id"))||((Number)row.get("lease_until_ms")).longValue()<=clock.millis())throw new FalloTecnico(409);

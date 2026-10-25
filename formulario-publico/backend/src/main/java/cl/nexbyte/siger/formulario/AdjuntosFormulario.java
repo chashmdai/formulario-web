@@ -20,12 +20,15 @@ public final class AdjuntosFormulario {
     }
     private record Validado(Descriptor descriptor,byte[] bytes){}
     private final cl.nexbyte.siger.multimedia.AlmacenPrivado store;
+    private java.util.function.BooleanSupplier admision=()->true;
+    public AdjuntosFormulario admision(java.util.function.BooleanSupplier guard){this.admision=Objects.requireNonNull(guard);return this;}
     private final BaseJdbc db;private final RecorridosJdbc recorridos;private final Escaner scanner;
     public AdjuntosFormulario(BaseJdbc db,RecorridosJdbc recorridos,Escaner scanner){this(db,recorridos,scanner,null);}
     public AdjuntosFormulario(BaseJdbc db,RecorridosJdbc recorridos,Escaner scanner,cl.nexbyte.siger.multimedia.AlmacenPrivado store){this.db=db;this.recorridos=recorridos;this.scanner=scanner;this.store=store;}
     public List<Descriptor> reemplazar(UUID journey,String session,List<Archivo> archivos) {
         db.transaction(()->{recorridos.bloquearBorrador(journey,session);return null;});
         if(archivos==null||archivos.size()>5)throw new IllegalArgumentException("Límite de adjuntos");
+        if(!archivos.isEmpty()&&!admision.getAsBoolean())throw new FalloTecnico(507);
         long size=0;for(var a:archivos){if(a==null||a.contenido()==null||a.contenido().length==0||a.contenido().length>MAX_FILE)throw new IllegalArgumentException("Tamaño de adjunto inválido");size+=a.contenido().length;}
         if(size>MAX_TOTAL)throw new IllegalArgumentException("Límite total de adjuntos");
         var result=new ArrayList<Validado>();
@@ -68,7 +71,7 @@ public final class AdjuntosFormulario {
         var rows=db.sql.queryForList("SELECT name,size_bytes,sha256,media_type,storage_kind,storage_key,bytes_retired FROM citizen_attachment WHERE journey_id=? AND id=?",journey.toString(),attachment.toString());if(rows.isEmpty())throw new FalloTecnico(404);var r=rows.getFirst();
         if(Boolean.TRUE.equals(r.get("bytes_retired")))throw new FalloTecnico(410);
         String name=r.get("name").toString(),hash=r.get("sha256").toString(),type=r.get("media_type").toString();long size=((Number)r.get("size_bytes")).longValue();
-        if("FILE".equals(r.get("storage_kind"))){try{if(store==null)throw new java.io.IOException();var path=store.original(UUID.fromString(r.get("storage_key").toString()));store.verificar(path,size,hash);return new cl.nexbyte.siger.multimedia.RecursoPrivado(name,size,hash,type,()->java.nio.file.Files.newInputStream(path,java.nio.file.LinkOption.NOFOLLOW_LINKS));}catch(java.io.IOException e){throw new FalloTecnico(503);}}
+        if("FILE".equals(r.get("storage_kind"))){try{if(store==null)throw new java.io.IOException();var path=store.original(UUID.fromString(r.get("storage_key").toString()));store.verificar(path,size,hash);return new cl.nexbyte.siger.multimedia.RecursoPrivado(name,size,hash,type,()->store.abrir(journey,path));}catch(java.io.IOException e){throw new FalloTecnico(503);}}
         var legacy=contenido(journey,attachment);return new cl.nexbyte.siger.multimedia.RecursoPrivado(name,size,hash,type,()->new ByteArrayInputStream(legacy.contenido()));
     }
     private Descriptor validar(Archivo file){

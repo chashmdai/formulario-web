@@ -17,14 +17,14 @@ public class FormularioConfiguration {
     @Bean AdjuntosFormulario adjuntosFormulario(BaseJdbc db,RecorridosJdbc recorridos,Environment env,org.springframework.beans.factory.ObjectProvider<cl.nexbyte.siger.multimedia.AlmacenPrivado> store){
         int port=env.getProperty("formulario.adjuntos.clamav-port",Integer.class,0);
         AdjuntosFormulario.Escaner scanner=port==0?bytes->{throw new java.io.IOException("Inspección no configurada");}:new EscanerClamAv(port);
-        return new AdjuntosFormulario(db,recorridos,scanner,store.getIfAvailable());
+        return new AdjuntosFormulario(db,recorridos,scanner,store.getIfAvailable()).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
     }
     @Bean RecepcionFormularioJdbc recepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario files,JsonMapper mapper,ValidacionFormulario validation,Environment env)throws java.io.IOException {
         return new RecepcionFormularioJdbc(db,recorridos,files,mapper,validation,env.getRequiredProperty("publico.comprobante.key-id"),
             cl.nexbyte.siger.robustez.ComprobanteDigital.privatePem(Files.readString(Path.of(env.getRequiredProperty("publico.comprobante.private-key")))),
             cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.trusted-keys"))),
             cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.institutional-trusted-keys"))),
-            Clock.systemUTC(),env.getProperty("formulario.recepcion.habilitada",Boolean.class,false)&&env.getProperty("publico.recepcion.aviso-validado",Boolean.class,false),env.getProperty("formulario.adultos.habilitado",Boolean.class,false));
+            Clock.systemUTC(),env.getProperty("formulario.recepcion.habilitada",Boolean.class,false)&&env.getProperty("publico.recepcion.aviso-validado",Boolean.class,false),env.getProperty("formulario.adultos.habilitado",Boolean.class,false)).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
     }
     @Bean RecorridosJdbc recorridosJdbc(BaseJdbc db,JsonMapper mapper,ClientePisee client,Environment env) throws java.io.IOException {
         if(env.matchesProfiles("production","prod")||!"SANDBOX".equals(env.getProperty("siger.claveunica.environment","SANDBOX")))
@@ -46,6 +46,6 @@ public class FormularioConfiguration {
         }
         var permits=Set.copyOf(allowed);
         return new RecorridosJdbc(db,mapper,client::consultar,permits::contains,Clock.systemUTC(),Files.readAllBytes(keyPath),
-            env.getRequiredProperty("formulario.aviso-adulto"),env.getRequiredProperty("formulario.aviso-nna"));
+            env.getRequiredProperty("formulario.aviso-adulto"),env.getRequiredProperty("formulario.aviso-nna")).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
     }
 }

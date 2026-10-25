@@ -10,7 +10,7 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Mantenimiento OFFLINE: propietario exclusivo del AlmacenPrivado, sin tareas automáticas ni borrado por ACK. */
+/** Motor reanudable: CLI offline V9 y coordinador online V10. Nunca retira por el mero ACK. */
 public final class CicloVidaCustodia {
     public record Politica(boolean eliminar, Duration postAck, Duration abandono) {
         public Politica {
@@ -22,6 +22,11 @@ public final class CicloVidaCustodia {
     public record Resultado(int revisadas, int liberadas, int bloqueadas) {}
     private final BaseJdbc db;
     private final AlmacenPrivado store;
+    public interface Prueba {void verificar(EntregaFormulario entrega,RegistroInstitucional ack)throws IOException;}
+    private Prueba prueba;
+    private int batch=1000;
+    public CicloVidaCustodia lotesAcotados(int max){if(max<1||max>1000)throw new IllegalArgumentException("Lote inválido");batch=max;return this;}
+    public CicloVidaCustodia prueba(Prueba p){this.prueba=Objects.requireNonNull(p);return this;}
     private final ArchivoCustodiaIndependiente archive;
     private final JsonMapper mapper;
     private final Map<String,PublicKey> publicKeys, institutionalKeys;
@@ -42,9 +47,9 @@ public final class CicloVidaCustodia {
     }
     private static long number(Map<String,Object> row,String name) { return ((Number)row.get(name)).longValue(); }
     private void accounting() {
-        long counter=db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class);
+        db.transaction(()->{long counter=((Number)db.sql.queryForMap("SELECT reserved_bytes FROM media_capacity WHERE id=1 FOR UPDATE").get("reserved_bytes")).longValue();
         long sum=db.sql.queryForObject("SELECT COALESCE(SUM(reserved_bytes),0) FROM media_upload WHERE released=FALSE",Long.class);
-        if(counter<0 || counter!=sum) throw new IllegalStateException("Contabilidad inconsistente; conservar bytes");
+        if(counter<0 || counter!=sum) throw new IllegalStateException("Contabilidad inconsistente; conservar bytes");return null;});
     }
     private void enabled() { if (!policy.eliminar()) throw new IllegalStateException("Eliminación deshabilitada"); }
     private String digest(String value) { return CanonFormulario.huella("CICLO_VIDA_LOCAL", value, mapper); }
@@ -74,7 +79,8 @@ public final class CicloVidaCustodia {
         try {
             var state=lifecycle(id);
             if (Boolean.TRUE.equals(state.get("hold_active"))) throw new IOException("Conservación bloqueada");
-            if (archive==null) throw new IOException("Falta verificación independiente");
+            if (archive==null && prueba==null) throw new IOException("Falta verificación independiente");
+            if(prueba!=null)prueba.verificar(e,mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class));
             var attachments=db.sql.queryForList("SELECT * FROM citizen_attachment WHERE journey_id=?",e.comunicacion().recorridoId().toString());
             if(attachments.size()!=e.comunicacion().adjuntos().size()) throw new IOException("Referencias discrepantes");
             for(var d:e.comunicacion().adjuntos()) {
@@ -83,7 +89,7 @@ public final class CicloVidaCustodia {
                     throw new IOException("Metadatos discrepantes");
                 Path local="FILE".equals(a.get("storage_kind"))?store.original(d.id()):null;
                 if(local!=null && !d.id().toString().equals(a.get("storage_key"))) throw new IOException("Referencia no canónica");
-                archive.verificar(id,d,local);
+                if(archive!=null)archive.verificar(id,d,local);
                 var intents=db.sql.queryForList("SELECT phase FROM storage_retirement WHERE attachment_id=? AND submission_id=?",d.id().toString(),id.toString());
                 boolean inProgress=!intents.isEmpty();
                 boolean retired=Boolean.TRUE.equals(a.get("bytes_retired"));
@@ -97,10 +103,11 @@ public final class CicloVidaCustodia {
             }
             String evidence=CanonFormulario.huella("CUSTODIA_Y_RESTAURACION",List.of(e.sha256(),ackHash,e.comunicacion().adjuntos()),mapper);
             db.sql.update("UPDATE custody_lifecycle SET verified_ms=?,evidence_sha256=?,phase=CASE WHEN phase='LIBERADA' THEN phase ELSE 'VERIFICADA' END,last_error=NULL WHERE submission_id=?",clock.millis(),evidence,id.toString());
-            db.event("ALMACENAMIENTO",id.toString(),"ARCHIVO_Y_RESTAURACION_VERIFICADOS");
+            if(state.get("verified_ms")==null)db.event("ALMACENAMIENTO",id.toString(),"ARCHIVO_Y_RESTAURACION_VERIFICADOS");
         } catch(IOException | RuntimeException failure) {
+            var previousError=lifecycle(id).get("last_error");
             db.sql.update("UPDATE custody_lifecycle SET last_error='VERIFICACION_NO_SATISFECHA' WHERE submission_id=?",id.toString());
-            db.event("ALMACENAMIENTO",id.toString(),"VERIFICACION_BLOQUEADA"); throw failure;
+            if(previousError==null)db.event("ALMACENAMIENTO",id.toString(),"VERIFICACION_BLOQUEADA"); throw failure;
         }
     }
     private void verifyBlob(AdjuntosFormulario.Descriptor d) throws IOException {
@@ -167,9 +174,10 @@ public final class CicloVidaCustodia {
     /** Cancela borradores vencidos con margen adicional. Nunca toca archivos de un recorrido recibido. */
     public synchronized int abandonar(boolean apply) throws IOException {
         if(apply) {enabled(); accounting();} int total=0;
-        var rows=db.sql.queryForList("SELECT id FROM citizen_journey j WHERE state IN ('BORRADOR','CANCELADO') AND expires_ms<=? AND NOT EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=j.id)",clock.millis()-policy.abandono().toMillis());
+        var rows=db.sql.queryForList("SELECT id FROM citizen_journey j WHERE state IN ('BORRADOR','CANCELADO') AND expires_ms<=? AND NOT EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=j.id) ORDER BY expires_ms,id LIMIT "+batch,clock.millis()-policy.abandono().toMillis());
         for(var row:rows) {
             UUID journey=UUID.fromString(row.get("id").toString());
+            try(var exclusive=store.mantenimiento(journey)) {if(exclusive==null)continue;
             var uploads=db.sql.queryForList("SELECT id FROM media_upload WHERE journey_id=? AND released=FALSE",journey.toString());
             var attachments=db.sql.queryForList("SELECT id FROM citizen_attachment WHERE journey_id=? AND bytes_retired=FALSE",journey.toString());
             Set<UUID> ids=new HashSet<>(); for(var u:uploads) ids.add(UUID.fromString(u.get("id").toString())); for(var a:attachments) ids.add(UUID.fromString(a.get("id").toString()));
@@ -182,12 +190,19 @@ public final class CicloVidaCustodia {
                 return null;
             });
             for(var id:ids) retire(id,journey,null,"BORRADOR_VENCIDO");
+            }
         }
         // Cargas retiradas/no incluidas, incluso si otro archivo del mismo recorrido ya fue recibido.
-        for(var u:db.sql.queryForList("SELECT id,journey_id FROM media_upload u WHERE released=FALSE AND expires_ms<=? AND NOT EXISTS(SELECT 1 FROM citizen_attachment a WHERE a.id=u.id) AND EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=u.journey_id)",clock.millis()-policy.abandono().toMillis())) {
+        for(var u:db.sql.queryForList("SELECT id,journey_id FROM media_upload u WHERE released=FALSE AND expires_ms<=? AND NOT EXISTS(SELECT 1 FROM citizen_attachment a WHERE a.id=u.id) AND EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=u.journey_id) ORDER BY expires_ms,id LIMIT "+batch,clock.millis()-policy.abandono().toMillis())) {
             UUID id=UUID.fromString(u.get("id").toString()), journey=UUID.fromString(u.get("journey_id").toString());
+            try(var exclusive=store.mantenimiento(journey)){if(exclusive==null)continue;
             boolean referenced=false;
-            for(var received:db.sql.queryForList("SELECT body FROM citizen_submission WHERE journey_id=?",journey.toString())) {
+            for(var received:db.sql.queryForList("SELECT id,body,minimal_receipt FROM citizen_submission WHERE journey_id=?",journey.toString())) {
+                if(received.get("body")==null){
+                    var minimal=cl.nexbyte.siger.custodia.ReciboMinimo.validar(received.get("minimal_receipt").toString(),UUID.fromString(received.get("id").toString()),publicKeys,institutionalKeys,mapper);
+                    if(minimal.archivos().stream().anyMatch(d->id.equals(d.id())))referenced=true;
+                    continue;
+                }
                 var e=mapper.readValue(received.get("body").toString(),EntregaFormulario.class); e.validar(publicKeys,mapper);
                 if(e.comunicacion().adjuntos().stream().anyMatch(d->id.equals(d.id()))) referenced=true;
             }
@@ -197,6 +212,7 @@ public final class CicloVidaCustodia {
                 db.sql.update("UPDATE media_upload SET state='EXPIRADO',lease_until_ms=0 WHERE id=?",id.toString());
                 retire(id,journey,null,"CARGA_NO_INCLUIDA");
             }
+            }
         }
         return total;
     }
@@ -204,8 +220,9 @@ public final class CicloVidaCustodia {
     /** Bloques redundantes: original íntegro primero; ajusta reserva al original + derivada, sin tocar contenido. */
     public synchronized int compactarReservas(boolean apply) throws IOException {
         if(apply) {enabled(); accounting();} int count=0;
-        for(var u:db.sql.queryForList("SELECT * FROM media_upload WHERE state='VALIDADO' AND released=FALSE")) {
+        for(var u:db.sql.queryForList("SELECT * FROM media_upload WHERE state='VALIDADO' AND released=FALSE AND reserved_bytes>expected_size+COALESCE(preview_size,0) ORDER BY created_ms,id LIMIT "+batch)) {
             UUID id=UUID.fromString(u.get("id").toString());
+            try(var exclusive=store.mantenimiento(UUID.fromString(u.get("journey_id").toString()))){if(exclusive==null)continue;
             store.verificar(store.original(id),number(u,"expected_size"),u.get("expected_sha256").toString());
             long preview=u.get("preview_size")==null?0:number(u,"preview_size");
             if(preview>0) store.verificar(store.derivada(id),preview,u.get("preview_sha256").toString());
@@ -225,6 +242,7 @@ public final class CicloVidaCustodia {
                 }
                 return null;
             });
+            }
         }
         return count;
     }

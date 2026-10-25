@@ -15,6 +15,9 @@ import static cl.nexbyte.siger.formulario.IdentificacionCiudadana.*;
 public final class RecorridosJdbc {
     public record Recorrido(UUID id,Tipo tipo,String avisoVersion,boolean aceptaCanal,String estado,Instant venceEn) {}
     private record Reserva(UUID lease,Persona persona,RunConsulta run,boolean consultar) {}
+    private java.util.function.BooleanSupplier admision=()->true;
+    public RecorridosJdbc admision(java.util.function.BooleanSupplier guard){this.admision=Objects.requireNonNull(guard);return this;}
+    private void capacidad(){if(!admision.getAsBoolean())throw new FalloTecnico(507);}
     private final BaseJdbc db;
     private final JsonMapper mapper;
     private final Function<RunConsulta,ResultadoSrcei> proveedor;
@@ -31,7 +34,7 @@ public final class RecorridosJdbc {
     }
     public String aviso(Tipo tipo){return tipo==Tipo.NNA?avisoNna:avisoAdulto;}
     public Recorrido iniciar(Tipo tipo,boolean acepta,String aviso,String session,String address) {
-        validarSession(session);if(tipo==null)throw new FalloTecnico(400);
+        capacidad();validarSession(session);if(tipo==null)throw new FalloTecnico(400);
         if(!aviso(tipo).equals(aviso)||(tipo!=Tipo.NNA&&!acepta))throw new FalloTecnico(409);
         limitar(address,true);
         var id=UUID.randomUUID();long now=clock.millis(),expires=now+Duration.ofHours(4).toMillis();
@@ -52,7 +55,7 @@ public final class RecorridosJdbc {
     private Map<String,Object> fila(UUID id,String session,boolean lock) {
         validarSession(session);if(id==null)throw new FalloTecnico(404);
         var rows=db.sql.queryForList("SELECT * FROM citizen_journey WHERE id=? AND owner_session=?"+(lock?" FOR UPDATE":""),id.toString(),session);
-        if(rows.isEmpty()||((Number)rows.getFirst().get("expires_ms")).longValue()<=clock.millis()||"CANCELADO".equals(rows.getFirst().get("state")))throw new FalloTecnico(404);
+        if(rows.isEmpty()||((Number)rows.getFirst().get("expires_ms")).longValue()<=clock.millis()||Set.of("CANCELADO","MINIMIZADO").contains(rows.getFirst().get("state")))throw new FalloTecnico(404);
         return rows.getFirst();
     }
     private static Recorrido recorrido(Map<String,Object> row) {
@@ -126,7 +129,7 @@ public final class RecorridosJdbc {
         }
         var finalRun=run;var finalIdentity=cu?authentication:null;
         // Se reserva en una transacción corta. Nunca se sostiene un lock durante la llamada gubernamental.
-        var reservation=db.transaction(()->{
+        capacidad();var reservation=db.transaction(()->{
             var row=fila(journey,session,true);editable(row);
             var existing=db.sql.queryForList("SELECT body,query_state,lease_until_ms FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
             if(!existing.isEmpty()) {
@@ -177,7 +180,7 @@ public final class RecorridosJdbc {
         });
     }
     public Vista declarar(UUID journey,String person,Map<String,String> values,String session) {
-        return db.transaction(()->{
+        capacidad();return db.transaction(()->{
             var row=fila(journey,session,true);editable(row);
             var busy=db.sql.queryForList("SELECT query_state FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
             if(busy.isEmpty())throw new FalloTecnico(404);

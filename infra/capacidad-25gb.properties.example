@@ -1,16 +1,20 @@
-# Candidato de operación en 25 GB. Incorporar a configuración PRIVADA, sin reemplazar otras propiedades.
-# No habilita multimedia ni producción. El CLI usa valores literales, no interpolación ${...} de Spring.
+# Receptor transitorio de 25 GB: candidato SIN activar en laboratorios existentes.
 formulario.multimedia.cuota-global=6144MB
 formulario.multimedia.minimo-libre=4096MB
+# También cierra nuevas recepciones sin adjuntos y nuevas identificaciones si falta espacio.
+capacidad.minimo-libre=4096MB
 
-# Doble seguro: para retirar también se exige --aplicar. CERRADO por defecto.
+# Dos seguros independientes. El programador no existe hasta habilitar el primero.
+ciclo-vida.online-habilitado=false
 ciclo-vida.eliminacion.habilitada=false
-ciclo-vida.retencion-post-ack=PT72H
+ciclo-vida.intervalo=PT5M
+ciclo-vida.inicio=PT1M
+ciclo-vida.retencion-post-ack=PT24H
 ciclo-vida.retencion-abandono=PT48H
+ciclo-vida.borradores-metadatos-retencion=P7D
+ciclo-vida.auditoria-tecnica-retencion=P30D
+ciclo-vida.garantias.trusted-keys=/run/secrets/garantias-public-keys.json
 
-# Árboles institucionales originales y restaurados: objects/<id-publico>/<id-adjunto>.bin
-# Ambos montajes de solo lectura, en medios distintos del público y entre sí.
-ciclo-vida.archivo-institucional=/mnt/siger-archivo-ro
-ciclo-vida.restauracion=/mnt/siger-restauracion-ro
-# Reutilizar rutas privadas y cuentas ya autorizadas para publico.db.*, publico.comprobante.*
-# y formulario.multimedia.directorio; no guardar contraseñas ni claves aquí.
+# Reutilizar las rutas privadas existentes de firma/confianza, abuso y almacén.
+# No se monta el archivo SIGER ni una base institucional en el servidor público.
+# La garantía llega por HTTPS desde el agente institucional.

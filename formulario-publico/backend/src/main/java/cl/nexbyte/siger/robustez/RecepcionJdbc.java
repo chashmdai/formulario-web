@@ -21,13 +21,21 @@ public final class RecepcionJdbc implements RecepcionDurable {
     private final Map<String,PublicKey> trusted;
     private final Map<String,PublicKey> institutionalTrust;
     private final Clock clock;
+    private java.util.function.BooleanSupplier admision=()->true;
+    public RecepcionJdbc admision(java.util.function.BooleanSupplier guard){this.admision=Objects.requireNonNull(guard);return this;}
     private final long leaseMs;
+    private final byte[] ownerKey;
     public RecepcionJdbc(BaseJdbc db,JsonMapper mapper,String aviso,boolean habilitacion,String keyId,PrivateKey signer,
             Map<String,PublicKey> trusted,Clock clock,long leaseMs) {
         this(db,mapper,aviso,habilitacion,keyId,signer,trusted,clock,leaseMs,Map.of());
     }
     public RecepcionJdbc(BaseJdbc db,JsonMapper mapper,String aviso,boolean habilitacion,String keyId,PrivateKey signer,
             Map<String,PublicKey> trusted,Clock clock,long leaseMs,Map<String,PublicKey> institutionalTrust) {
+        this(db,mapper,aviso,habilitacion,keyId,signer,trusted,clock,leaseMs,institutionalTrust,null);
+    }
+    public RecepcionJdbc(BaseJdbc db,JsonMapper mapper,String aviso,boolean habilitacion,String keyId,PrivateKey signer,
+            Map<String,PublicKey> trusted,Clock clock,long leaseMs,Map<String,PublicKey> institutionalTrust,byte[] ownerKey) {
+        this.ownerKey=ownerKey==null?null:ownerKey.clone();
         if(aviso==null||!aviso.matches("[A-Za-z0-9_.-]{1,100}")||leaseMs<1000||leaseMs>900000)throw new IllegalArgumentException("Configuración de recepción inválida");
         this.db=db;this.controles=new ControlesOperacion(db);this.mapper=mapper;this.aviso=aviso;this.habilitacion=habilitacion;
         this.institutionalTrust=Map.copyOf(institutionalTrust);
@@ -77,7 +85,7 @@ public final class RecepcionJdbc implements RecepcionDurable {
     private String requestHashNna(String session,cl.nexbyte.siger.contrato.DeclaracionNna datos,String mensaje,String aviso){
         return hash(mapper.writeValueAsString(List.of("NNA_1",session,datos,mensaje,Objects.requireNonNull(aviso))));
     }
-    public boolean disponible(){try{var c=controles.estado();return habilitacion&&c.aceptarNuevos()&&c.contingencia().equals("NORMAL");}catch(org.springframework.dao.DataAccessException e){return false;}}
+    public boolean disponible(){try{var c=controles.estado();return admision.getAsBoolean()&&habilitacion&&c.aceptarNuevos()&&c.contingencia().equals("NORMAL");}catch(org.springframework.dao.DataAccessException e){return false;}}
     public SobreComunicacion recibir(UUID key,SobreComunicacion.Identidad identity,String message){throw new FalloTecnico(401);}
     public SobreComunicacion recibirVerificada(UUID key,IdentidadVerificada identity,EvidenciaAutenticacion evidence,String message,String avisoVersion){
         if(key==null||identity==null||evidence==null||!evidence.corresponde(identity)||evidence.verificadaEn().isAfter(clock.instant()))throw new FalloTecnico(401);
@@ -103,9 +111,10 @@ public final class RecepcionJdbc implements RecepcionDurable {
         }catch(DuplicateKeyException e){var winner=existing(key,requestHash);if(winner==null)throw new FalloTecnico(503);return winner.comunicacion();}
     }
     private EntregaVerificada existing(UUID key,String requestHash){
-        var rows=db.sql.queryForList("SELECT request_hash,body,owner_session FROM public_delivery WHERE id=?",key.toString());
+        var rows=db.sql.queryForList("SELECT request_hash,body,owner_session,content_retired FROM public_delivery WHERE id=?",key.toString());
         if(rows.isEmpty())return null;
         if(!requestHash.equals(rows.getFirst().get("request_hash")))throw new FalloTecnico(409);
+        if(Boolean.TRUE.equals(rows.getFirst().get("content_retired")))throw new FalloTecnico(410); // no reconstruir el sobre personal ni repetir el ingreso histórico
         var delivery=read(rows.getFirst().get("body").toString(),key);
         var body=delivery.comunicacion();
         var actual="2.0".equals(body.version())?requestHashNna((String)rows.getFirst().get("owner_session"),body.declaracionNna(),body.mensaje(),body.avisoPrivacidadVersion()):hash(body.identidad().run()+"\u0000"+body.mensaje()+"\u0000"+body.avisoPrivacidadVersion());
@@ -117,9 +126,9 @@ public final class RecepcionJdbc implements RecepcionDurable {
         catch(IllegalArgumentException|tools.jackson.core.JacksonException e){throw new FalloTecnico(503);}
     }
     private Map<String,Object> owned(UUID id,String run){
-        var rows=db.sql.queryForList("SELECT body,state,ack FROM public_delivery WHERE id=? AND owner_run=?",id.toString(),run);
+        var rows=db.sql.queryForList("SELECT * FROM public_delivery WHERE id=? AND (owner_run=? OR owner_fingerprint=?)",id.toString(),run,ownerKey==null?null:cl.nexbyte.siger.custodia.ReciboMinimo.propietario(run,ownerKey));
         if(rows.isEmpty())throw new FalloTecnico(404);
-        var row=rows.getFirst();var delivery=read(row.get("body").toString(),id);
+        var row=rows.getFirst();if(Boolean.TRUE.equals(row.get("content_retired")))return row;var delivery=read(row.get("body").toString(),id);
         if(delivery.comunicacion().identidad()==null||!delivery.comunicacion().identidad().run().equals(run))throw new FalloTecnico(503);
         return row;
     }
@@ -128,10 +137,16 @@ public final class RecepcionJdbc implements RecepcionDurable {
     }
     public Estado consultarSesion(UUID id,String session){
         validarSesion(session);
-        var rows=db.sql.queryForList("SELECT body,state,ack FROM public_delivery WHERE id=? AND owner_session=?",id.toString(),session);
+        var rows=db.sql.queryForList("SELECT * FROM public_delivery WHERE id=? AND owner_session=?",id.toString(),session);
         if(rows.isEmpty())throw new FalloTecnico(404);return estado(id,rows.getFirst());
     }
     private Estado estado(UUID id,Map<String,Object> row){
+        if(Boolean.TRUE.equals(row.get("content_retired"))) {
+            try {var c=cl.nexbyte.siger.custodia.ReciboMinimo.validar(row.get("minimal_receipt").toString(),id,trusted,institutionalTrust,mapper);
+                if(!"HISTORICO".equals(c.cola())||!"CONFIRMADA".equals(row.get("state"))||!c.registro().equals(mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class)))throw new IllegalArgumentException();
+                return new Estado(id,"REGISTRADA_SIGER",null,c.registro().comprobante(),c.registro());
+            }catch(RuntimeException invalid){throw new FalloTecnico(503);}
+        }
         var delivery=read(row.get("body").toString(),id);
         if(row.get("ack")==null)return new Estado(id,"PENDIENTE_REGISTRO_SIGER",null,null,null);
         try{
@@ -173,9 +188,9 @@ public final class RecepcionJdbc implements RecepcionDurable {
     public void confirmarRegistro(UUID id,UUID lease,RegistroInstitucional receipt){
         if(id==null||lease==null||receipt==null)throw new FalloTecnico(400);
         db.transaction(()->{
-            var rows=db.sql.queryForList("SELECT state,lease_id,body,ack FROM public_delivery WHERE id=? FOR UPDATE",id.toString());
+            var rows=db.sql.queryForList("SELECT * FROM public_delivery WHERE id=? FOR UPDATE",id.toString());
             if(rows.isEmpty())throw new FalloTecnico(404);
-            var row=rows.getFirst();var delivery=read(row.get("body").toString(),id);
+            var row=rows.getFirst();if(Boolean.TRUE.equals(row.get("content_retired"))){if(!estado(id,row).registroInstitucional().equals(receipt))throw new FalloTecnico(409);return null;}var delivery=read(row.get("body").toString(),id);
             try{receipt.validar(institutionalTrust,mapper,delivery);}catch(IllegalArgumentException|tools.jackson.core.JacksonException invalid){throw new FalloTecnico(409);}
             if(row.get("ack")!=null){
                 var existing=mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class);existing.validar(institutionalTrust,mapper,delivery);
