@@ -43,4 +43,17 @@ class CustodiaTransitoriaHttpTest {
  }
  @Test void elTemporizadorEjecutaElMotorSinInvocacionManual(){verify(service,timeout(1500).atLeastOnce()).ejecutar();}
 
+ @Test void indicadoresSoloOperacionalesYNoStore()throws Exception{
+  when(service.estado()).thenReturn(Map.of("completo",Map.of("minimizadas",2),"historico",Map.of("minimizadas",1)));
+  mvc.perform(get("/operacion/v1/custodia").secure(true)).andExpect(status().isUnauthorized());
+  mvc.perform(get("/operacion/v1/custodia").secure(true).with(user("ciudadano").roles("OPERACION"))).andExpect(status().isUnauthorized());
+  mvc.perform(get("/operacion/v1/custodia").secure(true).header("Authorization","Bearer integracion-sintetica-transitorio-2026")).andExpect(status().isUnauthorized());
+  mvc.perform(get("/operacion/v1/custodia").header("Authorization","Bearer operacion-sintetica-transitorio-2026")).andExpect(status().isForbidden());
+  mvc.perform(get("/operacion/v1/custodia").secure(true).header("Authorization","Bearer operacion-sintetica-transitorio-2026")).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store")).andExpect(content().json("{\"completo\":{\"minimizadas\":2},\"historico\":{\"minimizadas\":1}}"));
+ }
+ @Test void holdIrreversibleEsConflictoHttpSinFalsaConservacion()throws Exception{
+  doThrow(new FalloTecnico(409)).when(service).conservar(eq("COMPLETO"),any(),eq(true));
+  mvc.perform(post("/operacion/v1/custodia/conservacion").secure(true).header("Authorization","Bearer operacion-sintetica-transitorio-2026").contentType("application/json").content("{\"cola\":\"COMPLETO\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"conservar\":true}")).andExpect(status().isConflict()).andExpect(header().string("Cache-Control","no-store"));
+ }
+
 }

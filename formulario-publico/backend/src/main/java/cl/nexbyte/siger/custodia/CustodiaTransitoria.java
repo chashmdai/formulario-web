@@ -114,6 +114,8 @@ public final class CustodiaTransitoria implements AutoCloseable {
   return db.transaction(()->{
    var current=db.sql.queryForMap("SELECT * FROM public_delivery WHERE id=? FOR UPDATE",id.toString());if(Boolean.TRUE.equals(current.get("content_retired")))return false;
    if(Boolean.TRUE.equals(current.get("retention_hold"))||!Objects.equals(current.get("body"),r.get("body"))||!Objects.equals(current.get("ack"),r.get("ack")))throw new IllegalStateException("Conservar histórico");
+   if(n(current,"retire_after_ms")>clock.millis())throw new IllegalStateException("Retención vigente");
+   try{guarantees.comprobar(current.get("body").toString(),current.get("ack").toString(),"HISTORICO");}catch(IOException invalid){throw new IllegalStateException("Conservar histórico");}
    var e=mapper.readValue(current.get("body").toString(),EntregaVerificada.class);e.validar(publicKeys,mapper);var ack=mapper.readValue(current.get("ack").toString(),RegistroInstitucional.class);ack.validar(institution,mapper,e);
    var minimum=new ReciboMinimo.Contenido(id,null,"HISTORICO",e.comprobante(),ack,List.of());String sealed=mapper.writeValueAsString(FirmaOperativa.firmar(minimum,ReciboMinimo.DOMAIN,keyId,signer,mapper));ReciboMinimo.validar(sealed,id,publicKeys,institution,mapper);
    String owner=current.get("owner_run")==null?null:ReciboMinimo.propietario(current.get("owner_run").toString(),ownerKey);
@@ -153,9 +155,19 @@ public final class CustodiaTransitoria implements AutoCloseable {
   }
   db.sql.update("DELETE FROM citizen_abuse_bucket WHERE window_ms<?",clock.millis()-Duration.ofDays(1).toMillis());
   db.sql.update("DELETE FROM media_access WHERE at_ms<? AND attachment_id IN (SELECT id FROM citizen_attachment WHERE bytes_retired=TRUE)",clock.millis()-technicalAudit.toMillis());
-  db.sql.update("DELETE FROM operational_event WHERE at_ms<? AND category IN ('MULTIMEDIA','CUSTODIA_TRANSITORIA','ALMACENAMIENTO','TRANSITORIO_TECNICO') AND code NOT IN ('RETIRADA_FINALIZADA','PAYLOAD_Y_IDENTIDAD_RETIRADOS','PAYLOAD_HISTORICO_RETIRADO','CONSERVACION_BLOQUEADA','CONSERVACION_DESBLOQUEADA','HOLD_ACTIVO','HOLD_RETIRADO')",clock.millis()-technicalAudit.toMillis());
+  db.sql.update("DELETE FROM operational_event WHERE at_ms<? AND category IN ('MULTIMEDIA','CUSTODIA_TRANSITORIA','ALMACENAMIENTO','TRANSITORIO_TECNICO') AND code NOT IN ('RETIRADA_FINALIZADA','RETIRADA_IRREVERSIBLE_INICIADA','PAYLOAD_Y_IDENTIDAD_RETIRADOS','PAYLOAD_HISTORICO_RETIRADO','CONSERVACION_BLOQUEADA','CONSERVACION_DESBLOQUEADA','HOLD_ACTIVO','HOLD_RETIRADO')",clock.millis()-technicalAudit.toMillis());
  }
- public void conservar(String queue,UUID id,boolean hold){if(queue.equals("COMPLETO"))motor.conservar(id,hold);else if(queue.equals("HISTORICO")){if(db.sql.update("UPDATE public_delivery SET retention_hold=? WHERE id=? AND content_retired=FALSE",hold,id.toString())!=1)throw new FalloTecnico(409);db.event("CUSTODIA_TRANSITORIA",id.toString(),hold?"HOLD_ACTIVO":"HOLD_RETIRADO");}else throw new IllegalArgumentException("Cola inválida");}
- public Map<String,Object> estado(){return Map.of("eliminacionHabilitada",policy.eliminar(),"ejecutando",running.get(),"mantenimiento",db.sql.queryForMap("SELECT last_ms,last_code FROM transient_maintenance WHERE id=1"),"payloads",db.sql.queryForList("SELECT content_retired,COUNT(*) cantidad,COALESCE(SUM(OCTET_LENGTH(body)),0) bytes FROM citizen_submission GROUP BY content_retired"),"historicos",db.sql.queryForList("SELECT content_retired,COUNT(*) cantidad,COALESCE(SUM(OCTET_LENGTH(body)),0) bytes FROM public_delivery GROUP BY content_retired"));}
+ public void conservar(String queue,UUID id,boolean hold){
+  if(queue==null||id==null)throw new IllegalArgumentException("Cola e ID requeridos");
+  if(queue.equals("COMPLETO"))motor.conservar(id,hold);
+  else if(queue.equals("HISTORICO"))db.transaction(()->{
+   var rows=db.sql.queryForList("SELECT retention_hold,content_retired FROM public_delivery WHERE id=? FOR UPDATE",id.toString());
+   if(rows.isEmpty()||hold&&Boolean.TRUE.equals(rows.getFirst().get("content_retired")))throw new FalloTecnico(409);
+   if(!Boolean.valueOf(hold).equals(rows.getFirst().get("retention_hold"))){db.sql.update("UPDATE public_delivery SET retention_hold=? WHERE id=?",hold,id.toString());db.event("CUSTODIA_TRANSITORIA",id.toString(),hold?"HOLD_ACTIVO":"HOLD_RETIRADO");}return null;
+  });else throw new IllegalArgumentException("Cola inválida");
+ }
+ private Long cuota;
+ public CustodiaTransitoria cuotaMultimedia(long bytes){if(bytes<1)throw new IllegalArgumentException("Cuota inválida");cuota=bytes;return this;}
+ public Map<String,Object> estado(){return new ObservabilidadCustodia(db,store,clock,policy.postAck(),cuota).estado(policy.eliminar(),running.get());}
  public void close()throws IOException{stopped=true;if(ownStore&&!running.get())store.close();}
 }
