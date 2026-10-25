@@ -6,7 +6,6 @@ import java.nio.charset.*;
 import java.security.*;
 import java.text.Normalizer;
 import java.util.*;
-import java.util.zip.ZipInputStream;
 
 /** Contenido privado transaccional en la misma base; ninguna URL pública ni nombre de disco ciudadano. */
 public final class AdjuntosFormulario {
@@ -84,23 +83,12 @@ public final class AdjuntosFormulario {
             case "jpg","jpeg"->{if(bytes.length<4||bytes[0]!=(byte)255||bytes[1]!=(byte)216||bytes[2]!=(byte)255||bytes[bytes.length-2]!=(byte)255||bytes[bytes.length-1]!=(byte)217)invalid();type="image/jpeg";}
             case "webp"->{if(bytes.length<12||!new String(bytes,0,4,StandardCharsets.US_ASCII).equals("RIFF")||!new String(bytes,8,4,StandardCharsets.US_ASCII).equals("WEBP"))invalid();type="image/webp";}
             case "txt"->{try{var text=StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(bytes));if(text.codePoints().anyMatch(cp->Character.isISOControl(cp)&&cp!=9&&cp!=10&&cp!=13))invalid();}catch(CharacterCodingException e){invalid();}type="text/plain";}
-            case "doc"->{if(!starts(bytes,new byte[]{(byte)208,(byte)207,17,(byte)224,(byte)161,(byte)177,26,(byte)225}))invalid();type="application/msword";}
-            case "docx"->{zip(bytes);type="application/vnd.openxmlformats-officedocument.wordprocessingml.document";}
+            // El canal legacy no dispone del inspector Office aislado: antivirus solo no descarta contenido activo.
+            // Los BLOB históricos se siguen recuperando sin pasar por esta validación de nuevas cargas.
+            case "doc","docx"->throw new IllegalArgumentException("Documento Office requiere inspección multimedia habilitada");
             default->throw new IllegalArgumentException("Extensión no admitida");
         }
         return new Descriptor(UUID.randomUUID(),name,bytes.length,hash(bytes),type,"VALIDADO");
-    }
-    private static void zip(byte[] bytes){
-        boolean types=false,document=false;long total=0;int count=0;var names=new HashSet<String>();
-        try(var zip=new ZipInputStream(new ByteArrayInputStream(bytes))){
-            java.util.zip.ZipEntry entry;byte[] buffer=new byte[8192];
-            while((entry=zip.getNextEntry())!=null){
-                String name=entry.getName();if(++count>2000||!names.add(name)||name.startsWith("/")||name.contains("..")||name.contains("\\")||name.toLowerCase(Locale.ROOT).contains("vbaproject"))invalid();
-                types|=name.equals("[Content_Types].xml");document|=name.equals("word/document.xml");
-                int read;while((read=zip.read(buffer))!=-1){total+=read;if(total>50L*1024*1024)invalid();}
-            }
-            if(!types||!document)invalid();
-        }catch(IOException malformed){invalid();}
     }
     private static boolean starts(byte[] value,byte[] prefix){if(value.length<prefix.length)return false;for(int i=0;i<prefix.length;i++)if(value[i]!=prefix[i])return false;return true;}
     static String hash(byte[] bytes){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));}catch(GeneralSecurityException e){throw new IllegalStateException("Integridad no disponible");}}

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api';
@@ -75,6 +75,12 @@ describe('Recorridos adultos trasladados del mockup',()=>{
   it('un archivo rechazado bloquea revisión y puede retirarse sin perder el formulario',async()=>{
     const files={replace:vi.fn().mockRejectedValue(new ApiError(400)),clear:vi.fn().mockResolvedValue(undefined)};const {review}=mount(false,files);await identity();await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');
     await userEvent.upload(byId('adjuntos'),new File(['texto'],'respaldo.txt',{type:'text/plain'}));await screen.findAllByText(/No pudimos recibir estos archivos/);await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));expect(review).not.toHaveBeenCalled();await userEvent.click(screen.getByRole('button',{name:'Quitar archivos seleccionados'}));await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));expect(files.clear).toHaveBeenCalledTimes(1);
+  });
+  it('rechaza Word en la carga clásica antes de transferir y conserva el relato',async()=>{
+    const {files}=mount(true);await identity();await userEvent.selectOptions(byId('motivo'),'promocion');await userEvent.type(byId('relato'),'Relato que se conserva');
+    const input=byId('adjuntos') as HTMLInputElement;expect(input.accept.split(',')).not.toContain('.doc');expect(input.accept.split(',')).not.toContain('.docx');
+    for(const extension of ['doc','docx']){fireEvent.change(input,{target:{files:[new File(['fixture sintético'],'antecedente.'+extension)]}});await screen.findAllByText('Selecciona PDF, imágenes PNG, JPG o WebP, o TXT.');}
+    expect(files.replace).not.toHaveBeenCalled();expect((byId('relato') as HTMLTextAreaElement).value).toBe('Relato que se conserva');
   });
   it('en vista completa conserva una tarjeta si falla su retiro y la quita solo tras confirmar backend',async()=>{
     mount(true);await identity();await userEvent.selectOptions(byId('motivo'),'vulneracion');await userEvent.click(screen.getByRole('button',{name:/Agregar persona adulta/}));

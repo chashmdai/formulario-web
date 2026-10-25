@@ -29,7 +29,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 {" "}{ctx.media?<MediaAttachments control={ctx.media} id="nna-files-feedback"/>:<><label htmlFor="nna-files">{"¿Quieres agregar fotos o archivos?\n                      "}<span className="muted-label">{"(opcional)"}</span>
 </label>
 {" "}<div className="upload-box">
-{" "}<input className="sr-only" id="nna-files" name="nna-files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx" disabled={ctx.uploading} onChange={ctx.onFiles} />
+{" "}<input className="sr-only" id="nna-files" name="nna-files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt" disabled={ctx.uploading} onChange={ctx.onFiles} />
 <label className="upload-target" htmlFor="nna-files">
 <span className="upload-icon">
 <svg aria-hidden="true" className="icon">
@@ -39,7 +39,7 @@ export function NnaStepTwo({ctx}: {ctx: NnaContext}) {
 </span>
 <span>
 <strong>{"Seleccionar archivos"}</strong>
-<small>{"Opcional. Máx. 5 archivos, 10 MB por archivo\n                            y 25 MB en total."}</small>
+<small>{"PDF, PNG, JPG, WebP o TXT. Máx. 5 archivos, 10 MB por archivo\n                            y 25 MB en total."}</small>
 </span>
 </label>
 {" "}</div>

@@ -70,7 +70,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<use href="#i-info">
 </use>
 </svg>
-<span>{"La solicitud de entrevista queda sujeta a\n                            evaluación institucional. Esta maqueta no agenda\n                            entrevistas ni confirma disponibilidad."}</span>
+<span>{"La solicitud de entrevista queda sujeta a\n                            evaluación institucional. El envío no agenda\n                            una entrevista ni confirma disponibilidad."}</span>
 {" "}</div>
 {" "}</div>
 {" "}<div className="conditional pane-fields" data-tema="estadisticas" hidden={!ctx.shown("tema:estadisticas")}>
@@ -356,7 +356,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}{ctx.media?<MediaAttachments control={ctx.media} id="archivos-elegidos"/>:<><label htmlFor="adjuntos">{"Documentos o antecedentes\n                          "}<span className="muted-label">{"(opcional)"}</span>
 </label>
 {" "}<div className="upload-box">
-{" "}<input className="sr-only" id="adjuntos" name="adjuntos" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx" disabled={ctx.busy || ctx.uploading} onChange={ctx.onFiles} />
+{" "}<input className="sr-only" id="adjuntos" name="adjuntos" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt" disabled={ctx.busy || ctx.uploading} onChange={ctx.onFiles} />
 <label className="upload-target" htmlFor="adjuntos">
 <span className="upload-icon">
 <svg className="icon">
@@ -366,7 +366,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 </span>
 <span>
 <strong>{"Seleccionar archivos"}</strong>
-<small>{"PDF, imágenes, Word o TXT. Máx. 5 archivos, 10 MB por archivo y 25 MB en total."}</small>
+<small>{"PDF, PNG, JPG, WebP o TXT. Máx. 5 archivos, 10 MB por archivo y 25 MB en total."}</small>
 </span>
 </label>
 {" "}</div>

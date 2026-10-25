@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NnaFlow } from './NnaFlow';
@@ -89,6 +89,12 @@ describe('Recorrido NNA del mockup', () => {
     await waitFor(() => expect(port.clear).toHaveBeenCalled());
     await userEvent.click(screen.getByRole('button', {name: 'Revisar mi comunicación'}));
     await waitFor(() => expect(review).toHaveBeenCalledTimes(1));expect(review.mock.calls[0][2]).toEqual([]);
+  });
+  it('rechaza Word en carga clásica sin transferir ni perder el relato NNA',async()=>{
+    const {port}=mount(true);await minimal();const story=screen.getByRole('textbox',{name:/^Cuéntanos qué pasó/}) as HTMLTextAreaElement;await userEvent.type(story,'Relato que se conserva');
+    const input=document.getElementById('nna-files') as HTMLInputElement;expect(input.accept.split(',')).not.toContain('.doc');expect(input.accept.split(',')).not.toContain('.docx');
+    for(const extension of ['doc','docx']){fireEvent.change(input,{target:{files:[new File(['fixture sintético'],'antecedente.'+extension)]}});await screen.findAllByText('Selecciona PDF, imágenes PNG, JPG o WebP, o TXT.');}
+    expect(port.replace).not.toHaveBeenCalled();expect(story.value).toBe('Relato que se conserva');
   });
   it('escribe celular con prefijo fijo y revisa contactos normalizados sin exigir un canal inseguro',async()=>{
     const {review}=mount(true);await identity();await userEvent.selectOptions(screen.getByRole('combobox',{name:/^Región/}),'13');await userEvent.selectOptions(screen.getByRole('combobox',{name:/¿Cómo podemos contactarte/}),'celular');

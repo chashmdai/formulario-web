@@ -95,6 +95,29 @@ class MultimediaJdbcTest{
   db.sql.update("UPDATE media_upload SET expires_ms=?",clock.millis()-1);long before=db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class);
   assertEquals(1,media.sanear(false).size());assertTrue(Files.exists(store.bloque(part.id(),0)));assertEquals(1,media.sanear(true).size());assertFalse(Files.exists(store.bloque(part.id(),0)));assertTrue(Files.exists(store.original(accepted.id())));assertTrue(media.sanear(true).isEmpty());assertTrue(db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class)<before);assertEquals(1,media.lote(journey,session).archivos().size());
  }
+ @Test void saneamientoOperacionalLimpiaTrasVencerSesionYRecorridoSinDuplicarLiberacion()throws Exception{
+  var pending=send(start(text()),text());long reserved=db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class);assertTrue(reserved>0);
+  media.close();var later=Clock.offset(clock,Duration.ofHours(25));var expiredJourneys=new RecorridosJdbc(db,mapper,r->{throw new AssertionError("Sin proveedor");},r->false,later,new byte[32],"ADULTO_TEST_1","NNA_TEST_1");
+  media=new CargasMultimedia(db,expiredJourneys,store,policy,p->true,(p,f)->new CargasMultimedia.Inspeccion(f.tipo(),"DESCARGA",null),later,mapper);
+  assertEquals(404,assertThrows(FalloTecnico.class,()->expiredJourneys.consultar(journey,session)).status);
+  assertEquals(1,media.sanear(false).size());assertTrue(Files.exists(store.bloque(pending.id(),0)));assertEquals(reserved,db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class));
+  assertEquals(1,media.sanear(true).size());assertFalse(Files.exists(store.bloque(pending.id(),0)));assertEquals(0L,db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class));assertTrue(media.sanear(true).isEmpty());assertEquals(0L,db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class));
+ }
+ @Test void saneamientoDeCanceladoVencidoConservaAdjuntoIncluidoYNoExigeSesionVigente()throws Exception{
+  var accepted=upload(text());publish(accepted.id());var pending=send(start("temporal a retirar".getBytes(StandardCharsets.UTF_8)),"temporal a retirar".getBytes(StandardCharsets.UTF_8));journeys.cancelar(journey,session);
+  media.close();var later=Clock.offset(clock,Duration.ofHours(25));var expiredJourneys=new RecorridosJdbc(db,mapper,r->{throw new AssertionError("Sin proveedor");},r->false,later,new byte[32],"ADULTO_TEST_1","NNA_TEST_1");
+  media=new CargasMultimedia(db,expiredJourneys,store,policy,p->true,(p,f)->new CargasMultimedia.Inspeccion(f.tipo(),"DESCARGA",null),later,mapper);
+  assertEquals(1,media.sanear(true).size());assertFalse(Files.exists(store.bloque(pending.id(),0)));assertTrue(Files.exists(store.original(accepted.id())));assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment",Integer.class));assertTrue(media.sanear(true).isEmpty());
+ }
+ @Test void saneamientoOperacionalNoTocaRecorridoRecibidoAunqueLaSesionHayaVencido()throws Exception{
+  var accepted=upload(text());publish(accepted.id());var pending=send(start("sin incluir".getBytes(StandardCharsets.UTF_8)),"sin incluir".getBytes(StandardCharsets.UTF_8));
+  var pub=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();var ins=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();var files=new AdjuntosFormulario(db,journeys,b->true,store);
+  var reception=new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"publico",pub.getPrivate(),Map.of("publico",pub.getPublic()),Map.of("institucion",ins.getPublic()),clock,true);
+  reception.recibir(UUID.randomUUID(),journey,session,new DatosFormulario(Map.of("nna-region","13","nna-primary-method","unsafe","nna-story","Relato sintético"),List.of(),List.of(),List.of(accepted.id())));
+  long reserved=db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class);media.close();var later=Clock.offset(clock,Duration.ofHours(25));
+  var expiredJourneys=new RecorridosJdbc(db,mapper,r->{throw new AssertionError("Sin proveedor");},r->false,later,new byte[32],"ADULTO_TEST_1","NNA_TEST_1");media=new CargasMultimedia(db,expiredJourneys,store,policy,p->true,(p,f)->new CargasMultimedia.Inspeccion(f.tipo(),"DESCARGA",null),later,mapper);
+  assertTrue(media.sanear(true).isEmpty());assertTrue(Files.exists(store.original(accepted.id())));assertTrue(Files.exists(store.bloque(pending.id(),0)));assertEquals(reserved,db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class));assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
+ }
  @Test void cancelarLiberaCuotaYNoBorraElLotePrevio()throws Exception{
   var accepted=upload(text());publish(accepted.id());long before=db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class);var pending=send(start("archivo pendiente".getBytes(StandardCharsets.UTF_8)),"archivo pendiente".getBytes(StandardCharsets.UTF_8));
   media.cancelar(journey,pending.id(),session);assertEquals(before,db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class));assertTrue(Files.exists(store.original(accepted.id())));assertEquals(409,assertThrows(FalloTecnico.class,()->media.cancelar(journey,accepted.id(),session)).status);

@@ -149,6 +149,23 @@ class FormularioCompletoJdbcTest {
         assertThrows(IllegalArgumentException.class,()->files.reemplazar(journey,session,Collections.nCopies(6,texto("duplicado.txt","texto"))));
         assertThrows(IllegalArgumentException.class,()->files.reemplazar(journey,session,Collections.nCopies(3,new AdjuntosFormulario.Archivo("mucho.txt",new byte[9*1024*1024]))));
     }
+    @Test void nuevoDocLegacySeRechazaAunqueAntivirusNoLoMarqueYConservaLote(){
+        var original=files.reemplazar(journey,session,List.of(texto("original.txt","Original")));
+        byte[] ole=new byte[]{(byte)208,(byte)207,17,(byte)224,(byte)161,(byte)177,26,(byte)225,1,2,3};
+        assertThrows(IllegalArgumentException.class,()->files.reemplazar(journey,session,List.of(new AdjuntosFormulario.Archivo("documento.doc",ole))));
+        assertEquals(original,files.listar(journey,session));assertArrayEquals("Original".getBytes(StandardCharsets.UTF_8),files.descargar(journey,original.getFirst().id(),session).contenido());
+    }
+    @Test void nuevoDocxLegacyConActiveXSeRechazaAunqueAntivirusNoLoMarqueYConservaLote()throws Exception{
+        var original=files.reemplazar(journey,session,List.of(texto("original.txt","Original")));var output=new ByteArrayOutputStream();
+        try(var zip=new java.util.zip.ZipOutputStream(output)){for(var name:List.of("[Content_Types].xml","word/document.xml","word/activeX/activeX1.xml")){zip.putNextEntry(new java.util.zip.ZipEntry(name));zip.write("<contenido>SINTETICO</contenido>".getBytes(StandardCharsets.UTF_8));zip.closeEntry();}}
+        assertThrows(IllegalArgumentException.class,()->files.reemplazar(journey,session,List.of(new AdjuntosFormulario.Archivo("documento.docx",output.toByteArray()))));assertEquals(original,files.listar(journey,session));
+    }
+    @Test void originalesOfficeHistoricosContinuanRecuperablesSinReescribirBytesNiHuellas()throws Exception{
+        byte[] ole=new byte[]{(byte)208,(byte)207,17,(byte)224,(byte)161,(byte)177,26,(byte)225,1,2,3};String sha=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(ole));UUID attachment=UUID.randomUUID();
+        db.sql.update("INSERT INTO citizen_attachment(id,journey_id,name,size_bytes,sha256,media_type,content) VALUES(?,?,?,?,?,?,?)",attachment.toString(),journey.toString(),"historico.doc",ole.length,sha,"application/msword",ole);
+        assertArrayEquals(ole,files.descargar(journey,attachment,session).contenido());assertEquals(sha,files.listar(journey,session).getFirst().sha256());
+        var out=new ByteArrayOutputStream();var resource=files.recursoInterno(journey,attachment);resource.copiar(out,0,resource.tamanio());assertArrayEquals(ole,out.toByteArray());assertEquals(sha,db.sql.queryForObject("SELECT sha256 FROM citizen_attachment WHERE id=?",String.class,attachment.toString()));
+    }
     @Test void identidadIncompletaNoGeneraCustodiaNiFingeAutenticacion(){
         journeys.declarar(journey,"presentador-nna",Map.of("primerNombre",""),session);
         assertThrows(IllegalArgumentException.class,this::enviar);assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));

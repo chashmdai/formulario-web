@@ -121,8 +121,12 @@ public final class CargasMultimedia implements AutoCloseable{
   if(apply&&analyzing.availablePermits()==0)throw new FalloTecnico(409);
   for(var c:candidates){UUID id=uuid(c.get("id")),journey=uuid(c.get("journey_id"));result.add(new Limpieza(id,c.get("state").toString(),number(c,"reserved_bytes")));if(!apply)continue;
    guard(journey,()->{boolean marked=db.transaction(()->{
-    var owners=db.sql.queryForList("SELECT owner_session FROM citizen_journey WHERE id=?",journey.toString());if(owners.isEmpty())return false;String owner=owners.getFirst().get("owner_session").toString();journeys.bloquearBorrador(journey,owner);var live=row(journey,id,owner,true);
-    if(number(live,"expires_ms")>clock.millis()||"ANALIZANDO".equals(live.get("state"))||Boolean.TRUE.equals(live.get("released"))||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=?",Integer.class,id.toString())>0)return false;
+    // Mantenimiento operacional: una sesión/recorrido vencido no puede autorizar al ciudadano,
+    // pero tampoco debe impedir limpiar un temporal abandonado. Serializar con recepción por journey.
+    var owners=db.sql.queryForList("SELECT state FROM citizen_journey WHERE id=? FOR UPDATE",journey.toString());
+    if(owners.isEmpty()||!Set.of("BORRADOR","CANCELADO").contains(owners.getFirst().get("state"))||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",Integer.class,journey.toString())>0)return false;
+    var uploads=db.sql.queryForList("SELECT * FROM media_upload WHERE id=? AND journey_id=? FOR UPDATE",id.toString(),journey.toString());if(uploads.isEmpty())return false;var live=uploads.getFirst();
+    if(number(live,"expires_ms")>clock.millis()||!Set.of("RECIBIENDO","REINTENTABLE","RECHAZADO","CANCELADO","EXPIRADO").contains(live.get("state"))||Boolean.TRUE.equals(live.get("released"))||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=?",Integer.class,id.toString())>0)return false;
     db.sql.update("UPDATE media_upload SET state='EXPIRADO' WHERE id=?",id.toString());return true;});
     if(!marked)return null;try{store.borrarNoRecibido(id);}catch(IOException e){throw new FalloTecnico(503);}
     db.transaction(()->{db.sql.queryForMap("SELECT reserved_bytes FROM media_capacity WHERE id=1 FOR UPDATE");var live=db.sql.queryForMap("SELECT reserved_bytes,released FROM media_upload WHERE id=? FOR UPDATE",id.toString());if(!Boolean.TRUE.equals(live.get("released"))){db.sql.update("UPDATE media_capacity SET reserved_bytes=reserved_bytes-? WHERE id=1",number(live,"reserved_bytes"));db.sql.update("UPDATE media_upload SET released=TRUE WHERE id=?",id.toString());db.event("MULTIMEDIA",id.toString(),"TEMPORAL_EXPIRADO_ELIMINADO");}return null;});return null;

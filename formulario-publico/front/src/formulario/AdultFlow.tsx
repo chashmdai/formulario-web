@@ -127,7 +127,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],m
     if(batch.length>5)message='Puedes adjuntar hasta 5 archivos.';
     else if(batch.some(f=>!f.size||f.size>10*1024*1024))message='Cada archivo debe tener contenido y admitir hasta 10 MB.';
     else if(batch.reduce((sum,f)=>sum+f.size,0)>25*1024*1024)message='Los archivos admiten hasta 25 MB en total.';
-    else if(batch.some(f=>!/\.(pdf|png|jpe?g|webp|txt|docx?)$/i.test(f.name)))message='Selecciona PDF, imágenes, Word o TXT.';
+    else if(batch.some(f=>!/\.(pdf|png|jpe?g|webp|txt)$/i.test(f.name)))message='Selecciona PDF, imágenes PNG, JPG o WebP, o TXT.';
     if(message){setErrors(old=>({...old,adjuntos:message}));input.value='';return;}
     setUploading(true);setFailure('');void filePort.replace(batch).then(files=>{if(!mounted.current)return;setAttachments(files);setErrors(old=>{const copy={...old};delete copy.adjuntos;return copy;});})
       .catch(()=>{if(mounted.current)setErrors(old=>({...old,adjuntos:'No pudimos recibir estos archivos. Revisa su formato o vuelve a intentarlo.'}));}).finally(()=>{input.value='';if(mounted.current)setUploading(false);});

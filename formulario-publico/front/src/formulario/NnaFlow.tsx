@@ -104,12 +104,12 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
   }
   function onFiles(event: ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files || []), element = event.target;
-    const allowed = /\.(pdf|png|jpe?g|webp|txt|docx?)$/i;
+    const allowed = /\.(pdf|png|jpe?g|webp|txt)$/i;
     let error = '';
     if (selected.length > 5) error = 'Puedes adjuntar hasta 5 archivos.';
     else if (selected.some(file => file.size > 10 * 1024 * 1024)) error = 'Cada archivo admite hasta 10 MB.';
     else if (selected.reduce((sum, file) => sum + file.size, 0) > 25 * 1024 * 1024) error = 'Los archivos admiten hasta 25 MB en total.';
-    else if (selected.some(file => !allowed.test(file.name))) error = 'Selecciona PDF, imágenes, Word o TXT.';
+    else if (selected.some(file => !allowed.test(file.name))) error = 'Selecciona PDF, imágenes PNG, JPG o WebP, o TXT.';
     if (error) {setErrors(old => ({...old, 'nna-files': error}));element.value = '';return;}
     setUploading(true);setFailure('');
     void filePort.replace(selected).then(files => {
