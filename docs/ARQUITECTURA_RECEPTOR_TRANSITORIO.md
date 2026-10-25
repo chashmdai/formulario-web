@@ -74,7 +74,7 @@ La modalidad recomendada (`garantia.respaldo.directorio`) funciona sin una resta
 
 Los paquetes son **respaldos institucionales del ingreso**, no almacenamiento del servidor público y no documentos de gestión nuevos. No sustituyen el respaldo global de SIGER —Casos, actuaciones y evolución posterior— ni su procedimiento de recuperación de desastre. Se conserva también la modalidad de contraste contra una base SIGER ya restaurada, para diagnóstico/calificación.
 
-El CLI real exige medios independientes; rechaza como respaldo productivo el filesystem del origen, tmpfs/ramfs/overlay y destinos no adecuados. Implementación y plantillas verificadas en Linux/POSIX. No se declara calificación nativa Windows de este agente; su instalación debe utilizar un entorno privado compatible con acceso autorizado al origen, sin mover esa función al servidor público.
+El CLI real exige medios independientes; rechaza como respaldo productivo el filesystem del origen, tmpfs/ramfs/overlay y destinos no adecuados. Implementación y plantillas Linux/POSIX conservadas. La [unidad nativa Windows Server 2022](../agente-custodia/README.md) agrega un artefacto auxiliar separado, almacenamiento NTFS con sincronización Kernel32, bridge DPAPI y pruebas de laboratorio. No habilita emisión Windows: falta acreditar un medio independiente y resolver la identidad TLS MySQL. Sus resultados de sincronización de API no certifican pérdida física de energía. El agente permanece en infraestructura institucional; no se traslada esa función al servidor público.
 
 ## Protocolos y permisos
 

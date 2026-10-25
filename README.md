@@ -8,7 +8,7 @@ Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexby
 
 **El Formulario es un receptor transitorio. SIGER institucional es el registro y la custodia definitiva.** Este repositorio recibe, valida, conserva temporalmente y entrega información íntegra; después puede retirar sus copias públicas cuando se acreditan las garantías necesarias. No es una segunda base institucional permanente.
 
-**[Cierre técnico y observabilidad](docs/CIERRE_TECNICO_V10_2026-10-25.md)** · **[Arquitectura vigente](docs/ARQUITECTURA_RECEPTOR_TRANSITORIO.md)** · **[Checkpoint técnico y pruebas](docs/CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md)** · **[Publicación y continuidad](docs/CONSOLIDACION_MAIN_2026-10-25.md)** · **[Contratos](contratos/README.md)** · **[Operación multimedia](docs/OPERACION_MULTIMEDIA.md)**
+**[Agente Windows nativo · laboratorio](agente-custodia/README.md)** · **[Cierre técnico y observabilidad](docs/CIERRE_TECNICO_V10_2026-10-25.md)** · **[Arquitectura vigente](docs/ARQUITECTURA_RECEPTOR_TRANSITORIO.md)** · **[Checkpoint técnico y pruebas](docs/CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md)** · **[Publicación y continuidad](docs/CONSOLIDACION_MAIN_2026-10-25.md)** · **[Contratos](contratos/README.md)** · **[Operación multimedia](docs/OPERACION_MULTIMEDIA.md)**
 
 > **Referencia · 25/10/2026.** Main reúne el baseline funcional, multimedia y receptor transitorio V10. **Publicación de código no significa despliegue:** los laboratorios existentes siguen en V7/V8, con el mantenimiento nuevo y la retirada deshabilitados. La estimación operativa del **96 %** no es cobertura de pruebas, certificación, aceptación definitiva ni autorización productiva. El baseline sigue siendo evolutivo.
 
@@ -119,7 +119,7 @@ java -Dloader.main=cl.nexbyte.siger.custodia.EmisorGarantiaCustodia \
   --config /etc/siger-verificador/garantia.properties --enviar
 ```
 
-Las plantillas [`service`](infra/systemd/siger-garantia-custodia.service) y [`timer`](infra/systemd/siger-garantia-custodia.timer) ejecutan lotes cada 15 min. No están instaladas ni activadas. El destino debe ser durable e independiente: el CLI rechaza el mismo filesystem del origen y tmpfs/ramfs/overlay. El agente y sus permisos están probados en Linux/POSIX; no se declara calificación nativa Windows.
+Las plantillas [`service`](infra/systemd/siger-garantia-custodia.service) y [`timer`](infra/systemd/siger-garantia-custodia.timer) ejecutan lotes cada 15 min. No están instaladas ni activadas. El destino debe ser durable e independiente: el CLI rechaza el mismo filesystem del origen y tmpfs/ramfs/overlay. El camino Linux/POSIX se conserva. La [adaptación nativa Windows Server 2022](agente-custodia/README.md) está validada en laboratorio con artefacto separado, DPAPI y pruebas sintéticas. La emisión Windows permanece bloqueada por independencia no acreditada; TLS MySQL y calificación física siguen pendientes. Esto no modifica el requisito Linux del Formulario multimedia.
 
 ## 6. Seguridad y mantenimiento online
 
