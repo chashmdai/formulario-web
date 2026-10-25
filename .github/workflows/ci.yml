@@ -33,4 +33,6 @@ jobs:
         run: mvn -B -ntp '-Dtest=*Test,!Carga*Test' verify
       - name: Controles de respaldo y restauración (sintéticos)
         shell: bash
-        run: python3 scripts/qa/test_media_archive.py
+        run: |
+          python3 scripts/qa/test_media_archive.py
+          python3 scripts/qa/test_media_storage_report.py

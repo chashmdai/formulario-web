@@ -79,3 +79,7 @@ Antes de habilitar ampliamente: revisar esta rama, acordar recuperación de sesi
 - `MultimediaWorkersRealTest` es opt-in con `MEDIA_REAL_CHECK=true`, `MEDIA_INSPECTOR_SOCKET`, `MEDIA_AV_SOCKET`, `MEDIA_AV_CONFIG`, `MEDIA_SYNTHETIC_DIR`. Usa exclusivamente fixtures locales y sockets Unix. La omisión de `RecuperacionProcesoTest` heredado permanece explícita; no sustituirla por una afirmación de cobertura total.
 
 Para retirar el laboratorio de revisión: detener exclusivamente `arrancar-multimedia-local.py DIRECTORIO_PRIVADO --detener` y los servicios del proyecto `infra/compose.multimedia.yml` mediante `stop`. Conservar almacén, respaldo, configuración, claves y bases; no utilizar eliminación de volúmenes ni limpieza automática. El baseline 443/18443 sigue independiente.
+
+## Capacidad y retención: auditoría del 25/10/2026
+
+Ver [dimensionamiento de 25 GB, consumo real de cuotas y ciclo posterior al ACK](CAPACIDAD_Y_RETENCION_2026-10-25.md). El nuevo `scripts/linux/media-storage-report.py` inventaría solo metadatos de filesystem y, opcionalmente, agregados MySQL V8; no modifica archivos, reservas ni retención. El ACK sigue sin autorizar borrado. Los umbrales del informe son configurables y no cambian los controles de admisión del backend. No se instaló limpieza ni monitor periódico.
