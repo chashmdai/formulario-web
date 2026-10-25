@@ -103,6 +103,12 @@ Las carreras ejecutan **transacciones simultáneas con conexiones/pools separado
 
 H2 y MySQL usaron salida `.local/cierre-v10-target`, no el JAR desplegado. Las evidencias privadas `cierre-v10-*` no se publican. Las cifras locales son independientes de GitHub Actions; el resultado del run de publicación se comprueba por SHA y se comunica al entregar, sin atribuirle automáticamente los resultados locales MySQL.
 
+### Hallazgo adicional en GitHub Actions
+
+El [primer run de publicación](https://github.com/chashmdai/formulario-web/actions/runs/40205497342), sobre `50155bc`, falló en una prueba React preexistente: el test intentaba corregir «Otro perfil» inmediatamente después de solicitar una revisión inválida, mientras el guardado asíncrono aún podía deshabilitar el formulario y quedar pendiente el foco del resumen. El backend no llegó a ejecutarse en ese run; no se presenta como correcto.
+
+Se corrigió **solo la sincronización del test `AdultFlow.test.tsx`**: espera el error accesible, el fin de `aria-busy` y el foco esperado antes de escribir; comprueba el valor corregido antes de volver a revisar. No se aumentaron timeouts, omitieron aserciones, deshabilitaron pruebas ni cambiaron flujos/producto. La batería frontend/lint/build se ejecuta nuevamente tras esa corrección. El resultado de CI del SHA final se verifica por separado.
+
 ### Artefacto SIGER previo: solo huella
 
 Se encontró y **solo se leyó para SHA-256** el JAR previamente utilizado, en `sistema-de-requerimientos/siger-institucional/backend/target/siger-institucional-0.1.0-SNAPSHOT.jar`:

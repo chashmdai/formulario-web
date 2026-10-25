@@ -45,8 +45,15 @@ describe('Recorridos adultos trasladados del mockup',()=>{
   });
   it('CU conserva nombre de sesión de solo lectura y valida el otro perfil de entrevista',async()=>{
     const {review}=mount(false,undefined,true);await identity(true);expect((screen.getByDisplayValue('NOMBRE') as HTMLInputElement).readOnly).toBe(true);await reason('consulta','entrevista');await last();
-    await userEvent.type(byId('entrevista-motivo'),'Entrevista sintética');await userEvent.selectOptions(byId('entrevista-rol'),'otro');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));expect(review).not.toHaveBeenCalled();
-    await userEvent.type(byId('entrevista-rol-otro'),'Perfil sintético');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));expect(review.mock.calls[0][1].autenticada).toBe(true);expect(review.mock.calls[0][0].campos['entrevista-rol-otro']).toBe('Perfil sintético');
+    await userEvent.type(byId('entrevista-motivo'),'Entrevista sintética');await userEvent.selectOptions(byId('entrevista-rol'),'otro');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));
+    // La revisión fallida guarda identidad de forma asíncrona y después enfoca el resumen.
+    // No escribir mientras el formulario sigue deshabilitado ni competir con ese foco pendiente.
+    await within(byId('adult-errors')).findByText('Completa Otro perfil.');
+    await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));
+    await waitFor(()=>expect(document.activeElement).toBe(byId('adult-errors')));
+    expect(review).not.toHaveBeenCalled();
+    await userEvent.type(byId('entrevista-rol-otro'),'Perfil sintético');
+    expect((byId('entrevista-rol-otro') as HTMLInputElement).value).toBe('Perfil sintético');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));expect(review.mock.calls[0][1].autenticada).toBe(true);expect(review.mock.calls[0][0].campos['entrevista-rol-otro']).toBe('Perfil sintético');
   });
   it('estadísticas se habilita solo tras revisar fuentes y orientación',async()=>{
     const {review,step}=mount();await identity();await reason('consulta','estadisticas');await userEvent.click(screen.getByRole('button',{name:'Continuar'}));expect(step).not.toHaveBeenCalledWith(3);
