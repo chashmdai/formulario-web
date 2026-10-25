@@ -40,3 +40,9 @@ La aceptación acredita los controles implementados; no garantiza ausencia unive
 Se verificaron pequeños archivos sintéticos de cada extensión del perfil, rechazos malformados y activos, un antivirus real con EICAR al final de un archivo de más de 12 MiB y un recorrido HTTP completo de 16 MiB + 7 bytes en bloques de 8 MiB. No se ejecutó carga, concurrencia intensiva, lotes de 250 MiB ni videos de 150 MiB por la inestabilidad pendiente de Windows. Los máximos configurados son techos del perfil de laboratorio, no capacidad de producción validada.
 
 La reanudación automática funciona mientras la sesión Tomcat propietaria sigue vigente, incluyendo recarga y transporte interrumpido. Reiniciar el proceso pierde esa sesión en la arquitectura actual: MySQL y archivos sobreviven, pero la sesión nueva recibe 404. No se ha añadido un token alternativo que permita recuperar identidad o archivos. Resolver recuperación ciudadana entre sesiones y calificar tamaños máximos son condiciones pendientes antes de una habilitación institucional amplia.
+
+## Cierre de ingeniería 25/10/2026: compatibilidad clásica
+
+Las nuevas cargas multipart clásicas admiten únicamente PDF, PNG, JPG/JPEG, WebP y TXT, cinco archivos de 10 MiB y lote de 25 MiB. DOC/DOCX se rechazan allí: el validador anterior de cabecera/ZIP y antivirus no acreditaba ausencia de macros, ActiveX u objetos activos. DOCX sigue admitido por el perfil multimedia inspeccionado. No se modifican BLOB Office históricos ni sus hashes/descargas.
+
+El canal clásico tiene validación básica de formato y ClamAV, sin previsualización inline ni garantía de análisis profundo de acciones PDF. El despliegue que anuncie el perfil seguro ampliado debe utilizar multimedia con inspector; al estar habilitado, el controlador rechaza las nuevas cargas multipart clásicas con 409. No usar regex como sustituto de análisis documental. Ver [cierre de ingeniería](CIERRE_INGENIERIA_FORMULARIO_PUBLICO_2026-10-25.md).

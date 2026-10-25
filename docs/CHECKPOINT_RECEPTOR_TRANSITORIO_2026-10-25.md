@@ -1,5 +1,7 @@
 # Checkpoint · receptor transitorio integral · 25/10/2026
 
+> Continuidad del agente: [cierre Windows/MySQL TLS](CIERRE_WINDOWS_MYSQL_TLS_2026-10-25.md). Ese informe actualiza runtime, pruebas y configuración del agente; no activa las banderas públicas ni altera las evidencias históricas de este checkpoint.
+
 ## Cierre técnico posterior
 
 El [cierre de auditoría de concurrencia y observabilidad](CIERRE_TECNICO_V10_2026-10-25.md) corrige hold/retirada, amplía indicadores y registra la nueva regresión de 259 pruebas por motor. Agrega únicamente índices V11; las cifras de implementación y evidencia SIGER siguientes conservan su ejecución original. No implica despliegue ni activación de retiradas.

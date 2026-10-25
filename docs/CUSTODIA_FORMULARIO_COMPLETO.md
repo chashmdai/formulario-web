@@ -18,7 +18,7 @@ V7 agrega `citizen_submission` y `citizen_attachment`, con claves foráneas al r
 
 ## Adjuntos
 
-Hasta 5 archivos, 10 MiB por archivo y 25 MiB por lote. Metadatos y bytes se guardan en MySQL privado; no existen rutas estáticas ni nombres de disco proporcionados por el ciudadano. Se validan extensión/firma de contenido, texto UTF-8 y estructura ZIP acotada para DOCX (sin travesías, entradas repetidas ni VBA). El antivirus inspecciona todos los bytes antes de guardar. Estos controles no garantizan la ausencia de toda amenaza.
+**Evidencia V7 histórica:** Hasta 5 archivos, 10 MiB por archivo y 25 MiB por lote. Metadatos y bytes se guardan en MySQL privado; no existen rutas estáticas ni nombres de disco proporcionados por el ciudadano. Se validan extensión/firma de contenido, texto UTF-8 y estructura ZIP acotada para DOCX (sin travesías, entradas repetidas ni VBA). El antivirus inspecciona todos los bytes antes de guardar. Estos controles no garantizan la ausencia de toda amenaza.
 
 Un archivo rechazado o un scanner indisponible conserva el lote previo y no genera una aceptación falsa. Por defecto no hay scanner configurado y las cargas fallan con 503. Configurar `formulario.adjuntos.clamav-port` conecta INSTREAM exclusivamente a loopback, con conexión/lectura acotadas. Las pruebas unitarias usan un doble TCP. La instalación real y las verificaciones de ClamAV en el laboratorio NNA se completaron el 2026-10-24; ver `CHECKPOINT_2026-10-24.md`. Otras instancias requieren su propia configuración y comprobación.
 
@@ -62,3 +62,7 @@ Suite ampliada: 148 pruebas backend descubiertas, 4 opcionales omitidas; H2 y My
 ## Ampliación multimedia en rama de revisión (24/10/2026)
 
 El camino histórico descrito arriba permanece en el baseline. La ampliación optativa se documenta en [ADR multimedia](ADR_MULTIMEDIA_2026-10-24.md), [política](POLITICA_MULTIMEDIA_2026-10-24.md) y [documento 1.1](../contratos/formulario-completo-multimedia-v1.1.md). No se modifican firmas históricas ni se habilita el consumidor SIGER automáticamente.
+
+## Actualización de ingeniería 25/10/2026
+
+Las nuevas cargas clásicas DOC/DOCX se cierran por insuficiencia del análisis Office de ese camino. Sus BLOB históricos siguen recuperables sin revalidación destructiva, conservando bytes/hashes. DOCX nuevo usa multimedia y su inspector aislado; el resto de límites/políticas se distingue en la [política multimedia](POLITICA_MULTIMEDIA_2026-10-24.md). Contratos documentales 1.0/1.1 y ACK no se modifican.
