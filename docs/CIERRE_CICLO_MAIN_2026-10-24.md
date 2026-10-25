@@ -1,5 +1,7 @@
 # Cierre del ciclo de desarrollo · main · 24/10/2026
 
+> **Cierre histórico del 24/10.** El estado publicado actual incorpora V9/V10: [consolidación del 25/10](CONSOLIDACION_MAIN_2026-10-25.md) y [arquitectura transitoria vigente](ARQUITECTURA_RECEPTOR_TRANSITORIO.md). Publicar código no actualiza las bases V7/V8 ni habilita servicios. Las cifras y decisiones siguientes conservan su fecha original.
+
 ## Alcance definitivo
 
 Se consolida la implementación multimedia validada en **main**, conservando el historial y las ramas de trabajo. Base remota inspeccionada y actualizada por fetch: `c1e4eadc1979484007f09758cc1842bca1545995`, sin divergencia. Integración fast-forward de `multimedia-adjuntos-2026-10-24`, incluidos:

@@ -1,3 +1,5 @@
+> **Lanzador Windows histórico.** No describe el arranque del laboratorio Linux/POSIX ni la activación V10. Consultar [README](../README.md), [operación](OPERACION_MULTIMEDIA.md) y [checkpoint vigente](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) antes de iniciar procesos. No ejecutar este lanzador sobre la infraestructura Linux existente.
+
 > Rutas actualizadas tras separar las aplicaciones. Esta guía inicia solo el Formulario Público. Consulta también MIGRACION_APLICACIONES.md.
 
 # Levantar el Formulario Público después de reiniciar Windows

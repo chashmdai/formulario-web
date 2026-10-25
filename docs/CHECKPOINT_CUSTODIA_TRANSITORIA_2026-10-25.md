@@ -1,5 +1,7 @@
 # Checkpoint: custodia transitoria y VM de 25 GB
 
+> **Checkpoint histórico V9.** Fue ampliado por el [receptor transitorio integral V10](ARQUITECTURA_RECEPTOR_TRANSITORIO.md), el [checkpoint técnico](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) y la [consolidación publicada](CONSOLIDACION_MAIN_2026-10-25.md). Sus condiciones offline, plazos y ausencia de push describen aquella unidad, no el estado del código actual.
+
 Fecha: 25/10/2026. Repositorio: `formulario-web`. Rama local: `ciclo-vida-custodia-2026-10-25`.
 
 Motor implementado y probado: **`2d5b2f39fbd3837ee739e85d3c7d4fa7d62290c1`**. Conserva `4b148bc` y el baseline publicado `a84d2e7`. El commit documental posterior contiene este checkpoint; consultar `git log -2` para identificarlo. **Sin push ni despliegue.**

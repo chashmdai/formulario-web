@@ -171,6 +171,10 @@ No colocar ese archivo privado ni la clave del verificador en el servidor públi
 
 La restauración de laboratorio `media-archive.py` reconoce V8/V9/V10 y bloquea payloads ausentes sin recibo/fase coherentes o identidades residuales. Conserva su modo offline para respaldo/restore de laboratorio; **no es el mecanismo periódico de retirada**. La operación de respaldo en infraestructura debe estar configurada y automatizada con la estrategia correspondiente; no se instaló sobre datos reales en esta unidad.
 
+## Publicación del código y activación independiente
+
+La [consolidación en main del 25/10](CONSOLIDACION_MAIN_2026-10-25.md) incorpora el historial completo V9/V10. Es publicación de software, no despliegue: no modifica los laboratorios, aplica V10 ni habilita banderas. El checkpoint técnico conserva los resultados de implementación y su contexto previo al push.
+
 ## Evidencia y estado de entrega
 
 Resultados finales y commit se registran en el [checkpoint de esta unidad](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md). Las pruebas distinguen dobles controlados, integración Spring HTTP/programador, MySQL real y clases reales de SIGER.

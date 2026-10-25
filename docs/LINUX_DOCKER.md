@@ -1,5 +1,7 @@
 # Laboratorio Linux y despliegue pendiente
 
+> **Guía de preparación histórica del 23/10.** Para el código actual, comenzar por [README](../README.md), [arquitectura V10](ARQUITECTURA_RECEPTOR_TRANSITORIO.md) y [operación multimedia](OPERACION_MULTIMEDIA.md). No repetir instalaciones en laboratorios preparados. Sus versiones y verificaciones de infraestructura corresponden a esa fecha.
+
 Esta guía añade Linux sin sustituir las instrucciones Windows. Fecha de verificación: 23-10-2026. Ubuntu 24.04.5 WSL2 x86-64 y systemd. Git/SSH existentes se reutilizaron sin cambios. No se publicó WSL ni se alteró DNS público. Tras autorización expresa posterior se configuraron hosts y confianza de desarrollo del usuario Windows: [HTTPS Sandbox real y reversión](SANDBOX_HTTPS_WSL_2026-10-23.md).
 
 ## Herramientas

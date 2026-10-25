@@ -1,5 +1,9 @@
 # Checkpoint · receptor transitorio integral · 25/10/2026
 
+## Publicación posterior y vigencia
+
+Este checkpoint conserva el cierre técnico de `a557245`/`c971c42`, realizado antes del push. La [consolidación en main](CONSOLIDACION_MAIN_2026-10-25.md) publica íntegramente ese trabajo y actualiza el README, sin ejecutar nuevas regresiones ni desplegar infraestructura. Las menciones a rama local/sin publicación más abajo son el registro de aquella ejecución. Para estado publicado, usar el documento de consolidación y las referencias Git.
+
 ## Estado para continuar
 
 - Repositorio: `formulario-web`, exclusivamente. Rama local **`receptor-transitorio-integral-2026-10-25`**.
@@ -128,4 +132,4 @@ No se pide otra decisión genérica sobre quién custodia: está resuelta y apli
 
 Evidencias privadas de esta ejecución en `.local/evidencias/transitorio-*`: baterías H2/MySQL/frontend/Python, modelo numérico, ciclo SIGER y verificación criptográfica de recibos restaurados. No incorporarlas a Git.
 
-**Próximo paso exacto:** revisar esta rama y ejecutar la activación gradual anterior en el entorno de destino cuando esté autorizado. No rehacer formularios, infraestructura ni V9; no añadir otras funcionalidades sin nuevo encargo.
+**Próximo paso operativo:** una vez publicada la consolidación, ejecutar la activación gradual anterior en el entorno de destino cuando esté autorizado. No rehacer formularios, infraestructura ni V9; no añadir otras funcionalidades sin nuevo encargo.

@@ -2,9 +2,9 @@
 
 > **Operación vigente · 25/10/2026:** [receptor transitorio integral V10](ARQUITECTURA_RECEPTOR_TRANSITORIO.md) y [checkpoint](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md). El mantenimiento periódico es online; el CLI offline se conserva para diagnóstico y backup/restore. La retirada incluye archivos, BLOB y datos personales/payloads MySQL, con garantías independientes entrantes y banderas cerradas. Las descripciones V7/V8 siguientes son el historial del laboratorio, que no fue migrado en esta unidad.
 
-## Separación del laboratorio
+## Separación del laboratorio: historial del 24/10
 
-El baseline de `origin/main@c1e4ead` continúa en HTTPS 443 y proceso nativo 18443, esquema `robust_public_local` y sus volúmenes. Esta rama utiliza **19443**, cookie distinta, esquema **`robust_public_media_lab`** y directorio privado **fuera de Git**. No se migró el baseline; conserva V7. El esquema de prueba `robust_public_test` y el esquema multimedia sí validaron V8. No desplegar un JAR de esta rama contra V7 sin una migración planificada y respaldo previo.
+El baseline de `origin/main@c1e4ead` descrito en la preparación del 24/10 continuaba en HTTPS 443 y proceso nativo 18443, esquema `robust_public_local` y sus volúmenes. Esta rama utiliza **19443**, cookie distinta, esquema **`robust_public_media_lab`** y directorio privado **fuera de Git**. No se migró el baseline; conserva V7. El esquema de prueba `robust_public_test` y el esquema multimedia sí validaron V8. No desplegar un JAR de esta rama contra V7 sin una migración planificada y respaldo previo.
 
 La compilación de laboratorio utiliza `-Dsiger.build.directory=/home/nexbyteproveedor/proyectos/formulario-web/.local/multimedia-target`. El JAR en ejecución es una copia privada `runtime.jar`, separada de las salidas de Maven. No sobreescribir un JAR activo ni reutilizar `backend/target` del baseline.
 
@@ -82,10 +82,12 @@ Antes de habilitar ampliamente: revisar esta rama, acordar recuperación de sesi
 
 Para retirar el laboratorio de revisión: detener exclusivamente `arrancar-multimedia-local.py DIRECTORIO_PRIVADO --detener` y los servicios del proyecto `infra/compose.multimedia.yml` mediante `stop`. Conservar almacén, respaldo, configuración, claves y bases; no utilizar eliminación de volúmenes ni limpieza automática. El baseline 443/18443 sigue independiente.
 
-## Capacidad y retención: auditoría del 25/10/2026
+## Inventario de capacidad vigente
 
-Ver [dimensionamiento de 25 GB, consumo real de cuotas y ciclo posterior al ACK](CAPACIDAD_Y_RETENCION_2026-10-25.md). El nuevo `scripts/linux/media-storage-report.py` inventaría solo metadatos de filesystem y, opcionalmente, agregados MySQL V8; no modifica archivos, reservas ni retención. El ACK sigue sin autorizar borrado. Los umbrales del informe son configurables y no cambian los controles de admisión del backend. No se instaló limpieza ni monitor periódico.
+Para dimensionamiento y retención actuales, utilizar la [arquitectura V10](ARQUITECTURA_RECEPTOR_TRANSITORIO.md). La [auditoría inicial](CAPACIDAD_Y_RETENCION_2026-10-25.md) se conserva como evidencia histórica. `scripts/linux/media-storage-report.py` inventaría filesystem y agregados MySQL V8 o posterior; no modifica archivos, reservas ni retención. Su reporte admite cuota/piso configurables y alertas 80/95 % y espacio piso+1 GiB/piso. No acredita custodia por contar ACK almacenados. No se instaló un monitor sobre los servicios existentes.
 
-## Mantenimiento transitorio V9 (25/10/2026)
+## Mantenimiento transitorio: V10 online vigente
 
-El [motor de ciclo de vida y sus pruebas](CICLO_VIDA_CUSTODIA_TRANSITORIA_2026-10-25.md) permite verificar archivo institucional y restauración, conservar temporalmente, retirar copias transitorias y recuperar de forma independiente. Es un CLI offline con doble habilitación y retención configurable; no elimina por ACK. En los laboratorios no está habilitado ni se migró su esquema. El respaldo distingue bytes retirados explícitamente de un original perdido y mantiene restauración de V8. Consultar el procedimiento antes de usar binarios V9 o retirar cualquier copia real.
+La operación normal usa el [programador online V10, garantías entrantes y minimización MySQL](ARQUITECTURA_RECEPTOR_TRANSITORIO.md). Reutiliza el motor V9 con guardias por recorrido; no detiene la recepción ni monta SIGER en el público. La garantía la envía un agente privado institucional que verifica el COM/ACK y publica/restaura un respaldo independiente del ingreso. Retirada y programador permanecen cerrados en los laboratorios V7/V8.
+
+El [CLI offline V9](CICLO_VIDA_CUSTODIA_TRANSITORIA_2026-10-25.md) es una herramienta histórica de diagnóstico/calificación; no es el planificador productivo. El backup/restore de este manual conserva su requisito de exclusión offline y valida respaldos V8/V9/V10. No confundir esa ventana de respaldo con el mantenimiento online de retirada. Consultar el [checkpoint V10](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) y la [publicación](CONSOLIDACION_MAIN_2026-10-25.md) antes de instalar binarios nuevos o migrar datos.
