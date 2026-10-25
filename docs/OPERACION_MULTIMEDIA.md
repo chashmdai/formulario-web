@@ -83,3 +83,7 @@ Para retirar el laboratorio de revisión: detener exclusivamente `arrancar-multi
 ## Capacidad y retención: auditoría del 25/10/2026
 
 Ver [dimensionamiento de 25 GB, consumo real de cuotas y ciclo posterior al ACK](CAPACIDAD_Y_RETENCION_2026-10-25.md). El nuevo `scripts/linux/media-storage-report.py` inventaría solo metadatos de filesystem y, opcionalmente, agregados MySQL V8; no modifica archivos, reservas ni retención. El ACK sigue sin autorizar borrado. Los umbrales del informe son configurables y no cambian los controles de admisión del backend. No se instaló limpieza ni monitor periódico.
+
+## Mantenimiento transitorio V9 (25/10/2026)
+
+El [motor de ciclo de vida y sus pruebas](CICLO_VIDA_CUSTODIA_TRANSITORIA_2026-10-25.md) permite verificar archivo institucional y restauración, conservar temporalmente, retirar copias transitorias y recuperar de forma independiente. Es un CLI offline con doble habilitación y retención configurable; no elimina por ACK. En los laboratorios no está habilitado ni se migró su esquema. El respaldo distingue bytes retirados explícitamente de un original perdido y mantiene restauración de V8. Consultar el procedimiento antes de usar binarios V9 o retirar cualquier copia real.

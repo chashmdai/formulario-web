@@ -1,5 +1,7 @@
 # Capacidad y retención del Formulario Público
 
+> **Actualización del encargo:** el [ciclo de vida de custodia transitoria](CICLO_VIDA_CUSTODIA_TRANSITORIA_2026-10-25.md) implementa la solución para operar con 25 GB. Sustituye la ampliación de disco como salida principal y los apartados de este informe que describían el mecanismo como futuro. Esta auditoría inicial se conserva como evidencia del punto de partida; no describe las capacidades nuevas de V9.
+
 Fecha: **25 de octubre de 2026**. Auditoría sobre `a84d2e7`, sin modificar SIGER, documentos firmados, contratos 1.0/1.1 ni comprobantes. Las mediciones son del laboratorio WSL, no de la futura VM. Esta unidad no habilita producción ni cambia banderas, cuotas o retención efectivas.
 
 ## Decisión técnica

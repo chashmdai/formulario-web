@@ -19,7 +19,7 @@ Este repositorio contiene **React, el backend público y la custodia de recepci�
 | Entender qué está entregado y qué queda pendiente | [Cierre del ciclo y resultados](docs/CIERRE_CICLO_MAIN_2026-10-24.md) |
 | Desarrollar el consumidor SIGER | [Baseline evolutivo](docs/BASELINE_FORMULARIO_PUBLICO_2026-10-24.md) → [custodia completa](docs/CUSTODIA_FORMULARIO_COMPLETO.md) → [documentos 1.0/1.1](contratos/formulario-completo-multimedia-v1.1.md) |
 | Entender almacenamiento, cargas y antivirus | [Decisión arquitectónica](docs/ADR_MULTIMEDIA_2026-10-24.md) → [formatos/cuotas](docs/POLITICA_MULTIMEDIA_2026-10-24.md) → [operación y respaldos](docs/OPERACION_MULTIMEDIA.md) |
-| Dimensionar disco y entender la retención tras ACK | [Capacidad, escenarios de 25 GB e inventario de solo lectura](docs/CAPACIDAD_Y_RETENCION_2026-10-25.md) |
+| Operar con 25 GB y conservar solo copias transitorias | [Ciclo de vida implementado, garantías y pruebas](docs/CICLO_VIDA_CUSTODIA_TRANSITORIA_2026-10-25.md) → [inventario de capacidad](docs/CAPACIDAD_Y_RETENCION_2026-10-25.md) |
 | Preparar el futuro visor institucional | [Contrato del visor y separación documental](docs/VISOR_INSTITUCIONAL_MULTIMEDIA.md) |
 | Reutilizar el entorno Linux/WSL existente | [Checkpoint de cierre](docs/CIERRE_CICLO_MAIN_2026-10-24.md) y [operación](docs/OPERACION_MULTIMEDIA.md); no repetir preparación ni regenerar claves |
 | Consultar instalaciones o decisiones anteriores | [Linux/Docker](docs/LINUX_DOCKER.md), [manual Windows histórico](docs/MANUAL_REPOSITORIOS.md), [HTTPS local](docs/SANDBOX_HTTPS_WSL_2026-10-23.md) |
