@@ -54,7 +54,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           mvn -B -ntp -f agente-custodia/pom.xml package
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          mvn -B -ntp -f agente-custodia/pom.xml dependency:copy -Dartifact=com.h2database:h2:2.4.240 "-DoutputDirectory=$env:RUNNER_TEMP\qa-h2"
+          mvn -B -ntp -f agente-custodia/pom.xml dependency:copy "-Dartifact=com.h2database:h2:2.4.240" "-DoutputDirectory=$env:RUNNER_TEMP\qa-h2"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: NTFS, criptografía, interrupciones y recuperación con fixtures
         shell: pwsh

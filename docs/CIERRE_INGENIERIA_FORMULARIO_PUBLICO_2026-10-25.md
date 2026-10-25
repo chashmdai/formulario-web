@@ -93,6 +93,8 @@ Las 284 incluyen seis tests de acreditación, seis de carga de clave, tres de te
 
 La CI de [Ubuntu + Windows Server 2022](../.github/workflows/ci.yml) usa runners efímeros y no necesita la máquina institucional, DPAPI, MySQL80 privado ni medios de respaldo. Linux ejecuta frontend/backend/Python; Windows compila y ejecuta los harness de NTFS/H2 y parser TLS. Sus resultados se comprueban por SHA después del push y se informan separadamente: la CI no se atribuye las pruebas MySQL locales.
 
+La primera CI de la rama ([run 40227266374](https://github.com/chashmdai/formulario-web/actions/runs/40227266374)) pasó Linux y falló Windows al resolver H2 por un argumento Maven sin quoting. Se entrecomilló la propiedad completa, se comprobó la copia con Maven nativo Windows y se repitió CI antes de integrar main. No se alteraron tests ni el JAR por esta corrección.
+
 Evidencias locales privadas: logs cierre-ingenieria-*, agente-tls-final-{h2,mysql}, agente-clave-focal y auditoria-adjuntos-saneamiento-h2 bajo .local/evidencias. No se publican respuestas/cookies/dumps o datos institucionales. Comandos reproducibles y precondiciones en el [README](../README.md).
 
 ### Evidencia institucional anterior
