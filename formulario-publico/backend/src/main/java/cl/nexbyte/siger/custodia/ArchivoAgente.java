@@ -71,10 +71,12 @@ public final class ArchivoAgente {
     }
     /** Acredita la secuencia de sincronización de la API; no certifica hardware frente a pérdida de energía. */
     public static boolean durabilidadAcreditada(Path directory)throws IOException{return sincronizar(directory);}
-    public static boolean independiente(Path origin,Path backup)throws IOException{
+    public static boolean independiente(Path origin,Path backup)throws IOException{return independiente(origin,backup,null);}
+    public static boolean independiente(Path origin,Path backup,AcreditacionAlmacenWindows.Permiso permiso)throws IOException{
         raiz(origin);raiz(backup);
-        // Dos volúmenes NTFS no prueban dispositivos/medios independientes. Sin acreditación no emitir.
-        return !windows()&&!Files.getFileStore(origin).equals(Files.getFileStore(backup));
+        // Sin capacidad firmada/comprobada no se infiere independencia por volumen o letra.
+        if(windows()){if(permiso==null)return false;permiso.comprobar(origin,backup);return true;}
+        return !Files.getFileStore(origin).equals(Files.getFileStore(backup));
     }
     public static void publicar(Path temporary,Path destination)throws IOException{
         ruta(temporary);ruta(destination);if(!Files.isDirectory(temporary,LinkOption.NOFOLLOW_LINKS))throw new IOException("Solo paquetes de directorio");if(Files.exists(destination,LinkOption.NOFOLLOW_LINKS))throw new FileAlreadyExistsException("Paquete ya publicado");

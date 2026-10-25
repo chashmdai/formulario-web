@@ -37,19 +37,24 @@ public final class RespaldoIngresoVerificado {
  public record PruebaRestauracion(GarantiaCustodia.Contexto contexto,boolean independenciaAcreditada,boolean durabilidadAcreditada){}
  public static FirmaOperativa emitir(JdbcTemplate source,Path sourceRoot,Path backupRoot,Path scratchRoot,UUID id,String queue,
   Map<String,PublicKey> publicKeys,Map<String,PublicKey> institution,String issuer,PrivateKey issuerKey,Clock clock,JsonMapper mapper)throws IOException{
-  var result=restaurar(source,sourceRoot,backupRoot,scratchRoot,id,queue,publicKeys,institution,mapper,true);
-  return FirmaOperativa.firmar(new GarantiaCustodia.Contenido(result.contexto(),clock.instant(),clock.instant().plus(Duration.ofHours(24)),UUID.randomUUID()),GarantiaCustodia.DOMAIN,issuer,issuerKey,mapper);
+  return emitir(source,sourceRoot,backupRoot,scratchRoot,id,queue,publicKeys,institution,issuer,issuerKey,clock,mapper,null);
+ }
+ public static FirmaOperativa emitir(JdbcTemplate source,Path sourceRoot,Path backupRoot,Path scratchRoot,UUID id,String queue,
+  Map<String,PublicKey> publicKeys,Map<String,PublicKey> institution,String issuer,PrivateKey issuerKey,Clock clock,JsonMapper mapper,AcreditacionAlmacenWindows.Permiso permiso)throws IOException{
+  var result=restaurar(source,sourceRoot,backupRoot,scratchRoot,id,queue,publicKeys,institution,mapper,true,permiso);
+  Instant now=clock.instant(),end=now.plus(Duration.ofHours(24));if(permiso!=null)end=permiso.limitarVencimiento(end);
+  return FirmaOperativa.firmar(new GarantiaCustodia.Contenido(result.contexto(),now,end,UUID.randomUUID()),GarantiaCustodia.DOMAIN,issuer,issuerKey,mapper);
  }
  /** Ensayo explícito: no firma, no envía y no permite utilizar su resultado como garantía institucional. */
  public static PruebaRestauracion ensayar(JdbcTemplate source,Path sourceRoot,Path backupRoot,Path scratchRoot,UUID id,String queue,
   Map<String,PublicKey> publicKeys,Map<String,PublicKey> institution,JsonMapper mapper)throws IOException{
-  return restaurar(source,sourceRoot,backupRoot,scratchRoot,id,queue,publicKeys,institution,mapper,false);
+  return restaurar(source,sourceRoot,backupRoot,scratchRoot,id,queue,publicKeys,institution,mapper,false,null);
  }
  private static PruebaRestauracion restaurar(JdbcTemplate source,Path sourceRoot,Path backupRoot,Path scratchRoot,UUID id,String queue,
-  Map<String,PublicKey> publicKeys,Map<String,PublicKey> institution,JsonMapper mapper,boolean strict)throws IOException{
+  Map<String,PublicKey> publicKeys,Map<String,PublicKey> institution,JsonMapper mapper,boolean strict,AcreditacionAlmacenWindows.Permiso permiso)throws IOException{
   var origin=EmisorGarantiaCustodia.root(sourceRoot);var backup=EmisorGarantiaCustodia.root(backupRoot);var scratch=EmisorGarantiaCustodia.root(scratchRoot);
   for(var pair:List.of(List.of(origin,backup),List.of(origin,scratch),List.of(backup,scratch)))if(pair.get(0).startsWith(pair.get(1))||pair.get(1).startsWith(pair.get(0)))throw new IOException("Árboles de custodia, respaldo y scratch separados requeridos");
-  boolean independent=ArchivoAgente.independiente(origin,backup),durable=ArchivoAgente.durabilidadAcreditada(backup);
+  boolean independent=ArchivoAgente.independiente(origin,backup,permiso),durable=ArchivoAgente.durabilidadAcreditada(backup);
   if(strict&&(!independent||!durable))throw new IOException("Independencia y durabilidad acreditadas requeridas");
   var metadata=columns(EmisorGarantiaCustodia.metadata(source,id));var expected=EmisorGarantiaCustodia.verifyMetadata(metadata,queue,publicKeys,institution,mapper);if(!id.equals(expected.id()))throw new IOException("ID no corresponde");
   var documents=queue.equals("COMPLETO")?source.queryForList("SELECT * FROM institution_document WHERE operation_id=? AND origin='INGRESO_CIUDADANO' ORDER BY attachment_id",id.toString()).stream().map(RespaldoIngresoVerificado::columns).toList():List.<Map<String,Object>>of();
@@ -69,6 +74,7 @@ public final class RespaldoIngresoVerificado {
    restored=ArchivoAgente.temporal(scratch,"restauracion-ingreso-");directory(restored.resolve("objects"));directory(restored.resolve("objects").resolve(id.toString()));copy(destination.resolve("registro.json"),restored.resolve("registro.json"));
    for(var d:files(saved,queue,mapper))copy(original(destination,id,d),restored.resolve("objects").resolve(id.toString()).resolve(d.id()+".bin"));
    if(!expected.equals(verify(read(restored.resolve("registro.json"),mapper),restored,id,queue,publicKeys,institution,mapper))||!expected.equals(EmisorGarantiaCustodia.verifyMetadata(EmisorGarantiaCustodia.metadata(source,id),queue,publicKeys,institution,mapper)))throw new IOException("Restauración o registro cambiaron");
+   if(strict&&!ArchivoAgente.independiente(origin,backup,permiso))throw new IOException("Independencia cambió durante restauración");
    return new PruebaRestauracion(expected,independent,durable);
   }finally{ArchivoAgente.limpiarTemporal(building,backup);ArchivoAgente.limpiarTemporal(restored,scratch);}
  }

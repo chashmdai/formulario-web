@@ -9,7 +9,7 @@ import cl.nexbyte.siger.robustez.BaseJdbc;
 
 /** Entrada auxiliar sin Spring, servidor web, migraciones o reglas de negocio institucionales. */
 public final class AgenteCustodiaNativo {
-    public static final String VERSION="1.0.0-windows-lab";
+    public static final String VERSION="1.1.0-windows-lab";
     public static final class Ocupado extends IOException{}
     public static final class Guardia implements AutoCloseable {
         private final FileChannel channel;private final FileLock lock;
@@ -36,13 +36,16 @@ public final class AgenteCustodiaNativo {
         var mapper=JsonMapper.builder().build();if(opts.containsKey("--secretos-stdin"))secretos(config,System.in,mapper);else if(ArchivoAgente.windows()&&!opts.containsKey("--inspeccionar"))throw new IOException("Windows exige entrega anónima por stdin");
         var sourceRoot=ArchivoAgente.raiz(Path.of(config.getProperty("garantia.origen.archivo")));var backupRoot=ArchivoAgente.raiz(Path.of(config.getProperty("garantia.respaldo.directorio")));var scratch=ArchivoAgente.raiz(Path.of(config.getProperty("garantia.restauracion.scratch")));
         try(var guard=new Guardia(scratch)){
-            if(opts.containsKey("--inspeccionar")){System.out.println("RUTAS_ACL_OK independencia="+ArchivoAgente.independiente(sourceRoot,backupRoot)+" durabilidad="+ArchivoAgente.durabilidadAcreditada(backupRoot));return 0;}
+            if(opts.containsKey("--inspeccionar")){var accreditation=ArchivoAgente.windows()?AcreditacionAlmacenWindows.inspeccionar(config,sourceRoot,backupRoot,java.time.Clock.systemUTC(),mapper).codigo():"NO_APLICA";System.out.println("RUTAS_ACL_OK independencia="+ArchivoAgente.independiente(sourceRoot,backupRoot)+" durabilidad="+ArchivoAgente.durabilidadAcreditada(backupRoot)+" acreditacion="+accreditation);return 0;}
             String url=EmisorGarantiaCustodia.localUrl(config,"garantia.origen.db");
             if(opts.containsKey("--enviar")){
-                if(!ArchivoAgente.independiente(sourceRoot,backupRoot)||!ArchivoAgente.durabilidadAcreditada(backupRoot)){System.out.println("CUSTODIA_NO_ACREDITADA: no se contacta al Formulario ni se emite garantía");return 42;}
-                EmisorGarantiaCustodia.ejecutar(config,Map.of("--enviar","true"));return 0;
+                AcreditacionAlmacenWindows.Permiso permiso=null;
+                try{if(ArchivoAgente.windows())permiso=AcreditacionAlmacenWindows.autorizar(config,sourceRoot,backupRoot);
+                    if(!ArchivoAgente.independiente(sourceRoot,backupRoot,permiso)||!ArchivoAgente.durabilidadAcreditada(backupRoot))throw new IOException();
+                }catch(IOException denied){System.out.println("CUSTODIA_NO_ACREDITADA: no se contacta al Formulario ni se emite garantía");return 42;}
+                EmisorGarantiaCustodia.ejecutar(config,Map.of("--enviar","true"),permiso);return 0;
             }
-            try(var db=new BaseJdbc(url,config.getProperty("garantia.origen.db.user"),config.getProperty("garantia.origen.db.password"),2)){
+            try(var db=new BaseJdbc(url,config.getProperty("garantia.origen.db.user"),config.getProperty("garantia.origen.db.password"),2,true)){
                 if(opts.containsKey("--verificar-tls")){
                     try{var cipher=db.sql.queryForList("SHOW SESSION STATUS LIKE 'Ssl_cipher'");if(cipher.isEmpty()||cipher.getFirst().get("Value")==null||cipher.getFirst().get("Value").toString().isBlank())throw new IOException("Sin cifrado acreditado");System.out.println("MYSQL_TLS_IDENTIDAD_OK");return 0;}catch(Exception failure){System.out.println("MYSQL_TLS_IDENTIDAD_NO_VERIFICADA");return 40;}
                 }

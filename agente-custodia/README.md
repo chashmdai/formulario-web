@@ -1,5 +1,16 @@
 # Agente de custodia nativo · Windows Server 2022
 
+## Estado vigente: cierre Windows/MySQL TLS
+
+**1.1.0-windows-lab**, con sesión Connector/J nativa y VERIFY_IDENTITY, fixtures MySQL80 1.0/1.1, conexiones de solo lectura, acreditación TI/topología, logs acotados y job CI Windows. **Emisión deshabilitada y medio independiente no acreditado.** No se registró ninguna tarea.
+
+Consultar el [informe, instalación y rollback vigentes](../docs/CIERRE_WINDOWS_MYSQL_TLS_2026-10-25.md): artefacto/SHA, CA pública y parámetros para futura integración SIGER, pruebas ejecutadas, operación y límites. El agente y C:\\agente permanecen separados de C:\\req; no se modificó SIGER.
+
+## Evidencia histórica conservada: primera adaptación 1.0.0
+
+El resto de este documento registra la intervención inicial, cuando TLS MySQL todavía estaba bloqueado. Sus resultados y artefactos son históricos; el estado vigente, comandos y pendientes están en el informe enlazado arriba.
+
+
 **Unidad de laboratorio del 25/10/2026.** Baseline `25560065a73e6f42d6ab9419ac02351ebc66cc5e`; desarrollado en `agente-windows-nativo-2026-10-25` y consolidado en main por autorización posterior. Publicar este código no activa el agente ni la tarea programada. El agente es auxiliar: SIGER mantiene sus operaciones y su custodia sin depender de él. No se modificó, compiló, migró ni desplegó SIGER.
 
 La ejecución nativa está comprobada para el mecanismo sintético. **La emisión hacia un Formulario en servicio está bloqueada.** No hay medio institucional independiente y el certificado MySQL no identifica a localhost. Esto no se resuelve cambiando letras de unidad o desactivando TLS.

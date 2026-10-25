@@ -1,10 +1,15 @@
 # LABORATORIO. Sin contraseñas: el launcher recibe PSCredential DPAPI y escribe solo stdin anónimo.
 garantia.modo=LABORATORIO
-garantia.origen.db.url=jdbc:mysql://localhost:3306/siger_custodia_lab?sslMode=VERIFY_IDENTITY&connectTimeout=3000&socketTimeout=5000
-# Truststore de CA verificada y certificado con SAN local se configuran antes de usar MySQL.
+garantia.origen.db.url=jdbc:mysql://localhost:3306/siger_custodia_lab?sslMode=VERIFY_IDENTITY&connectTimeout=3000&socketTimeout=5000&fallbackToSystemTrustStore=false&trustCertificateKeyStoreUrl=file:/C:/agente/config/mysql-lab-ca-20261025.jks&trustCertificateKeyStoreType=JKS&trustCertificateKeyStorePassword=public-trust
+# JKS contiene SOLO CA pública de laboratorio; public-trust es una etiqueta pública de integridad, no contraseña de MySQL ni clave privada.
 garantia.origen.archivo=C:/agente/testdata/custodia-nativa-20261025/origen
 garantia.respaldo.directorio=C:/agente/testdata/custodia-nativa-20261025/respaldo
 garantia.restauracion.scratch=C:/agente/scratch/custodia-nativa-20261025
 garantia.public-keys=C:/agente/config/qa-public-keys.json
 garantia.institution-keys=C:/agente/config/qa-institution-keys.json
 # No poner public.origin ni una clave de emisión en la configuración de laboratorio.
+# Opcional, acreditación TI: NO habilita emisión por sí sola.
+garantia.windows.emision-habilitada=false
+# garantia.windows.autorizacion-referencia=REFERENCIA-FIRMADA-Y-APROBADA
+# garantia.acreditacion.documento=C:/agente/config/acreditacion-ti.json
+# garantia.acreditacion.claves-ti=C:/agente/config/claves-publicas-ti.json

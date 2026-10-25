@@ -36,3 +36,38 @@ jobs:
         run: |
           python3 scripts/qa/test_media_archive.py
           python3 scripts/qa/test_media_storage_report.py
+
+  agente-windows:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Construir agente sin servidor ni infraestructura institucional
+        shell: pwsh
+        run: |
+          mvn -B -ntp -f formulario-publico/backend/pom.xml -Pagente-core -DskipTests install
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          mvn -B -ntp -f agente-custodia/pom.xml package
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          mvn -B -ntp -f agente-custodia/pom.xml dependency:copy -Dartifact=com.h2database:h2:2.4.240 "-DoutputDirectory=$env:RUNNER_TEMP\qa-h2"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: NTFS, criptografía, interrupciones y recuperación con fixtures
+        shell: pwsh
+        run: |
+          & ./agente-custodia/windows/Prepare-CiNative.ps1
+          $jar=(Resolve-Path 'agente-custodia/target/agente-custodia-1.1.0-windows-lab.jar').Path
+          $h2=Join-Path $env:RUNNER_TEMP 'qa-h2/h2-2.4.240.jar'
+          $classes=Join-Path $env:RUNNER_TEMP 'qa-classes'
+          & "$env:JAVA_HOME/bin/javac.exe" -encoding UTF-8 -cp "$jar;$h2" -d $classes agente-custodia/qa/PruebaAgenteNativo.java agente-custodia/qa/MysqlTlsLab.java agente-custodia/qa/PruebaConfiguracionTlsLab.java
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:JAVA_HOME/bin/java.exe" --enable-native-access=ALL-UNNAMED -cp "$jar;$classes" cl.nexbyte.siger.custodia.PruebaConfiguracionTlsLab
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($version in @('1.0','1.1')) {
+            & "$env:JAVA_HOME/bin/java.exe" --enable-native-access=ALL-UNNAMED -cp "$jar;$h2;$classes" cl.nexbyte.siger.custodia.PruebaAgenteNativo --pruebas C:\agente\testdata $version
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

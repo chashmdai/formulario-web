@@ -12,12 +12,14 @@ public final class BaseJdbc implements AutoCloseable {
     public final JdbcTemplate sql;
     public final TransactionTemplate tx;
     private final HikariDataSource pool;
-    public BaseJdbc(String url,String user,String password,int max) {
+    public BaseJdbc(String url,String user,String password,int max) {this(url,user,password,max,false);}
+    /** Agente: transacciones de solo lectura propagadas por Connector/J al servidor. */
+    public BaseJdbc(String url,String user,String password,int max,boolean readOnly) {
         if(max<1||max>64)throw new IllegalArgumentException("Pool fuera de límites");
         var config=new HikariConfig(); config.setJdbcUrl(url); config.setUsername(user); config.setPassword(password);
         config.setMaximumPoolSize(max);config.setMinimumIdle(0);config.setConnectionTimeout(3000);
         config.setValidationTimeout(1000);config.setInitializationFailTimeout(-1);config.setAutoCommit(true);
-        config.setPoolName("recepcion-db");
+        config.setPoolName("recepcion-db");config.setReadOnly(readOnly);
         pool=new HikariDataSource(config); sql=new JdbcTemplate(pool);sql.setQueryTimeout(4);
         tx=new TransactionTemplate(new JdbcTransactionManager(pool));tx.setIsolationLevelName("ISOLATION_READ_COMMITTED");tx.setTimeout(5);
     }

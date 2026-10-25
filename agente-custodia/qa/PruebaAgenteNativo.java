@@ -40,9 +40,24 @@ public final class PruebaAgenteNativo {
         if(!mode.equals("--pruebas"))throw new IllegalArgumentException();
         ArchivoAgente.raiz(base);Path work=dir(base.resolve("qa-"+UUID.randomUUID())),source=dir(work.resolve("origen")),backup=dir(work.resolve("respaldo")),scratch=dir(work.resolve("scratch"));
         check(ArchivoAgente.windows());check(Runtime.version().feature()==25);check(!ArchivoAgente.independiente(source,backup));check(ArchivoAgente.durabilidadAcreditada(backup));
+        var topology=AcreditacionAlmacenWindows.topologia(source,backup);check(topology.discoOrigen().equalsIgnoreCase(topology.discoRespaldo()));
+        var ti=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();var tm=JsonMapper.builder().build();var tn=Instant.now();
+        var evidence=new AcreditacionAlmacenWindows.Evidencia("1.0",topology,source.toString(),backup.toString(),"origen","respaldo","TI-SINTETICO-NO-CONFIAR","a".repeat(64),tn.minusSeconds(2),tn.minusSeconds(1),tn.plusSeconds(3600));
+        var seal=FirmaOperativa.firmar(evidence,AcreditacionAlmacenWindows.DOMAIN,"ti-qa",ti.getPrivate(),tm);
+        check(!AcreditacionAlmacenWindows.verificar(seal,Map.of("ti-qa",ti.getPublic()),source,backup,Clock.systemUTC(),tm,AcreditacionAlmacenWindows::topologia).acreditada());
+        reject(()->AcreditacionAlmacenWindows.autorizar(new Properties(),source,backup));
+        var gate=new Properties();gate.setProperty("garantia.windows.emision-habilitada","true");gate.setProperty("garantia.windows.autorizacion-referencia","TI-SINTETICO-NO-CONFIAR");gate.setProperty("garantia.acreditacion.documento",work.resolve("acreditacion-qa.json").toString());gate.setProperty("garantia.acreditacion.claves-ti",work.resolve("claves-ti-qa.json").toString());
+        ArchivoAgente.escribir(work.resolve("acreditacion-qa.json"),tm.writeValueAsBytes(seal));ArchivoAgente.escribir(work.resolve("claves-ti-qa.json"),tm.writeValueAsBytes(Map.of("ti-qa",pem(ti.getPublic()))));
+        reject(()->AcreditacionAlmacenWindows.autorizar(gate,source,backup));
         UUID id=UUID.randomUUID(),com=UUID.randomUUID(),attachment=UUID.randomUUID();byte[] bytes="EVIDENCIA EXCLUSIVAMENTE SINTETICA SIN PERSONAS".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         var object=dir(dir(source.resolve("objects")).resolve(id.toString())).resolve(attachment+".bin");ArchivoAgente.escribir(object,bytes);check(Files.getFileAttributeView(object,AclFileAttributeView.class).getAcl().size()>=1);
         var publicKey=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();var inst=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();var issuer=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();var mapper=JsonMapper.builder().build();var now=Instant.now();var clock=Clock.fixed(now,ZoneOffset.UTC);
+        var keyFile=work.resolve("clave-qa-solo-sintetica.pem");
+        String privatePem="-----BEGIN PRIVATE KEY-----\n"+Base64.getEncoder().encodeToString(issuer.getPrivate().getEncoded())+"\n-----END PRIVATE KEY-----\n";
+        ArchivoAgente.escribir(keyFile,privatePem.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        check(Arrays.equals(issuer.getPrivate().getEncoded(),EmisorGarantiaCustodia.privateKey(keyFile).getEncoded()));
+        var keyLink=work.resolve("clave-hardlink-qa");Files.createLink(keyLink,keyFile);
+        try{reject(()->EmisorGarantiaCustodia.privateKey(keyFile));}finally{Files.delete(keyLink);}
         var descriptor=new AdjuntosFormulario.Descriptor(attachment,"sintetico.txt",bytes.length,ArchivoAgente.huella(object),"text/plain","VALIDADO");
         String version=args.length>2?args[2]:"1.1";if(!Set.of("1.0","1.1").contains(version))throw new IllegalArgumentException();var content=new EntregaFormulario.Contenido(version,id,UUID.randomUUID(),IdentificacionCiudadana.Tipo.NNA,now,"QA_WINDOWS",false,new DatosFormulario(Map.of("nna-story","PRUEBA SINTETICA"),List.of(),List.of(),List.of(attachment)),List.of(),List.of(descriptor));
         String sha=CanonFormulario.huella("CONTENIDO",content,mapper),provenance=EntregaFormulario.procedencia(content,mapper);

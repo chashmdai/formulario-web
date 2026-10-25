@@ -48,6 +48,24 @@ public final class EmisorGarantiaCustodia {
   return FirmaOperativa.firmar(new GarantiaCustodia.Contenido(context,clock.instant(),clock.instant().plus(Duration.ofHours(24)),UUID.randomUUID()),GarantiaCustodia.DOMAIN,issuer,issuerKey,mapper);
  }
  private static final class AlmacenHash {static String hash(Path p)throws IOException{return ArchivoAgente.huella(p);}}
+ /** Clave operativa privada: nunca seguir enlaces ni aceptar permisos de lectura ajena. */
+ static PrivateKey privateKey(Path path)throws IOException{
+  ArchivoAgente.ruta(path);ArchivoAgente.permisos(path);
+  if(!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS))throw new IOException("Clave privada regular requerida");
+  if(!ArchivoAgente.windows()){
+   var mode=Files.getPosixFilePermissions(path,LinkOption.NOFOLLOW_LINKS);
+   if(!mode.contains(java.nio.file.attribute.PosixFilePermission.OWNER_READ)||
+      !Set.of(java.nio.file.attribute.PosixFilePermission.OWNER_READ,java.nio.file.attribute.PosixFilePermission.OWNER_WRITE).containsAll(mode))
+    throw new IOException("Clave privada exige lectura exclusiva del propietario");
+  }
+  var buffer=java.nio.ByteBuffer.allocate(16385);
+  try(var channel=java.nio.channels.FileChannel.open(path,StandardOpenOption.READ,LinkOption.NOFOLLOW_LINKS)){
+   long size=channel.size();if(size==0||size>16384)throw new IOException("Clave privada fuera de límite");
+   while(buffer.hasRemaining()&&channel.read(buffer)!=-1){}
+   if(buffer.position()!=size||channel.size()!=size)throw new IOException("Clave privada cambió o excedió el límite");
+   buffer.flip();return ComprobanteDigital.privatePem(java.nio.charset.StandardCharsets.UTF_8.decode(buffer).toString());
+  }finally{Arrays.fill(buffer.array(),(byte)0);}
+ }
  private static String required(Properties p,String k){String v=p.getProperty(k);if(v==null||v.isBlank())throw new IllegalArgumentException("Configuración institucional incompleta");return v;}
  static String localUrl(Properties p,String prefix){
   String u=required(p,prefix+".url");if(!u.startsWith("jdbc:mysql://"))throw new IllegalArgumentException("MySQL local con TLS verificado requerido");var uri=URI.create(u.substring(5));
@@ -63,15 +81,16 @@ public final class EmisorGarantiaCustodia {
   var p=new Properties();try(var reader=Files.newBufferedReader(Path.of(opts.get("--config")))){p.load(reader);}
   ejecutar(p,opts);
  }
- static void ejecutar(Properties p,Map<String,String> opts)throws Exception{
-  if(ArchivoAgente.windows()&&opts.containsKey("--enviar"))throw new IOException("Emisión Windows sin custodia/durabilidad acreditadas; sin conexión pública");
+ static void ejecutar(Properties p,Map<String,String> opts)throws Exception{ejecutar(p,opts,null);}
+ static void ejecutar(Properties p,Map<String,String> opts,AcreditacionAlmacenWindows.Permiso permiso)throws Exception{
+  if(ArchivoAgente.windows()&&permiso==null)throw new IOException("Emisión Windows sin custodia/durabilidad acreditadas; sin conexión pública");
   String sourceUrl=localUrl(p,"garantia.origen.db");boolean automatic=p.containsKey("garantia.respaldo.directorio");String restoreUrl=automatic?null:localUrl(p,"garantia.restauracion.db");
   var originRoot=root(Path.of(required(p,"garantia.origen.archivo")));Path backupRoot=null,scratch=null;
   if(automatic){backupRoot=root(Path.of(required(p,"garantia.respaldo.directorio")));scratch=root(Path.of(required(p,"garantia.restauracion.scratch")));var fs=Files.getFileStore(backupRoot);if(fs.equals(Files.getFileStore(originRoot))||Set.of("tmpfs","ramfs","overlay").contains(fs.type())||fs.isReadOnly())throw new IOException("Respaldo durable independiente y escribible requerido");}
   else {var restoreRoot=root(Path.of(required(p,"garantia.restauracion.archivo")));if(!Files.getFileStore(restoreRoot).isReadOnly()||Files.getFileStore(originRoot).equals(Files.getFileStore(restoreRoot))||sourceUrl.split("\\?")[0].equals(restoreUrl.split("\\?")[0]))throw new IOException("Restauración independiente requerida");}
   var mapper=JsonMapper.builder().build();var publicKeys=JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(required(p,"garantia.public-keys")));var institution=JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(required(p,"garantia.institution-keys")));
-  var privateKey=ComprobanteDigital.privatePem(Files.readString(Path.of(required(p,"garantia.private-key"))));String keyId=required(p,"garantia.key-id");
-  try(var source=new BaseJdbc(sourceUrl,required(p,"garantia.origen.db.user"),required(p,"garantia.origen.db.password"),2);var restored=automatic?null:new BaseJdbc(restoreUrl,required(p,"garantia.restauracion.db.user"),required(p,"garantia.restauracion.db.password"),2)){
+  var privateKey=privateKey(Path.of(required(p,"garantia.private-key")));String keyId=required(p,"garantia.key-id");
+  try(var source=new BaseJdbc(sourceUrl,required(p,"garantia.origen.db.user"),required(p,"garantia.origen.db.password"),2,true);var restored=automatic?null:new BaseJdbc(restoreUrl,required(p,"garantia.restauracion.db.user"),required(p,"garantia.restauracion.db.password"),2,true)){
    // Cuentas SELECT del agente; ningún migrate/update ni acceso a la BD pública.
    List<Map<String,Object>> candidates;
    var client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();URI origin=null;String token=null;
@@ -83,7 +102,7 @@ public final class EmisorGarantiaCustodia {
    }else candidates=List.of(Map.of("id",opts.get("--id"),"cola",opts.getOrDefault("--cola","COMPLETO")));
    int sent=0,blocked=0;
    for(var c:candidates)try{
-    var proof=automatic?RespaldoIngresoVerificado.emitir(source.sql,originRoot,backupRoot,scratch,UUID.fromString(c.get("id").toString()),c.get("cola").toString(),publicKeys,institution,keyId,privateKey,Clock.systemUTC(),mapper):emitir(source.sql,originRoot,restored.sql,Path.of(required(p,"garantia.restauracion.archivo")),UUID.fromString(c.get("id").toString()),c.get("cola").toString(),publicKeys,institution,keyId,privateKey,Clock.systemUTC(),mapper);
+    var proof=automatic?RespaldoIngresoVerificado.emitir(source.sql,originRoot,backupRoot,scratch,UUID.fromString(c.get("id").toString()),c.get("cola").toString(),publicKeys,institution,keyId,privateKey,Clock.systemUTC(),mapper,permiso):emitir(source.sql,originRoot,restored.sql,Path.of(required(p,"garantia.restauracion.archivo")),UUID.fromString(c.get("id").toString()),c.get("cola").toString(),publicKeys,institution,keyId,privateKey,Clock.systemUTC(),mapper);
     if(origin==null)System.out.println(mapper.writeValueAsString(proof));else{
      var request=HttpRequest.newBuilder(origin.resolve("/integracion/v3/custodia/garantias")).timeout(Duration.ofSeconds(30)).header("Authorization","Bearer "+token).header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofByteArray(mapper.writeValueAsBytes(proof))).build();
      var response=client.send(request,HttpResponse.BodyHandlers.discarding());if(response.statusCode()!=204)throw new IOException("Garantía no aceptada");
