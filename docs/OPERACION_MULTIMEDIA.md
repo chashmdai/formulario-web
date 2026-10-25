@@ -1,5 +1,7 @@
 # Operación, respaldos y recuperación multimedia
 
+> **Operación vigente · 25/10/2026:** [receptor transitorio integral V10](ARQUITECTURA_RECEPTOR_TRANSITORIO.md) y [checkpoint](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md). El mantenimiento periódico es online; el CLI offline se conserva para diagnóstico y backup/restore. La retirada incluye archivos, BLOB y datos personales/payloads MySQL, con garantías independientes entrantes y banderas cerradas. Las descripciones V7/V8 siguientes son el historial del laboratorio, que no fue migrado en esta unidad.
+
 ## Separación del laboratorio
 
 El baseline de `origin/main@c1e4ead` continúa en HTTPS 443 y proceso nativo 18443, esquema `robust_public_local` y sus volúmenes. Esta rama utiliza **19443**, cookie distinta, esquema **`robust_public_media_lab`** y directorio privado **fuera de Git**. No se migró el baseline; conserva V7. El esquema de prueba `robust_public_test` y el esquema multimedia sí validaron V8. No desplegar un JAR de esta rama contra V7 sin una migración planificada y respaldo previo.

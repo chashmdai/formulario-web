@@ -1,5 +1,7 @@
 # Custodia del formulario completo — laboratorio
 
+> **Referencia actual · 25/10/2026:** [arquitectura transitoria integral](ARQUITECTURA_RECEPTOR_TRANSITORIO.md), [checkpoint](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) y [multimedia 1.1](../contratos/formulario-completo-multimedia-v1.1.md). Los contratos 1.0/1.1 y ACK permanecen intactos. SIGER ya implementa el consumidor completo según el estado actual del proyecto; este documento conserva el detalle histórico V7. V10 agrega retirada pública verificada y recibos mínimos, sin modificar originales institucionales.
+
 Fecha de cliente: 2026-10-23. Continúa la identificación persistente del commit `1e6af92` y los componentes NNA de `9e8eafe`. No sustituye el Encargo Maestro.
 
 ## Referencia vigente de integración

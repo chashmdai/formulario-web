@@ -1,5 +1,7 @@
 # Ciclo de vida de custodia transitoria y operación con 25 GB
 
+> **Informe histórico V9.** La [arquitectura definitiva V10](ARQUITECTURA_RECEPTOR_TRANSITORIO.md) lo amplía: mantenimiento online, agente institucional saliente y minimización de MySQL, con retención candidata de 24 h. No usar la ventana offline, los montajes SIGER ni los plazos de este informe como operación normal vigente. Los resultados originales se conservan como evidencia.
+
 **25 de octubre de 2026.** Continúa `4b148bc` en la rama `ciclo-vida-custodia-2026-10-25`. Implementación y pruebas locales; **eliminación real cerrada**. No hay push, despliegue, tarea programada ni cambios en SIGER.
 
 ## Resultado y decisión

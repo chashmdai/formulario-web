@@ -1,5 +1,7 @@
 # Baseline del Formulario Público · 24 de octubre de 2026
 
+> **Actualización de arquitectura · 25/10/2026:** el Formulario es [receptor transitorio](ARQUITECTURA_RECEPTOR_TRANSITORIO.md); SIGER es la fuente institucional definitiva. El consumidor completo 1.0/1.1 ya existe según el estado actual del proyecto y se verificó con su artefacto real en pruebas sintéticas. Consultar [checkpoint V10](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) para minimización, mantenimiento online y activación pendiente. El baseline funcional sigue evolutivo; las referencias a adaptación pendiente más abajo corresponden al estado del 24/10.
+
 ## Referencia de cierre vigente
 
 La ampliación multimedia está consolidada en main con compatibilidad documental **1.0/1.1**. Consultar el [cierre del ciclo](CIERRE_CICLO_MAIN_2026-10-24.md) para publicación, regresiones y banderas; el [contrato multimedia](../contratos/formulario-completo-multimedia-v1.1.md) y el [plan de hardening diferido](PLAN_HARDENING_PRODUCCION_DIFERIDO.md) completan esta referencia. Ninguna publicación activa servicios o capacidades fuera del laboratorio.
