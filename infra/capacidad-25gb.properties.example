@@ -1,0 +1,16 @@
+# Candidato de operación en 25 GB. Incorporar a configuración PRIVADA, sin reemplazar otras propiedades.
+# No habilita multimedia ni producción. El CLI usa valores literales, no interpolación ${...} de Spring.
+formulario.multimedia.cuota-global=6144MB
+formulario.multimedia.minimo-libre=4096MB
+
+# Doble seguro: para retirar también se exige --aplicar. CERRADO por defecto.
+ciclo-vida.eliminacion.habilitada=false
+ciclo-vida.retencion-post-ack=PT72H
+ciclo-vida.retencion-abandono=PT48H
+
+# Árboles institucionales originales y restaurados: objects/<id-publico>/<id-adjunto>.bin
+# Ambos montajes de solo lectura, en medios distintos del público y entre sí.
+ciclo-vida.archivo-institucional=/mnt/siger-archivo-ro
+ciclo-vida.restauracion=/mnt/siger-restauracion-ro
+# Reutilizar rutas privadas y cuentas ya autorizadas para publico.db.*, publico.comprobante.*
+# y formulario.multimedia.directorio; no guardar contraseñas ni claves aquí.

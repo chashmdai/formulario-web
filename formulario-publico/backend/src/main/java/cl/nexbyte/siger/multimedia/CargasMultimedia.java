@@ -136,6 +136,7 @@ public final class CargasMultimedia implements AutoCloseable{
   return new Vista("1.0","INGRESO_CIUDADANO",descriptor,kind,Set.of("AUDIO","VIDEO").contains(kind),true,preview,previewSize);
  }
  public RecursoPrivado representacion(UUID journey,UUID id,String session,AdjuntosFormulario files){var view=vista(journey,id,session);
+  if(Boolean.TRUE.equals(db.sql.queryForObject("SELECT bytes_retired FROM citizen_attachment WHERE id=? AND journey_id=?",Boolean.class,id.toString(),journey.toString())))throw new FalloTecnico(410);
   if(view.representacion().equals("IMAGEN_DERIVADA")){try{var p=store.derivada(id);store.verificar(p,view.tamanioDerivada(),view.huellaDerivada());return new RecursoPrivado("vista-"+id+".png",view.tamanioDerivada(),view.huellaDerivada(),"image/png",()->Files.newInputStream(p,LinkOption.NOFOLLOW_LINKS));}catch(IOException e){throw new FalloTecnico(503);}}
   if(view.originalInline())return files.recurso(journey,id,session);throw new FalloTecnico(415);
  }

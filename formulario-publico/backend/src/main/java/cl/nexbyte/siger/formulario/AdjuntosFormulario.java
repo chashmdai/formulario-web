@@ -49,7 +49,8 @@ public final class AdjuntosFormulario {
     }
     public Archivo descargar(UUID journey,UUID attachment,String session){recorridos.consultar(journey,session);return contenido(journey,attachment);}
     Archivo contenido(UUID journey,UUID attachment){
-        var rows=db.sql.query("SELECT name,size_bytes,sha256,content,storage_kind FROM citizen_attachment WHERE journey_id=? AND id=?",(rs,n)->{
+        var rows=db.sql.query("SELECT name,size_bytes,sha256,content,storage_kind,bytes_retired FROM citizen_attachment WHERE journey_id=? AND id=?",(rs,n)->{
+            if(rs.getBoolean(6))throw new FalloTecnico(410);
             if("FILE".equals(rs.getString(5)))throw new FalloTecnico(409);
             byte[] bytes=rs.getBytes(4);if(bytes.length!=rs.getLong(2)||!hash(bytes).equals(rs.getString(3)))throw new FalloTecnico(503);return new Archivo(rs.getString(1),bytes);
         },journey.toString(),attachment.toString());
@@ -64,7 +65,8 @@ public final class AdjuntosFormulario {
     public boolean multimedia(List<Descriptor> files){return files.stream().anyMatch(d->"FILE".equals(db.sql.queryForObject("SELECT storage_kind FROM citizen_attachment WHERE id=?",String.class,d.id().toString())));}
     public cl.nexbyte.siger.multimedia.RecursoPrivado recurso(UUID journey,UUID attachment,String session){recorridos.consultar(journey,session);var result=recursoInterno(journey,attachment);db.sql.update("INSERT INTO media_access(id,attachment_id,at_ms,principal_kind,principal_ref,representation,event_code) VALUES(?,?,?,'CIUDADANIA',?,'ORIGINAL','LECTURA_SOLICITADA')",UUID.randomUUID().toString(),attachment.toString(),System.currentTimeMillis(),cl.nexbyte.siger.multimedia.AuditoriaMedia.referencia(session));return result;}
     public cl.nexbyte.siger.multimedia.RecursoPrivado recursoInterno(UUID journey,UUID attachment){
-        var rows=db.sql.queryForList("SELECT name,size_bytes,sha256,media_type,storage_kind,storage_key FROM citizen_attachment WHERE journey_id=? AND id=?",journey.toString(),attachment.toString());if(rows.isEmpty())throw new FalloTecnico(404);var r=rows.getFirst();
+        var rows=db.sql.queryForList("SELECT name,size_bytes,sha256,media_type,storage_kind,storage_key,bytes_retired FROM citizen_attachment WHERE journey_id=? AND id=?",journey.toString(),attachment.toString());if(rows.isEmpty())throw new FalloTecnico(404);var r=rows.getFirst();
+        if(Boolean.TRUE.equals(r.get("bytes_retired")))throw new FalloTecnico(410);
         String name=r.get("name").toString(),hash=r.get("sha256").toString(),type=r.get("media_type").toString();long size=((Number)r.get("size_bytes")).longValue();
         if("FILE".equals(r.get("storage_kind"))){try{if(store==null)throw new java.io.IOException();var path=store.original(UUID.fromString(r.get("storage_key").toString()));store.verificar(path,size,hash);return new cl.nexbyte.siger.multimedia.RecursoPrivado(name,size,hash,type,()->java.nio.file.Files.newInputStream(path,java.nio.file.LinkOption.NOFOLLOW_LINKS));}catch(java.io.IOException e){throw new FalloTecnico(503);}}
         var legacy=contenido(journey,attachment);return new cl.nexbyte.siger.multimedia.RecursoPrivado(name,size,hash,type,()->new ByteArrayInputStream(legacy.contenido()));

@@ -45,19 +45,27 @@ def inspect_tree(root):
     result.append(path)
  return sorted(result)
 def verify_database(args,db,root):
- for row in command(args,f"SELECT id,expected_size,expected_sha256 FROM `{db}`.media_upload WHERE state='VALIDADO';"):
+ # V8 sigue restaurable. V9 conserva referencias/firmas pero marca bytes transitorios retirados.
+ has_retired=command(args,f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='citizen_attachment' AND column_name='bytes_retired';")==['1']
+ retained=" AND bytes_retired=FALSE" if has_retired else ""
+ if has_retired:
+  invalid=command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment a LEFT JOIN `{db}`.storage_retirement r ON r.attachment_id=a.id WHERE a.bytes_retired=TRUE AND (r.attachment_id IS NULL OR r.phase<>'FINALIZADA' OR r.journey_id<>a.journey_id);")
+  if invalid!=['0']:raise ValueError('Retirada sin intención finalizada; no se omite verificación del original')
+  invalid=command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment a JOIN `{db}`.media_upload u ON u.id=a.id WHERE a.bytes_retired=TRUE AND u.released=FALSE;")
+  if invalid!=['0']:raise ValueError('Retirada con reserva no liberada; respaldo no consistente')
+ for row in command(args,f"SELECT id,expected_size,expected_sha256 FROM `{db}`.media_upload WHERE state='VALIDADO' AND released=FALSE;"):
   key,size,sha=row.split('\t');uuid.UUID(key);path=root/'objects'/key
   if not path.is_file() or path.is_symlink() or path.stat().st_size!=int(size) or digest(path)!=sha:raise ValueError('Carga validada no íntegra')
  # Las referencias de archivo se verifican contra el original/derivada restaurados.
- for row in command(args,f"SELECT storage_key,size_bytes,sha256 FROM `{db}`.citizen_attachment WHERE storage_kind='FILE';"):
+ for row in command(args,f"SELECT storage_key,size_bytes,sha256 FROM `{db}`.citizen_attachment WHERE storage_kind='FILE'{retained};"):
   key,size,sha=row.split('\t');uuid.UUID(key);path=root/'objects'/key
   if not path.is_file() or path.is_symlink() or path.stat().st_size!=int(size) or digest(path)!=sha:raise ValueError('Original referenciado no íntegro')
- for row in command(args,f"SELECT id,preview_size,preview_sha256 FROM `{db}`.media_upload WHERE state='VALIDADO' AND preview_sha256 IS NOT NULL;"):
+ for row in command(args,f"SELECT id,preview_size,preview_sha256 FROM `{db}`.media_upload WHERE state='VALIDADO' AND released=FALSE AND preview_sha256 IS NOT NULL;"):
   key,size,sha=row.split('\t');uuid.UUID(key);path=root/'derived'/key
   if not path.is_file() or path.is_symlink() or path.stat().st_size!=int(size) or digest(path)!=sha:raise ValueError('Derivada referenciada no íntegra')
- bad=command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment WHERE storage_kind='MYSQL' AND (content IS NULL OR OCTET_LENGTH(content)<>size_bytes OR LOWER(SHA2(content,256))<>sha256);")
+ bad=command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment WHERE storage_kind='MYSQL'{retained} AND (content IS NULL OR OCTET_LENGTH(content)<>size_bytes OR LOWER(SHA2(content,256))<>sha256);")
  if bad!=['0']:raise ValueError('Adjunto MySQL histórico no íntegro')
- return {'originalesArchivo':int(command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment WHERE storage_kind='FILE';")[0]),'adjuntosMySQL':int(command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment WHERE storage_kind='MYSQL';")[0]),'comunicaciones':int(command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_submission;")[0])}
+ return {'originalesArchivo':int(command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment WHERE storage_kind='FILE'{retained};")[0]),'adjuntosMySQL':int(command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_attachment WHERE storage_kind='MYSQL';")[0]),'comunicaciones':int(command(args,f"SELECT COUNT(*) FROM `{db}`.citizen_submission;")[0])}
 def backup(args):
  root=safe(Path(args.store));dest=safe(Path(args.destination));db=identifier(args.database)
  if dest.exists() or root==dest or root in dest.parents:raise ValueError('Destino nuevo fuera del almacén requerido')
