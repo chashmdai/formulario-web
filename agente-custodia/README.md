@@ -1,6 +1,6 @@
 # Agente de custodia nativo · Windows Server 2022
 
-**Unidad de laboratorio del 25/10/2026.** Baseline `25560065a73e6f42d6ab9419ac02351ebc66cc5e`; rama `agente-windows-nativo-2026-10-25`, sin integrar ni publicar en main. El agente es auxiliar: SIGER mantiene sus operaciones y su custodia sin depender de él. No se modificó, compiló, migró ni desplegó SIGER.
+**Unidad de laboratorio del 25/10/2026.** Baseline `25560065a73e6f42d6ab9419ac02351ebc66cc5e`; desarrollado en `agente-windows-nativo-2026-10-25` y consolidado en main por autorización posterior. Publicar este código no activa el agente ni la tarea programada. El agente es auxiliar: SIGER mantiene sus operaciones y su custodia sin depender de él. No se modificó, compiló, migró ni desplegó SIGER.
 
 La ejecución nativa está comprobada para el mecanismo sintético. **La emisión hacia un Formulario en servicio está bloqueada.** No hay medio institucional independiente y el certificado MySQL no identifica a localhost. Esto no se resuelve cambiando letras de unidad o desactivando TLS.
 
@@ -172,4 +172,4 @@ No borrar paquetes, cambiar ACL preparadas, regenerar claves, eliminar DPAPI, re
 
 Pendientes concretos: medio independiente aprobado y evidencia de recuperación física; certificado/CA MySQL con identidad correcta; cuenta SELECT y principal/ACL productores institucionales definidos sin adaptar SIGER al agente; calificación de hardware, sincronización y un timeout con tamaños reales; identidad no interactiva/DPAPI y política de logs; revisión específica antes de habilitar emisión Windows. La política ACL actual es cerrada para el laboratorio; no admite automáticamente SIDs productores adicionales ni todos los idiomas de Administradores.
 
-Los laboratorios Linux del Formulario, sus bases V7/V8 y banderas de retirada no se alteraron. Las migraciones V1–V11 y contratos firmados permanecen intactos. El branch y los commits locales entregan una base revisable; **no hay integración/push a main ni despliegue institucional**.
+Los laboratorios Linux del Formulario, sus bases V7/V8 y banderas de retirada no se alteraron. Las migraciones V1–V11 y contratos firmados permanecen intactos. El historial de la rama de desarrollo se conserva en main. **La publicación no implica despliegue institucional, registro de tarea ni habilitación de emisión**.
