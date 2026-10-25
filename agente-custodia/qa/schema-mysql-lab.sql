@@ -1,0 +1,7 @@
+-- SOLO fixtures sintéticos, cuenta siger_custodia_app, tras validar TLS VERIFY_IDENTITY.
+-- Revisar ausencia de estas tablas antes. Sin DROP, TRUNCATE, datos reales o migraciones institucionales.
+-- No ejecutado en MySQL80 durante esta unidad: certificado sin identidad localhost válida.
+USE siger_custodia_lab;
+CREATE TABLE institutional_inbox(id CHAR(36) PRIMARY KEY,source VARCHAR(40) NOT NULL,body MEDIUMTEXT NOT NULL,receipt TEXT NOT NULL,document_kind VARCHAR(40) NOT NULL);
+CREATE TABLE communication_registry(source VARCHAR(40) NOT NULL,operacion_id CHAR(36) NOT NULL,comunicacion_id CHAR(36) NOT NULL,numero BIGINT NOT NULL,canal VARCHAR(40) NOT NULL,content_hash CHAR(64) NOT NULL,provenance_hash CHAR(64) NOT NULL,registrada_ms BIGINT NOT NULL,folio_prefix VARCHAR(20) NOT NULL,folio_width INT NOT NULL,PRIMARY KEY(source,operacion_id));
+CREATE TABLE institution_document(id CHAR(36) PRIMARY KEY,operation_id CHAR(36) NOT NULL,communication_id CHAR(36) NOT NULL,attachment_id CHAR(36) NOT NULL,name VARCHAR(180) NOT NULL,size_bytes BIGINT NOT NULL,sha256 CHAR(64) NOT NULL,media_type VARCHAR(100) NOT NULL,storage_key VARCHAR(80) NOT NULL,origin VARCHAR(40) NOT NULL,UNIQUE(operation_id,attachment_id));

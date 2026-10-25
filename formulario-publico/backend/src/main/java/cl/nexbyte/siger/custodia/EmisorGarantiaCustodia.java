@@ -14,8 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** Agente separado en el entorno institucional: SELECT local + originales/restauración; solo envía una prueba mínima al público. */
 public final class EmisorGarantiaCustodia {
  static Path root(Path value)throws IOException{
-  Path p=value.toAbsolutePath().normalize();if(!Files.isDirectory(p,LinkOption.NOFOLLOW_LINKS))throw new IOException("Custodia ausente");
-  for(var part=p;part!=null;part=part.getParent())if(Files.isSymbolicLink(part)||Files.exists(part.resolve(".git")))throw new IOException("Ruta privada sin enlaces requerida");return p.toRealPath();
+  return ArchivoAgente.raiz(value);
  }
  static Map<String,Object> metadata(JdbcTemplate sql,UUID id){
   var rows=sql.queryForList("SELECT i.body,i.receipt,i.document_kind,c.comunicacion_id,c.numero,c.canal,c.content_hash,c.provenance_hash,c.registrada_ms,c.folio_prefix,c.folio_width FROM institutional_inbox i JOIN communication_registry c ON c.source=i.source AND c.operacion_id=i.id WHERE i.source='FORMULARIO_PUBLICO_DDN' AND i.id=?",id.toString());
@@ -31,9 +30,11 @@ public final class EmisorGarantiaCustodia {
   if(rows.size()!=1)throw new IOException("Documento no persistido");var r=rows.getFirst();String key=id+"/"+a.id();
   if(!a.nombre().equals(r.get("name"))||a.tamanio()!=((Number)r.get("size_bytes")).longValue()||!a.sha256().equals(r.get("sha256"))||!a.tipo().equals(r.get("media_type"))||!key.equals(r.get("storage_key"))||!"INGRESO_CIUDADANO".equals(r.get("origin")))throw new IOException("Referencia documental discrepante");
   var p=root.resolve("objects").resolve(id.toString()).resolve(a.id()+".bin");for(var part=p;part!=null&&part.startsWith(root);part=part.getParent())if(Files.isSymbolicLink(part))throw new IOException("Enlace no admitido");
+  ArchivoAgente.ruta(p);ArchivoAgente.permisos(p);
   if(!Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS)||Files.size(p)!=a.tamanio()||!AlmacenHash.hash(p).equals(a.sha256()))throw new IOException("Original no recuperable");return p;
  }
  public static FirmaOperativa emitir(JdbcTemplate primary,Path primaryRoot,JdbcTemplate restored,Path restoredRoot,UUID id,String queue,Map<String,PublicKey> publicKeys,Map<String,PublicKey> institution,String issuer,PrivateKey issuerKey,Clock clock,JsonMapper mapper)throws IOException{
+  if(ArchivoAgente.windows())throw new IOException("Custodia Windows aún sin independencia/durabilidad acreditadas");
   var a=root(primaryRoot);var b=root(restoredRoot);if(a.startsWith(b)||b.startsWith(a)||Files.isSameFile(a,b)||primary.getDataSource()==restored.getDataSource())throw new IOException("Restauración independiente requerida");
   var p=metadata(primary,id);var r=metadata(restored,id);var context=verifyMetadata(p,queue,publicKeys,institution,mapper);
   if(!id.equals(context.id())||!context.equals(verifyMetadata(r,queue,publicKeys,institution,mapper)))throw new IOException("Restauración de contenido completo discrepante");
@@ -46,13 +47,24 @@ public final class EmisorGarantiaCustodia {
   if(!context.equals(verifyMetadata(metadata(primary,id),queue,publicKeys,institution,mapper))||!context.equals(verifyMetadata(metadata(restored,id),queue,publicKeys,institution,mapper)))throw new IOException("Cambio concurrente en archivo");
   return FirmaOperativa.firmar(new GarantiaCustodia.Contenido(context,clock.instant(),clock.instant().plus(Duration.ofHours(24)),UUID.randomUUID()),GarantiaCustodia.DOMAIN,issuer,issuerKey,mapper);
  }
- private static final class AlmacenHash {static String hash(Path p)throws IOException{return cl.nexbyte.siger.multimedia.AlmacenPrivado.huella(p);}}
+ private static final class AlmacenHash {static String hash(Path p)throws IOException{return ArchivoAgente.huella(p);}}
  private static String required(Properties p,String k){String v=p.getProperty(k);if(v==null||v.isBlank())throw new IllegalArgumentException("Configuración institucional incompleta");return v;}
- private static String localUrl(Properties p,String prefix){String u=required(p,prefix+".url");var uri=URI.create(u.substring(5));if(!u.startsWith("jdbc:mysql://")||uri.getUserInfo()!=null||!Set.of("127.0.0.1","localhost","[::1]").contains(uri.getHost())||!u.contains("sslMode=VERIFY_IDENTITY"))throw new IllegalArgumentException("El agente solo admite bases LOCALES con TLS verificado");return u;}
+ static String localUrl(Properties p,String prefix){
+  String u=required(p,prefix+".url");if(!u.startsWith("jdbc:mysql://"))throw new IllegalArgumentException("MySQL local con TLS verificado requerido");var uri=URI.create(u.substring(5));
+  if(uri.getUserInfo()!=null||uri.getFragment()!=null||uri.getHost()==null||!Set.of("127.0.0.1","localhost","[::1]").contains(uri.getHost())||uri.getRawQuery()==null)throw new IllegalArgumentException("MySQL local requerido");
+  var values=new HashMap<String,String>();var allowed=Set.of("sslMode","connectTimeout","socketTimeout","trustCertificateKeyStoreUrl","trustCertificateKeyStoreType","trustCertificateKeyStorePassword","fallbackToSystemTrustStore");
+  for(String pair:uri.getRawQuery().split("&")){var parts=pair.split("=",2);if(parts.length!=2)throw new IllegalArgumentException("Parámetros TLS no ambiguos requeridos");String k=URLDecoder.decode(parts[0],java.nio.charset.StandardCharsets.UTF_8),v=URLDecoder.decode(parts[1],java.nio.charset.StandardCharsets.UTF_8);if(!allowed.contains(k)||values.putIfAbsent(k,v)!=null)throw new IllegalArgumentException("Parámetro JDBC no admitido o repetido");}
+  if(!"VERIFY_IDENTITY".equals(values.get("sslMode")))throw new IllegalArgumentException("VERIFY_IDENTITY obligatorio");return u;
+ }
+
  public static void main(String[] args){try{run(args);}catch(Exception invalid){System.err.println("Garantía no emitida: revisar custodia, COM, restauración, configuración y conectividad privadas. No se imprimen payloads ni excepciones SQL.");System.exit(1);}}
  static void run(String[] args)throws Exception{
   Map<String,String> opts=new HashMap<>();for(int i=0;i<args.length;i++){String k=args[i];if(!Set.of("--config","--enviar","--id","--cola").contains(k)||opts.containsKey(k))throw new IllegalArgumentException();opts.put(k,k.equals("--enviar")?"true":args[++i]);}
   var p=new Properties();try(var reader=Files.newBufferedReader(Path.of(opts.get("--config")))){p.load(reader);}
+  ejecutar(p,opts);
+ }
+ static void ejecutar(Properties p,Map<String,String> opts)throws Exception{
+  if(ArchivoAgente.windows()&&opts.containsKey("--enviar"))throw new IOException("Emisión Windows sin custodia/durabilidad acreditadas; sin conexión pública");
   String sourceUrl=localUrl(p,"garantia.origen.db");boolean automatic=p.containsKey("garantia.respaldo.directorio");String restoreUrl=automatic?null:localUrl(p,"garantia.restauracion.db");
   var originRoot=root(Path.of(required(p,"garantia.origen.archivo")));Path backupRoot=null,scratch=null;
   if(automatic){backupRoot=root(Path.of(required(p,"garantia.respaldo.directorio")));scratch=root(Path.of(required(p,"garantia.restauracion.scratch")));var fs=Files.getFileStore(backupRoot);if(fs.equals(Files.getFileStore(originRoot))||Set.of("tmpfs","ramfs","overlay").contains(fs.type())||fs.isReadOnly())throw new IOException("Respaldo durable independiente y escribible requerido");}

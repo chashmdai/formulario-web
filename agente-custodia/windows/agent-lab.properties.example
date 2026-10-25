@@ -1,0 +1,10 @@
+# LABORATORIO. Sin contraseñas: el launcher recibe PSCredential DPAPI y escribe solo stdin anónimo.
+garantia.modo=LABORATORIO
+garantia.origen.db.url=jdbc:mysql://localhost:3306/siger_custodia_lab?sslMode=VERIFY_IDENTITY&connectTimeout=3000&socketTimeout=5000
+# Truststore de CA verificada y certificado con SAN local se configuran antes de usar MySQL.
+garantia.origen.archivo=C:/agente/testdata/custodia-nativa-20261025/origen
+garantia.respaldo.directorio=C:/agente/testdata/custodia-nativa-20261025/respaldo
+garantia.restauracion.scratch=C:/agente/scratch/custodia-nativa-20261025
+garantia.public-keys=C:/agente/config/qa-public-keys.json
+garantia.institution-keys=C:/agente/config/qa-institution-keys.json
+# No poner public.origin ni una clave de emisión en la configuración de laboratorio.

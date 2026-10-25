@@ -30,4 +30,8 @@
     </resources>
     <plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins>
   </build>
+  <profiles><profile><id>agente-core</id>
+    <properties><project.build.outputTimestamp>2026-10-25T00:00:00Z</project.build.outputTimestamp></properties>
+    <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-jar-plugin</artifactId><executions><execution><id>agente-core</id><phase>package</phase><goals><goal>jar</goal></goals><configuration><classifier>agente-core</classifier><includes><include>cl/nexbyte/siger/**</include></includes><excludes><exclude>**/*Controller*</exclude><exclude>**/SondaTlsMysql*</exclude><exclude>cl/nexbyte/siger/config/**</exclude><exclude>cl/nexbyte/siger/FormularioPublicoApplication*</exclude></excludes></configuration></execution></executions></plugin></plugins></build>
+  </profile></profiles>
 </project>
