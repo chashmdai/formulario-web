@@ -1,5 +1,7 @@
 # Operación, respaldos y recuperación multimedia
 
+> **Ejecución actualizada · 26/10/2026:** los lanzadores nativos usan `jars/SHA256.jar` y registros de selección/proceso fuera de Git. `runtime.jar` queda como copia histórica; no es el destino que el lanzador sobrescribe al actualizar. Ver [instalación, estado y reversión](EJECUCION_JAR_LABORATORIOS_2026-10-26.md). Los apartados siguientes conservan la evidencia de los montajes anteriores.
+
 > **Operación vigente · 25/10/2026:** [receptor transitorio integral V10](ARQUITECTURA_RECEPTOR_TRANSITORIO.md) y [checkpoint](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md). El mantenimiento periódico es online; el CLI offline se conserva para diagnóstico y backup/restore. La retirada incluye archivos, BLOB y datos personales/payloads MySQL, con garantías independientes entrantes y banderas cerradas. Las descripciones V7/V8 siguientes son el historial del laboratorio, que no fue migrado en esta unidad.
 
 ## Separación del laboratorio: historial del 24/10

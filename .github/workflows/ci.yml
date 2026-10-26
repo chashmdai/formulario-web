@@ -31,11 +31,12 @@ jobs:
         working-directory: formulario-publico/backend
         shell: bash
         run: mvn -B -ntp '-Dtest=*Test,!Carga*Test' verify
-      - name: Controles de respaldo y restauración (sintéticos)
+      - name: Controles de respaldo y lanzadores (sintéticos)
         shell: bash
         run: |
           python3 scripts/qa/test_media_archive.py
           python3 scripts/qa/test_media_storage_report.py
+          python3 scripts/qa/test_runtime_jar.py
 
   agente-windows:
     runs-on: windows-2022

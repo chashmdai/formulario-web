@@ -538,9 +538,12 @@ El cambio de proveedor no debe publicar MySQL, el Nodo PISEE o el archivo instit
 
 ### Herramientas de operación y diagnóstico
 
+Los laboratorios nativos `18443` y `19443` ejecutan copias privadas `jars/SHA256.jar`, de solo lectura, separadas de Maven. Compilar no instala ni actualiza una instancia. Los lanzadores permiten `--estado`, `--instalar JAR` y selección explícita con el laboratorio detenido; verifican PID, inicio del proceso, JAR y configuración. Procedimiento de actualización/reversión y evidencia de compilación con ambas instancias activas: [ejecución estable de JAR](docs/EJECUCION_JAR_LABORATORIOS_2026-10-26.md).
+
 | Herramienta | Propósito y condiciones |
 |---|---|
 | [compilar.sh](scripts/linux/compilar.sh) | Validación de herramientas, npm ci/lint/test/build y Maven; construcción sin despliegue automático |
+| [arrancar-nna-local.py](scripts/linux/arrancar-nna-local.py) / [arrancar-multimedia-local.py](scripts/linux/arrancar-multimedia-local.py) | Arranque explícito desde copias privadas versionadas; estado verificable y parada del PID propio; nunca fallback a target |
 | [probar-mysql.sh](scripts/linux/probar-mysql.sh) | Regresión explícita del esquema loopback robust_public_test con credenciales privadas; no receta de TLS productivo |
 | [media-archive.py](scripts/linux/media-archive.py) | Backup/restore consistente, destinos y esquemas nuevos, hashes y verificación de referencias; exige aplicación detenida y lock POSIX exclusivo |
 | [media-storage-report.py](scripts/linux/media-storage-report.py) | Inventario agregado de solo lectura; distingue bytes físicos, reservas y metadatos; no cambia cuotas ni autoriza borrados |
