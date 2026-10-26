@@ -91,3 +91,7 @@ Para dimensionamiento y retención actuales, utilizar la [arquitectura V10](ARQU
 La operación normal usa el [programador online V10, garantías entrantes y minimización MySQL](ARQUITECTURA_RECEPTOR_TRANSITORIO.md). Reutiliza el motor V9 con guardias por recorrido; no detiene la recepción ni monta SIGER en el público. La garantía la envía un agente privado institucional que verifica el COM/ACK y publica/restaura un respaldo independiente del ingreso. Retirada y programador permanecen cerrados en los laboratorios V7/V8.
 
 El [CLI offline V9](CICLO_VIDA_CUSTODIA_TRANSITORIA_2026-10-25.md) es una herramienta histórica de diagnóstico/calificación; no es el planificador productivo. El backup/restore de este manual conserva su requisito de exclusión offline y valida respaldos V8/V9/V10. No confundir esa ventana de respaldo con el mantenimiento online de retirada. Consultar el [checkpoint V10](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) y la [publicación](CONSOLIDACION_MAIN_2026-10-25.md) antes de instalar binarios nuevos o migrar datos.
+
+## Retirada y minimización V12
+
+La [alternativa de 72 h por ACK](RETENCION_ACK_72H_2026-10-26.md) está implementada y cerrada por defecto. Documenta migración, aceptación/referencia de riesgo, reloj del primer ACK, holds, reanudación y reversión. No cambiar esquema/banderas de instancias existentes siguiendo ejemplos de laboratorio. La modalidad independiente conserva sus garantías.

@@ -1,0 +1,66 @@
+{
+  "fecha": "2026-10-26",
+  "baseline": "b6ab36af4357f6852f035466b4653da97d267e00",
+  "rama": "retencion-ack-72h-2026-10-26",
+  "backendH2": {
+    "tests": 309,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2,
+    "omitted": [
+      "cl.nexbyte.siger.robustez.MultimediaWorkersRealTest#transporteJavaInspeccionaRepresentacionesYAntivirusReales",
+      "cl.nexbyte.siger.robustez.RecuperacionProcesoTest#comprobanteConfirmadoSobreviveCaidaRealDeMySQLYUnaFallaNoSeAcepta"
+    ]
+  },
+  "backendMySQL": {
+    "tests": 309,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2,
+    "omitted": [
+      "cl.nexbyte.siger.robustez.MultimediaWorkersRealTest#transporteJavaInspeccionaRepresentacionesYAntivirusReales",
+      "cl.nexbyte.siger.robustez.RecuperacionProcesoTest#comprobanteConfirmadoSobreviveCaidaRealDeMySQLYUnaFallaNoSeAcepta"
+    ]
+  },
+  "pruebasNuevasIncluidas": 25,
+  "migracionesHistoricasIdenticas": 22,
+  "migracionMySQL": [
+    {
+      "ok": true,
+      "migraciones": 12,
+      "escenario": "fresh",
+      "filasPreviasConservadas": true,
+      "checksumsHistoricosConservados": true,
+      "motor": "MySQL"
+    },
+    {
+      "escenario": "upgrade",
+      "filasPreviasConservadas": true,
+      "checksumsHistoricosConservados": true,
+      "motor": "MySQL",
+      "ok": true,
+      "migraciones": 12
+    }
+  ],
+  "frontend": {
+    "pruebas": "Batería completa correcta, maxWorkers=2",
+    "lint": "correcto",
+    "build": "correcto"
+  },
+  "python": {
+    "media_archive": 9,
+    "media_storage_report": 7,
+    "fallos": 0
+  },
+  "jarBuildSHA256": "82cfeae55a8222004af3c685ec467c5f65269c2ad21abbe70696c4a09a888694",
+  "flags": {
+    "modalidadPredeterminada": "GARANTIA_INDEPENDIENTE",
+    "online": false,
+    "eliminacion": false,
+    "ack_riesgo_aceptado": false
+  },
+  "despliegue": false,
+  "push": false,
+  "pruebasGubernamentales": false,
+  "commitImplementacion": "f540249897788e3cc64c7990645a2b920b2f6fff"
+}

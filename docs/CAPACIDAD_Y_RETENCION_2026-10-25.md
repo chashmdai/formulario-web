@@ -1,5 +1,7 @@
 # Capacidad y retención del Formulario Público
 
+> **Continuidad 26/10:** [checkpoint V12, alternativa ACK de 72 h](RETENCION_ACK_72H_2026-10-26.md). Este documento conserva mediciones y configuración históricas; no implica activación actual.
+
 > **Auditoría inicial, superada por implementación V10.** La decisión vigente es operar como [receptor transitorio integral dentro del presupuesto de 25 GB](ARQUITECTURA_RECEPTOR_TRANSITORIO.md), con [pruebas y condiciones de activación](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md). Las recomendaciones iniciales de ampliar disco y las capacidades ausentes descritas abajo no son el estado actual. Se preservan las mediciones históricas.
 
 > **Actualización del encargo:** el [ciclo de vida de custodia transitoria](CICLO_VIDA_CUSTODIA_TRANSITORIA_2026-10-25.md) implementa la solución para operar con 25 GB. Sustituye la ampliación de disco como salida principal y los apartados de este informe que describían el mecanismo como futuro. Esta auditoría inicial se conserva como evidencia del punto de partida; no describe las capacidades nuevas de V9.

@@ -5,6 +5,7 @@ formulario.multimedia.minimo-libre=4096MB
 capacidad.minimo-libre=4096MB
 
 # Dos seguros independientes. El programador no existe hasta habilitar el primero.
+ciclo-vida.modalidad=GARANTIA_INDEPENDIENTE
 ciclo-vida.online-habilitado=false
 ciclo-vida.eliminacion.habilitada=false
 ciclo-vida.intervalo=PT5M

@@ -1,0 +1,12 @@
+# Candidato NO instalado. Requiere V12, validación de riesgo y autorización operativa.
+# No cambia recepción, claves, formatos, cuotas ni el agente.
+ciclo-vida.modalidad=ACK_RETENCION_LIMITADA_APROBADA
+ciclo-vida.online-habilitado=false
+ciclo-vida.eliminacion.habilitada=false
+ciclo-vida.retencion-post-ack=PT72H
+ciclo-vida.ack-riesgo-aceptado=false
+# Referencia versionada de aprobación, sin datos personales/secretos.
+ciclo-vida.aprobacion-ref=
+# Opcional; vacío anula una ruta heredada del perfil independiente.
+ciclo-vida.garantias.trusted-keys=
+# Resto de retenciones, intervalo, firma/confianza y almacén: perfil privado existente.

@@ -4,6 +4,10 @@
 
 Esta unidad continúa V9 y sustituye el mantenimiento offline como forma normal de operación. Implementa **V10, minimización de MySQL, mantenimiento online y garantías entrantes**. El mecanismo está probado; sus banderas reales permanecen cerradas. No se modificó el repositorio SIGER, no se consultaron proveedores gubernamentales ni se habilitó producción.
 
+## Actualización V12 · modalidades
+
+La [alternativa de 72 h por ACK](RETENCION_ACK_72H_2026-10-26.md) está implementada por autorización de ingeniería del 26/10, **sin activar**. `GARANTIA_INDEPENDIENTE` conserva el comportamiento predeterminado; `ACK_RETENCION_LIMITADA_APROBADA` requiere opt-in, aceptación/referencia de riesgo y 72 h desde primer ACK válido persistido, sin garantía individual. Recepción y ACK no dependen del agente. V12 agrega metadatos, sin cambiar firmas/documentos 1.0/1.1. Configuración, recuperación, cambios de política, pruebas y habilitación/reversión están en ese checkpoint.
+
 ## Responsabilidades y flujo
 
 ```mermaid
@@ -16,7 +20,8 @@ flowchart LR
   D --> A[Agente privado: SELECT, respaldo y restauración verificada]
   A --> B[(Medio institucional independiente)]
   A -->|HTTPS saliente: garantía mínima firmada| G[Formulario: integración de custodia]
-  G --> M[Programador online por recorrido]
+  G -->|Modalidad independiente| M[Programador online por recorrido]
+  T -->|ACK + 72 h y política de riesgo, alternativa opt-in| M
   M -->|Retirar bytes y datos personales| T
   M --> R[(Recibo mínimo, hashes y trazabilidad)]
   R -->|Misma consulta y comprobante| C
@@ -31,7 +36,7 @@ flowchart LR
 | Borrador vigente | Identificación/declaraciones, resultado SRCeI y procedencia; adjuntos y bloques; propiedad de sesión |
 | Comunicación pendiente/reservada/cuarentena | Payload original firmado íntegro, personas y antecedentes, archivos/BLOB, idempotencia y estado de entrega |
 | Confirmada, con plazo o controles pendientes | Lo anterior; ACK firmado y observación de retención. No basta con tener ACK |
-| Garantía independiente vigente y plazo cumplido | Se retiran originales, derivados, bloques y BLOB; después se minimizan payloads y copias de identidad en una transacción |
+| Elegibilidad de modalidad y plazo cumplidos, sin hold | Se retiran originales, derivados, bloques y BLOB; después se minimizan payloads y copias de identidad en una transacción |
 | Minimizada | UUID, vínculo operativo de sesión, hash de solicitud para idempotencia, estado/fechas, folio/COM, comprobantes originales y recibo mínimo sellado; referencias técnicas de archivos y garantía |
 
 El recibo mínimo contiene solo IDs, tamaños/SHA-256, comprobante público original y ACK institucional. **No contiene nombres, RUN, contactos, relatos, declaraciones, valores SRCeI ni nombres de archivos.** Se sella con un dominio criptográfico distinto; no reemplaza el documento 1.0/1.1 ni su firma. Los hashes y referencias son datos técnicos seudonimizados, no una afirmación de anonimización universal.
@@ -60,7 +65,7 @@ El agente comprueba:
 
 La prueba contiene IDs público/institucional, cola, hashes de contenido/procedencia/documento íntegro/manifiesto/ACK, fecha de verificación, vencimiento y referencia de restauración. Está firmada con **una clave de verificación operativa separada** de las privadas de SIGER, del Formulario, ClaveÚnica y SSH. El Formulario recibe únicamente su clave pública confiada. No se instala la clave privada del agente en el servidor público.
 
-Validez máxima: 24 horas, con rechazo de pruebas futuras fuera del margen de reloj. No se prolonga la validez al repetir un envío. Una prueba ausente, falsa, vencida, de otra cola/ID/huella o sin restauración no permite retirar. El emisor vuelve a leer y verificar para renovar; no firma simplemente porque existe un ACK.
+Validez máxima: 24 horas, con rechazo de pruebas futuras fuera del margen de reloj. No se prolonga la validez al repetir un envío. En la modalidad independiente, una prueba ausente, falsa, vencida, de otra cola/ID/huella o sin restauración no permite retirar. El emisor vuelve a leer y verificar para renovar; no firma simplemente porque existe un ACK.
 
 ### Operación automática del agente
 
@@ -109,7 +114,8 @@ El [cierre técnico V10](CIERRE_TECNICO_V10_2026-10-25.md) corrige la carrera en
 
 ### Parámetros técnicos adoptados para 25 GB
 
-- Postconfirmación: **24 horas** desde la primera observación válida, configurables. Históricos no se retrofechan. Antes de cumplir el plazo se conservan; después también se conservan si falta una garantía vigente. No se aplican acortamientos implícitos a plazos ya asignados.
+- Modalidad independiente, postconfirmación: **24 horas** desde la primera observación válida, configurables. Históricos no se retrofechan. Antes de cumplir el plazo se conservan; después también se conservan si falta una garantía vigente. No se aplican acortamientos implícitos a plazos ya asignados.
+- Alternativa ACK: **72 horas exactas** desde `first_ack_ms`; históricos sin fecha se observan sin retrofechar. Modalidad/referencia fijadas desde RETIRANDO, mismos holds y minimización; no exige ni fabrica garantías independientes.
 - Borradores: vencimiento de recorrido más 48 horas antes de retirar datos/archivos no enviados.
 - Metadatos de borradores sin Comunicación: siete días tras su vencimiento; después se retiran con controles de referencias/archivos, sin afectar recibos de Comunicaciones.
 - Temporales incoming huérfanos: >24 horas. El almacén registra temporales activos en memoria; el janitor online nunca los trata como huérfanos aunque su timestamp sea antiguo.
@@ -132,7 +138,7 @@ Las consultas conservan los controles de propiedad existentes. No se introduce u
 
 Presupuesto inicial a comprobar al instalar: SO/actualizaciones 6 GiB, imágenes/runtime/firmas 3 GiB, MySQL/metadatos/binlogs 3 GiB, reserva multimedia 6 GiB y margen libre 4 GiB: **22 GiB**, dentro de 23,28 GiB. Las reservas son contables y conservadoras; no se suman otra vez a los mismos archivos físicos. No guardar caché de compilación ni respaldos completos en ese SSD.
 
-Modelo reproducible: `scripts/qa/modelar-receptor-transitorio.py`. Supone llegadas uniformes, entrega/restauración verificables dentro de 24 h, retención pública 24 h y mantenimiento horario —más conservador que el programador de cinco minutos—. Incluye staging y margen de derivadas por archivo. Es cálculo de capacidad, no carga ni prueba de procesamiento de máximos.
+Modelo reproducible de la modalidad independiente: `scripts/qa/modelar-receptor-transitorio.py`. Supone llegadas uniformes, entrega/restauración verificables dentro de 24 h, retención pública 24 h y mantenimiento horario —más conservador que el programador de cinco minutos—. Incluye staging y margen de derivadas por archivo. Es cálculo de capacidad, no carga ni prueba de procesamiento de máximos.
 
 | Web/mes | MiB/ingreso | Archivos | Pico binario/reservado | Originales/año sin retirada |
 |---:|---:|---:|---:|---:|
@@ -143,6 +149,8 @@ Modelo reproducible: `scripts/qa/modelar-receptor-transitorio.py`. Supone llegad
 | 300 | 250 | 12 | 5,596 GiB | 891,113 GiB |
 
 El extremo uniforme queda dentro de la cuota, con margen menor; no promete absorber ráfagas arbitrarias o indisponibilidad indefinida. Con ocho días hasta entrega/restauración y 300×20 MiB, el modelo da 2,129 GiB. Si las garantías se retrasan más o cambia la carga, se pospone retirada y la admisión aplica cuota/piso: se preserva lo recibido en vez de llenar el SSD y perderlo.
+
+Con la alternativa de 72 h y 24 h hasta ACK, el modelo da 0,957 GiB (300×20 MiB), 4,160 GiB (300×100 MiB) y 10,947 GiB (300×250 MiB). El extremo excede cuota. Son supuestos de flujo, no medición física: [capacidad/riesgos V12](RETENCION_ACK_72H_2026-10-26.md).
 
 **La solución para 25 GB es el ciclo transitorio completo, no aumentar disco ni recortar formatos.** La proyección exige cumplir tiempos de transferencia, recuperación y mantenimiento y comprobar los tamaños fijos en la VM real. El WSL de prueba tiene otro tamaño; no se declara haber desplegado una VM de 25 GB.
 
@@ -157,6 +165,8 @@ NULL/DELETE liberan páginas para reutilización, no garantizan encoger inmediat
 ## Configuración y puesta en operación
 
 Plantillas: `infra/capacidad-25gb.properties.example`, `infra/garantia-custodia.properties.example` y `infra/systemd/siger-garantia-custodia.{service,timer}`. No se instalaron ni activaron servicios.
+
+**Esta secuencia corresponde a la modalidad independiente.** Para ACK de 72 h seguir su [procedimiento específico](RETENCION_ACK_72H_2026-10-26.md), sin agente obligatorio. Aplicar V12 antes de usar el código nuevo, con respaldo/restore y migrador autorizados. No se migraron instancias existentes en esta unidad.
 
 1. En el entorno institucional, preparar un destino de respaldo independiente y durable, scratch privado, cuenta SQL SELECT local y confianza pública/institucional. Crear la clave **del verificador**, custodiar su privada allí y registrar solo su pública en el Formulario. El agente Java/POSIX no necesita clonar ni cambiar SIGER.
 2. Probar respaldo/restauración de un ingreso sintético. El modo automático crea paquetes y los restaura por sí mismo; no requiere que una persona exporte cada Comunicación. Instalar el timer privado de 15 min en un entorno compatible, sin exponer SIGER. Es un agente adicional de verificación, no un cambio al consumidor.

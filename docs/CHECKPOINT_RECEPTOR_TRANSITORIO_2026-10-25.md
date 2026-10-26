@@ -1,5 +1,7 @@
 # Checkpoint · receptor transitorio integral · 25/10/2026
 
+> **Continuidad 26/10:** [checkpoint V12, alternativa ACK de 72 h](RETENCION_ACK_72H_2026-10-26.md). Este documento conserva mediciones y configuración históricas; no implica activación actual.
+
 > Continuidad del agente: [cierre Windows/MySQL TLS](CIERRE_WINDOWS_MYSQL_TLS_2026-10-25.md). Ese informe actualiza runtime, pruebas y configuración del agente; no activa las banderas públicas ni altera las evidencias históricas de este checkpoint.
 
 ## Cierre técnico posterior
