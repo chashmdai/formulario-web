@@ -22,11 +22,13 @@ public final class CustodiaTransitoria implements AutoCloseable {
  private final AtomicBoolean running=new AtomicBoolean();private volatile boolean stopped;
  public CustodiaTransitoria(BaseJdbc db,AlmacenPrivado store,boolean ownStore,JsonMapper mapper,GarantiasCustodiaJdbc guarantees,
    Map<String,PublicKey> publicKeys,Map<String,PublicKey> institution,String keyId,PrivateKey signer,byte[] ownerKey,Clock clock,CicloVidaCustodia.Politica policy){
+  if(policy.independiente()&&guarantees==null)throw new IllegalArgumentException("Garantías requeridas por modalidad independiente");
   this.db=db;this.store=store;this.ownStore=ownStore;this.mapper=mapper;this.guarantees=guarantees;this.publicKeys=Map.copyOf(publicKeys);this.institution=Map.copyOf(institution);this.keyId=keyId;this.signer=signer;this.ownerKey=ownerKey.clone();this.clock=clock;this.policy=policy;
   if(ownerKey.length<32)throw new IllegalArgumentException("Clave de minimización requerida");
-  motor=new CicloVidaCustodia(db,store,null,mapper,publicKeys,institution,clock,policy).lotesAcotados(20).prueba((e,a)->guarantees.comprobar(mapper.writeValueAsString(e),mapper.writeValueAsString(a),"COMPLETO"));
+  motor=new CicloVidaCustodia(db,store,null,mapper,publicKeys,institution,clock,policy).lotesAcotados(20);
+  if(policy.independiente())motor.prueba((e,a)->guarantees.comprobar(mapper.writeValueAsString(e),mapper.writeValueAsString(a),"COMPLETO"));
  }
- public GarantiasCustodiaJdbc garantias(){return guarantees;}
+ public GarantiasCustodiaJdbc garantias(){if(guarantees==null)throw new FalloTecnico(503);return guarantees;}
  private static long n(Map<String,Object> r,String k){return ((Number)r.get(k)).longValue();}
  private final Map<String,String> witnessCursor=new HashMap<>();private boolean preferLegacy;
  public synchronized List<Map<String,Object>> candidatos(int limit){
@@ -81,8 +83,8 @@ public final class CustodiaTransitoria implements AutoCloseable {
    var r=db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=? FOR UPDATE",id.toString());
    if(Boolean.TRUE.equals(r.get("content_retired")))return null;
    var life=db.sql.queryForMap("SELECT * FROM custody_lifecycle WHERE submission_id=? FOR UPDATE",id.toString());
-   if(!"LIBERADA".equals(life.get("phase"))||Boolean.TRUE.equals(life.get("hold_active")))throw new IllegalStateException("Custodia no liberable");
-   try{guarantees.comprobar(r.get("body").toString(),r.get("ack").toString(),"COMPLETO");}catch(IOException e){throw new IllegalStateException("Conservar payload");}
+   if(!policy.coincide(life)||!"LIBERADA".equals(life.get("phase"))||Boolean.TRUE.equals(life.get("hold_active")))throw new IllegalStateException("Custodia no liberable");
+   try{if(policy.independiente())guarantees.comprobar(r.get("body").toString(),r.get("ack").toString(),"COMPLETO");}catch(IOException e){throw new IllegalStateException("Conservar payload");}
    var e=mapper.readValue(r.get("body").toString(),EntregaFormulario.class);e.validar(publicKeys,mapper);var ack=mapper.readValue(r.get("ack").toString(),RegistroInstitucional.class);e.validarRegistro(ack,institution,mapper);
    if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE journey_id=? AND bytes_retired=FALSE",Integer.class,journey.toString())!=0)throw new IllegalStateException("Bytes pendientes");
    var files=e.comunicacion().adjuntos().stream().map(a->new ReciboMinimo.Archivo(a.id(),a.tamanio(),a.sha256())).toList();
@@ -106,20 +108,30 @@ public final class CustodiaTransitoria implements AutoCloseable {
  private boolean minimizarHistorica(UUID id)throws IOException {
   var r=db.sql.queryForMap("SELECT * FROM public_delivery WHERE id=?",id.toString());
   if(Boolean.TRUE.equals(r.get("retention_hold")))return false;
-  // No retrofechar históricos y comprobar firma antes de iniciar el plazo.
   GarantiaCustodia.contexto(r.get("body").toString(),r.get("ack").toString(),"HISTORICO",publicKeys,institution,mapper);
-  if(n(r,"retire_after_ms")==0){db.sql.update("UPDATE public_delivery SET retire_after_ms=? WHERE id=? AND retire_after_ms=0",clock.millis()+policy.postAck().toMillis(),id.toString());return false;}
-  if(!policy.eliminar()||n(r,"retire_after_ms")>clock.millis())return false;
-  guarantees.comprobar(r.get("body").toString(),r.get("ack").toString(),"HISTORICO");
+  // La fecha desconocida se observa con firmas comprobadas y lock; nunca se infiere del ACK.
+  long due=db.transaction(()->{
+   var current=db.sql.queryForMap("SELECT * FROM public_delivery WHERE id=? FOR UPDATE",id.toString());
+   if(Boolean.TRUE.equals(current.get("content_retired"))||!Objects.equals(current.get("body"),r.get("body"))||!Objects.equals(current.get("ack"),r.get("ack")))throw new IllegalStateException("Custodia cambió");
+   long first=current.get("first_ack_ms")==null?clock.millis():n(current,"first_ack_ms");
+   if(first<=0||first>clock.millis())throw new IllegalStateException("Fecha de ACK no acreditada");
+   if(current.get("first_ack_ms")==null){db.sql.update("UPDATE public_delivery SET first_ack_ms=? WHERE id=?",first,id.toString());db.event("CUSTODIA_TRANSITORIA",id.toString(),"ACK_HISTORICO_OBSERVADO_SIN_RETROFECHAR");}
+   long limit=policy.independiente()?(n(current,"retire_after_ms")==0?clock.millis()+policy.postAck().toMillis():Math.max(n(current,"retire_after_ms"),Math.addExact(first,policy.postAck().toMillis()))):Math.addExact(first,policy.postAck().toMillis());
+   db.sql.update("UPDATE public_delivery SET retire_after_ms=? WHERE id=?",limit,id.toString());return limit;
+  });
+  if(!policy.eliminar()||due>clock.millis())return false;
+  if(policy.independiente())guarantees.comprobar(r.get("body").toString(),r.get("ack").toString(),"HISTORICO");
   return db.transaction(()->{
    var current=db.sql.queryForMap("SELECT * FROM public_delivery WHERE id=? FOR UPDATE",id.toString());if(Boolean.TRUE.equals(current.get("content_retired")))return false;
    if(Boolean.TRUE.equals(current.get("retention_hold"))||!Objects.equals(current.get("body"),r.get("body"))||!Objects.equals(current.get("ack"),r.get("ack")))throw new IllegalStateException("Conservar histórico");
-   if(n(current,"retire_after_ms")>clock.millis())throw new IllegalStateException("Retención vigente");
-   try{guarantees.comprobar(current.get("body").toString(),current.get("ack").toString(),"HISTORICO");}catch(IOException invalid){throw new IllegalStateException("Conservar histórico");}
+   long limit=policy.independiente()?n(current,"retire_after_ms"):Math.addExact(n(current,"first_ack_ms"),policy.postAck().toMillis());
+   if(limit>clock.millis())throw new IllegalStateException("Retención vigente");
+   try{if(policy.independiente())guarantees.comprobar(current.get("body").toString(),current.get("ack").toString(),"HISTORICO");}catch(IOException invalid){throw new IllegalStateException("Conservar histórico");}
    var e=mapper.readValue(current.get("body").toString(),EntregaVerificada.class);e.validar(publicKeys,mapper);var ack=mapper.readValue(current.get("ack").toString(),RegistroInstitucional.class);ack.validar(institution,mapper,e);
    var minimum=new ReciboMinimo.Contenido(id,null,"HISTORICO",e.comprobante(),ack,List.of());String sealed=mapper.writeValueAsString(FirmaOperativa.firmar(minimum,ReciboMinimo.DOMAIN,keyId,signer,mapper));ReciboMinimo.validar(sealed,id,publicKeys,institution,mapper);
    String owner=current.get("owner_run")==null?null:ReciboMinimo.propietario(current.get("owner_run").toString(),ownerKey);
-   db.sql.update("UPDATE public_delivery SET body=NULL,owner_run=NULL,owner_fingerprint=?,legacy_ack=NULL,minimal_receipt=?,content_retired=TRUE,lease_id=NULL,last_error=NULL,next_attempt_ms=0 WHERE id=?",owner,sealed,id.toString());
+   db.sql.update("UPDATE public_delivery SET body=NULL,owner_run=NULL,owner_fingerprint=?,legacy_ack=NULL,minimal_receipt=?,content_retired=TRUE,lease_id=NULL,last_error=NULL,next_attempt_ms=0,retirement_mode=?,retirement_policy_ref=? WHERE id=?",owner,sealed,policy.modalidad().name(),policy.aprobacion(),id.toString());
+   if(!policy.independiente())db.event("CUSTODIA_TRANSITORIA",id.toString(),"RETIRADA_ACK_72H_INICIADA");
    db.event("CUSTODIA_TRANSITORIA",id.toString(),"PAYLOAD_HISTORICO_RETIRADO");return true;
   });
  }
@@ -155,7 +167,7 @@ public final class CustodiaTransitoria implements AutoCloseable {
   }
   db.sql.update("DELETE FROM citizen_abuse_bucket WHERE window_ms<?",clock.millis()-Duration.ofDays(1).toMillis());
   db.sql.update("DELETE FROM media_access WHERE at_ms<? AND attachment_id IN (SELECT id FROM citizen_attachment WHERE bytes_retired=TRUE)",clock.millis()-technicalAudit.toMillis());
-  db.sql.update("DELETE FROM operational_event WHERE at_ms<? AND category IN ('MULTIMEDIA','CUSTODIA_TRANSITORIA','ALMACENAMIENTO','TRANSITORIO_TECNICO') AND code NOT IN ('RETIRADA_FINALIZADA','RETIRADA_IRREVERSIBLE_INICIADA','PAYLOAD_Y_IDENTIDAD_RETIRADOS','PAYLOAD_HISTORICO_RETIRADO','CONSERVACION_BLOQUEADA','CONSERVACION_DESBLOQUEADA','HOLD_ACTIVO','HOLD_RETIRADO')",clock.millis()-technicalAudit.toMillis());
+  db.sql.update("DELETE FROM operational_event WHERE at_ms<? AND category IN ('MULTIMEDIA','CUSTODIA_TRANSITORIA','ALMACENAMIENTO','TRANSITORIO_TECNICO') AND code NOT IN ('RETIRADA_FINALIZADA','RETIRADA_IRREVERSIBLE_INICIADA','RETIRADA_ACK_72H_INICIADA','PAYLOAD_Y_IDENTIDAD_RETIRADOS','PAYLOAD_HISTORICO_RETIRADO','CONSERVACION_BLOQUEADA','CONSERVACION_DESBLOQUEADA','HOLD_ACTIVO','HOLD_RETIRADO')",clock.millis()-technicalAudit.toMillis());
  }
  public void conservar(String queue,UUID id,boolean hold){
   if(queue==null||id==null)throw new IllegalArgumentException("Cola e ID requeridos");
@@ -168,6 +180,6 @@ public final class CustodiaTransitoria implements AutoCloseable {
  }
  private Long cuota;
  public CustodiaTransitoria cuotaMultimedia(long bytes){if(bytes<1)throw new IllegalArgumentException("Cuota inválida");cuota=bytes;return this;}
- public Map<String,Object> estado(){return new ObservabilidadCustodia(db,store,clock,policy.postAck(),cuota).estado(policy.eliminar(),running.get());}
+ public Map<String,Object> estado(){return new ObservabilidadCustodia(db,store,clock,policy.postAck(),cuota,policy.modalidad()).estado(policy.eliminar(),running.get());}
  public void close()throws IOException{stopped=true;if(ownStore&&!running.get())store.close();}
 }

@@ -132,7 +132,7 @@ public final class RecepcionFormularioJdbc {
             try{delivery.validarRegistro(ack,institutional,mapper);}catch(IllegalArgumentException invalid){throw new FalloTecnico(409);}
             if(row.get("ack")!=null){var previous=mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class);delivery.validarRegistro(previous,institutional,mapper);if(!previous.equals(ack))throw new FalloTecnico(409);return null;}
             if(!"RESERVADA".equals(row.get("state"))||!lease.toString().equals(row.get("lease_id"))||((Number)row.get("lease_until_ms")).longValue()<=clock.millis())throw new FalloTecnico(409);
-            db.sql.update("UPDATE citizen_submission SET state='CONFIRMADA',ack=?,lease_until_ms=0,last_error=NULL WHERE id=?",mapper.writeValueAsString(ack),id.toString());db.event("FORMULARIO_COMPLETO",id.toString(),"REGISTRO_SIGER_CONFIRMADO");return null;
+            db.sql.update("UPDATE citizen_submission SET state='CONFIRMADA',ack=?,first_ack_ms=COALESCE(first_ack_ms,?),lease_until_ms=0,last_error=NULL WHERE id=?",mapper.writeValueAsString(ack),clock.millis(),id.toString());db.event("FORMULARIO_COMPLETO",id.toString(),"REGISTRO_SIGER_CONFIRMADO");return null;
         });
     }
     public void fallo(UUID id,UUID lease,String code){

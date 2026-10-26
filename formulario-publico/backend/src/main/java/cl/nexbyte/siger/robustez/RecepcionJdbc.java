@@ -197,7 +197,7 @@ public final class RecepcionJdbc implements RecepcionDurable {
                 if(!existing.equals(receipt))throw new FalloTecnico(409);return null;
             }
             if(!"RESERVADA".equals(row.get("state"))||!lease.toString().equals(row.get("lease_id")))throw new FalloTecnico(409);
-            db.sql.update("UPDATE public_delivery SET state='CONFIRMADA',ack=?,lease_until_ms=0,last_error=NULL WHERE id=?",mapper.writeValueAsString(receipt),id.toString());
+            db.sql.update("UPDATE public_delivery SET state='CONFIRMADA',ack=?,first_ack_ms=COALESCE(first_ack_ms,?),lease_until_ms=0,last_error=NULL WHERE id=?",mapper.writeValueAsString(receipt),clock.millis(),id.toString());
             db.event("ENTREGA",id.toString(),"REGISTRO_SIGER_CONFIRMADO");return null;
         });
     }

@@ -10,10 +10,21 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Motor reanudable: CLI offline V9 y coordinador online V10. Nunca retira por el mero ACK. */
+/** Motor reanudable: CLI offline V9 y coordinador online V10. Elegibilidad explícita; nunca cambia el significado de una garantía. */
 public final class CicloVidaCustodia {
-    public record Politica(boolean eliminar, Duration postAck, Duration abandono) {
+    public enum Modalidad { GARANTIA_INDEPENDIENTE, ACK_RETENCION_LIMITADA_APROBADA }
+    public record Politica(boolean eliminar, Duration postAck, Duration abandono, Modalidad modalidad, String aprobacion) {
+        public Politica(boolean eliminar, Duration postAck, Duration abandono) {
+            this(eliminar,postAck,abandono,Modalidad.GARANTIA_INDEPENDIENTE,"");
+        }
+        public boolean independiente(){return modalidad==Modalidad.GARANTIA_INDEPENDIENTE;}
+        public boolean coincide(Map<String,Object> row){return modalidad.name().equals(row.get("retirement_mode")) && aprobacion.equals(row.get("retirement_policy_ref"));}
         public Politica {
+            Objects.requireNonNull(modalidad,"Modalidad requerida");
+            if(modalidad==Modalidad.ACK_RETENCION_LIMITADA_APROBADA) {
+                if(!Duration.ofHours(72).equals(postAck)||aprobacion==null||!aprobacion.matches("[A-Za-z0-9][A-Za-z0-9_.:/-]{2,99}"))
+                    throw new IllegalArgumentException("Modalidad ACK requiere 72 horas y referencia de aprobación");
+            } else aprobacion="";
             if (postAck == null || abandono == null || postAck.compareTo(Duration.ofHours(24)) < 0 ||
                 abandono.compareTo(Duration.ofHours(24)) < 0 || postAck.compareTo(Duration.ofDays(365)) > 0 || abandono.compareTo(Duration.ofDays(365)) > 0)
                 throw new IllegalArgumentException("Retenciones entre 24 horas y 365 días requeridas");
@@ -63,57 +74,93 @@ public final class CicloVidaCustodia {
     }
     private Map<String,Object> lifecycle(UUID id) { return db.sql.queryForMap("SELECT * FROM custody_lifecycle WHERE submission_id=?",id.toString()); }
 
-    /** Registra primera observación válida; nunca retrodata el plazo de documentos históricos. No elimina. */
+    private void sinDiscrepancias(EntregaFormulario e)throws IOException {
+        if(!policy.independiente() && e.comunicacion().personas().stream().anyMatch(p->!p.discrepancias().isEmpty()))
+            throw new IOException("Discrepancias pendientes; conservar");
+    }
+    private String evidencia(EntregaFormulario e,String ackHash,long firstAck) {
+        return policy.independiente()
+            ?CanonFormulario.huella("CUSTODIA_Y_RESTAURACION",List.of(e.sha256(),ackHash,e.comunicacion().adjuntos()),mapper)
+            :CanonFormulario.huella("ACK_RETENCION_LIMITADA_APROBADA_1",List.of(e.sha256(),ackHash,firstAck,policy.aprobacion(),e.comunicacion().adjuntos()),mapper);
+    }
+
+    /** Solo fechas del servidor. Sin fecha histórica: observar ahora, nunca usar la fecha declarada en el ACK. */
     public synchronized void verificar(UUID id) throws IOException {
         var row=submission(id);
         if(Boolean.TRUE.equals(row.get("content_retired"))) {validarMinimizada(id,row);return;}
-        var e=verified(id,row); String ackHash=digest(row.get("ack").toString());
-        db.transaction(()->{
+        var e=verified(id,row);sinDiscrepancias(e);String ackHash=digest(row.get("ack").toString());
+        long firstAck=db.transaction(()->{
             var locked=db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=? FOR UPDATE",id.toString());
             if(Boolean.TRUE.equals(locked.get("content_retired"))||!Objects.equals(row.get("body"),locked.get("body"))||!Objects.equals(row.get("ack"),locked.get("ack")))throw new IllegalStateException("Custodia cambió; reintentar");
+            long first=locked.get("first_ack_ms")==null?clock.millis():number(locked,"first_ack_ms");
+            if(first<=0||first>clock.millis())throw new IllegalStateException("Fecha de ACK no acreditada");
+            if(locked.get("first_ack_ms")==null) {
+                db.sql.update("UPDATE citizen_submission SET first_ack_ms=? WHERE id=?",first,id.toString());
+                db.event("ALMACENAMIENTO",id.toString(),"ACK_HISTORICO_OBSERVADO_SIN_RETROFECHAR");
+            }
             var current=db.sql.queryForList("SELECT * FROM custody_lifecycle WHERE submission_id=? FOR UPDATE",id.toString());
+            long due=Math.addExact(policy.independiente()?clock.millis():first,policy.postAck().toMillis());
             if(current.isEmpty()) {
-                db.sql.update("INSERT INTO custody_lifecycle(submission_id,observed_ms,due_ms,ack_sha256,phase) VALUES(?,?,?,?,'OBSERVADA')",
-                    id.toString(),clock.millis(),Math.addExact(clock.millis(),policy.postAck().toMillis()),ackHash);
+                db.sql.update("INSERT INTO custody_lifecycle(submission_id,observed_ms,due_ms,ack_sha256,phase,retirement_mode,retirement_policy_ref) VALUES(?,?,?,?,'OBSERVADA',?,?)",
+                    id.toString(),clock.millis(),due,ackHash,policy.modalidad().name(),policy.aprobacion());
                 db.event("ALMACENAMIENTO",id.toString(),"ACK_VALIDADO_OBSERVADO");
-            } else if (!ackHash.equals(current.getFirst().get("ack_sha256"))) throw new IllegalArgumentException("ACK cambió");
-            return null;
+            } else {
+                var state=current.getFirst();
+                if(!ackHash.equals(state.get("ack_sha256")))throw new IllegalArgumentException("ACK cambió");
+                if(!Set.of("OBSERVADA","VERIFICADA").contains(state.get("phase"))) {
+                    if(!policy.coincide(state))throw new IllegalStateException("Reanudar con la política de la intención irreversible");
+                } else {
+                    if(policy.independiente())due=Math.max(number(state,"due_ms"),Math.addExact(number(state,"observed_ms"),policy.postAck().toMillis()));
+                    boolean same=policy.coincide(state);
+                    db.sql.update("UPDATE custody_lifecycle SET due_ms=?,retirement_mode=?,retirement_policy_ref=?,phase=?,verified_ms=?,evidence_sha256=? WHERE submission_id=?",
+                        due,policy.modalidad().name(),policy.aprobacion(),same?state.get("phase"):"OBSERVADA",same?state.get("verified_ms"):null,same?state.get("evidence_sha256"):null,id.toString());
+                }
+            }
+            return first;
         });
         db.sql.update("UPDATE custody_lifecycle SET checked_ms=? WHERE submission_id=?",clock.millis(),id.toString());
         try {
             var state=lifecycle(id);
-            if (Boolean.TRUE.equals(state.get("hold_active"))) throw new IOException("Conservación bloqueada");
-            if (archive==null && prueba==null) throw new IOException("Falta verificación independiente");
-            if(prueba!=null)prueba.verificar(e,mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class));
+            if(Boolean.TRUE.equals(state.get("hold_active")))throw new IOException("Conservación bloqueada");
+            if(!policy.coincide(state))throw new IOException("Política cambió; conservar");
+            if(policy.independiente()) {
+                if(archive==null && prueba==null)throw new IOException("Falta verificación independiente");
+                if(prueba!=null)prueba.verificar(e,mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class));
+            }
             var attachments=db.sql.queryForList("SELECT * FROM citizen_attachment WHERE journey_id=?",e.comunicacion().recorridoId().toString());
-            if(attachments.size()!=e.comunicacion().adjuntos().size()) throw new IOException("Referencias discrepantes");
+            if(attachments.size()!=e.comunicacion().adjuntos().size())throw new IOException("Referencias discrepantes");
             for(var d:e.comunicacion().adjuntos()) {
                 var a=attachments.stream().filter(v->d.id().toString().equals(v.get("id"))).findFirst().orElseThrow(()->new IOException("Adjunto no corresponde"));
-                if(!d.sha256().equals(a.get("sha256")) || d.tamanio()!=number(a,"size_bytes") || !d.nombre().equals(a.get("name")) || !d.tipo().equals(a.get("media_type")))
+                if(!d.sha256().equals(a.get("sha256"))||d.tamanio()!=number(a,"size_bytes")||!d.nombre().equals(a.get("name"))||!d.tipo().equals(a.get("media_type")))
                     throw new IOException("Metadatos discrepantes");
                 Path local="FILE".equals(a.get("storage_kind"))?store.original(d.id()):null;
-                if(local!=null && !d.id().toString().equals(a.get("storage_key"))) throw new IOException("Referencia no canónica");
-                if(archive!=null)archive.verificar(id,d,local);
-                var intents=db.sql.queryForList("SELECT phase FROM storage_retirement WHERE attachment_id=? AND submission_id=?",d.id().toString(),id.toString());
+                if(local!=null && !d.id().toString().equals(a.get("storage_key")))throw new IOException("Referencia no canónica");
+                if(policy.independiente() && archive!=null)archive.verificar(id,d,local);
+                var intents=db.sql.queryForList("SELECT phase,reason_code,submission_id FROM storage_retirement WHERE attachment_id=?",d.id().toString());
                 boolean inProgress=!intents.isEmpty();
+                if(inProgress && (!id.toString().equals(intents.getFirst().get("submission_id")) || !motivoRetirada().equals(intents.getFirst().get("reason_code"))))
+                    throw new IOException("Intención no corresponde");
                 boolean retired=Boolean.TRUE.equals(a.get("bytes_retired"));
                 boolean finalized=inProgress && "FINALIZADA".equals(intents.getFirst().get("phase"));
-                if(retired!=finalized) throw new IOException("Marca de retirada sin evidencia concordante");
+                if(retired!=finalized)throw new IOException("Marca de retirada sin evidencia concordante");
+                if(inProgress && !Set.of("RETIRANDO","LIBERADA").contains(state.get("phase")))throw new IOException("Intención sin frontera irreversible");
                 if(!retired) {
-                    // Solo una intención ya durable permite ausencia local al reanudar una retirada interrumpida.
-                    if(local!=null) { if(Files.exists(local,LinkOption.NOFOLLOW_LINKS) || !inProgress) store.verificar(local,d.tamanio(),d.sha256()); }
+                    // Ausencia local solo admisible con intención durable de la misma retirada irreversible.
+                    if(local!=null) {if(Files.exists(local,LinkOption.NOFOLLOW_LINKS)||!inProgress)store.verificar(local,d.tamanio(),d.sha256());}
                     else verifyBlob(d);
                 }
             }
-            String evidence=CanonFormulario.huella("CUSTODIA_Y_RESTAURACION",List.of(e.sha256(),ackHash,e.comunicacion().adjuntos()),mapper);
-            db.sql.update("UPDATE custody_lifecycle SET verified_ms=?,evidence_sha256=?,phase=CASE WHEN phase='OBSERVADA' THEN 'VERIFICADA' ELSE phase END,last_error=NULL WHERE submission_id=? AND phase<>'MINIMIZADA'",clock.millis(),evidence,id.toString());
-            if(state.get("verified_ms")==null)db.event("ALMACENAMIENTO",id.toString(),"ARCHIVO_Y_RESTAURACION_VERIFICADOS");
+            String evidence=evidencia(e,ackHash,firstAck);
+            if(db.sql.update("UPDATE custody_lifecycle SET verified_ms=?,evidence_sha256=?,phase=CASE WHEN phase='OBSERVADA' THEN 'VERIFICADA' ELSE phase END,last_error=NULL WHERE submission_id=? AND phase<>'MINIMIZADA' AND retirement_mode=? AND retirement_policy_ref=?",
+                clock.millis(),evidence,id.toString(),policy.modalidad().name(),policy.aprobacion())!=1)throw new IOException("Política cambió durante verificación");
+            if(state.get("verified_ms")==null)db.event("ALMACENAMIENTO",id.toString(),policy.independiente()?"ARCHIVO_Y_RESTAURACION_VERIFICADOS":"ACK_RETENCION_LIMITADA_VERIFICADA");
         } catch(IOException | RuntimeException failure) {
             var previousError=lifecycle(id).get("last_error");
             db.sql.update("UPDATE custody_lifecycle SET last_error='VERIFICACION_NO_SATISFECHA' WHERE submission_id=? AND phase<>'MINIMIZADA'",id.toString());
-            if(previousError==null)db.event("ALMACENAMIENTO",id.toString(),"VERIFICACION_BLOQUEADA"); throw failure;
+            if(previousError==null)db.event("ALMACENAMIENTO",id.toString(),"VERIFICACION_BLOQUEADA");throw failure;
         }
     }
+    private String motivoRetirada(){return policy.independiente()?"CUSTODIA_INSTITUCIONAL":"ACK_RETENCION_72H";}
     private void verifyBlob(AdjuntosFormulario.Descriptor d) throws IOException {
         try {
             db.sql.query("SELECT content FROM citizen_attachment WHERE id=?",(org.springframework.jdbc.core.RowCallbackHandler)rs->{
@@ -144,12 +191,16 @@ public final class CicloVidaCustodia {
             if(Boolean.TRUE.equals(row.get("content_retired"))){validarMinimizada(id,row);return null;}
             var current=verified(id,row);
             if(!e.equals(current)||!digest(row.get("ack").toString()).equals(state.get("ack_sha256")))throw new IllegalStateException("Custodia cambió");
-            if(Boolean.TRUE.equals(state.get("hold_active"))||Math.max(number(state,"due_ms"),Math.addExact(number(state,"observed_ms"),policy.postAck().toMillis()))>clock.millis()||!Set.of("VERIFICADA","RETIRANDO","LIBERADA").contains(state.get("phase")))throw new IllegalStateException("Conservación temporal vigente");
+            long due=policy.independiente()?Math.max(number(state,"due_ms"),Math.addExact(number(state,"observed_ms"),policy.postAck().toMillis())):Math.addExact(number(row,"first_ack_ms"),policy.postAck().toMillis());
+            if(!policy.coincide(state)||Boolean.TRUE.equals(state.get("hold_active"))||due>clock.millis()||!Set.of("VERIFICADA","RETIRANDO","LIBERADA").contains(state.get("phase")))throw new IllegalStateException("Conservación temporal vigente");
+            try{sinDiscrepancias(current);}catch(IOException mismatch){throw new IllegalStateException("Conservar por discrepancia");}
+            if(!policy.independiente()&&!evidencia(current,digest(row.get("ack").toString()),number(row,"first_ack_ms")).equals(state.get("evidence_sha256")))throw new IllegalStateException("Evidencia de política distinta");
             // La garantía puede haber vencido durante la verificación de archivos; comprobar en la frontera.
-            if(prueba!=null)try{prueba.verificar(current,mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class));}catch(IOException ex){throw new IllegalStateException("Conservar: garantía no vigente");}
+            if(policy.independiente()&&prueba!=null)try{prueba.verificar(current,mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class));}catch(IOException ex){throw new IllegalStateException("Conservar: garantía no vigente");}
             if("VERIFICADA".equals(state.get("phase"))) {
                 db.sql.update("UPDATE custody_lifecycle SET phase='RETIRANDO' WHERE submission_id=?",id.toString());
                 db.event("ALMACENAMIENTO",id.toString(),"RETIRADA_IRREVERSIBLE_INICIADA");
+                if(!policy.independiente())db.event("ALMACENAMIENTO",id.toString(),"RETIRADA_ACK_72H_INICIADA");
             }
             return null;
         });
@@ -157,7 +208,7 @@ public final class CicloVidaCustodia {
         checkpoint.accept("RETIRANDO",id);
         // Otra instancia puede haber terminado y minimizado durante la espera; no reconstruir datos retirados.
         if(Boolean.TRUE.equals(submission(id).get("content_retired")))return;
-        for(var d:e.comunicacion().adjuntos()) retire(d.id(),e.comunicacion().recorridoId(),id,"CUSTODIA_INSTITUCIONAL");
+        for(var d:e.comunicacion().adjuntos()) retire(d.id(),e.comunicacion().recorridoId(),id,motivoRetirada());
         if(db.sql.update("UPDATE custody_lifecycle SET phase='LIBERADA',last_error=NULL WHERE submission_id=? AND phase='RETIRANDO'",id.toString())==1)
             db.event("ALMACENAMIENTO",id.toString(),"COPIA_TRANSITORIA_LIBERADA");
     }
