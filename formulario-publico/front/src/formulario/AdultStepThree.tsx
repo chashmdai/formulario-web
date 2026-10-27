@@ -162,7 +162,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}</div>
 {" "}</div>
 {" "}<div className="pane-fields location-block">
-{" "}<p className="micro-heading">{"\n                          Lugar de los hechos\n                          "}<span className="field-help">{"(si lo conoces)"}</span>
+{" "}<p className="micro-heading">{"\n                          Lugar de los hechos\n                          "}<span className="field-help">{"Selecciona la región y la comuna."}</span>
 {" "}</p>
 {" "}<div className="paired-fields">
 {" "}<div className="field">

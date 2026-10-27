@@ -48,7 +48,7 @@ final class ValidacionAdultos {
                 allowed.addAll(Set.of("riesgo","relacion","hechos-region","hechos-commune","lugar","momento","identifica-responsables"));required(c,"relato");
                 choice(c,"riesgo",Set.of("si","no"),true);choice(c,"relacion",Set.of("madre","padre","cuidador","otro-familiar","docente","salud","testigo","organizacion","otro"),true);
                 if("otro-familiar".equals(c.get("relacion"))){allowed.add("relacion-familiar");choice(c,"relacion-familiar",Set.of("Abuela o abuelo","Tía o tío","Hermana o hermano","Prima o primo","Madrastra o padrastro","Madrina o padrino","Otro parentesco familiar"),true);}
-                geo(c.get("hechos-region"),c.get("hechos-commune"));choice(c,"momento",Set.of("Está ocurriendo actualmente","Ocurrió recientemente","Ocurrió tiempo atrás","No lo sé"),false);choice(c,"identifica-responsables",Set.of("true","false"),false);
+                required(c,"hechos-region");required(c,"hechos-commune");geo(c.get("hechos-region"),c.get("hechos-commune"));choice(c,"momento",Set.of("Está ocurriendo actualmente","Ocurrió recientemente","Ocurrió tiempo atrás","No lo sé"),false);choice(c,"identifica-responsables",Set.of("true","false"),false);
                 if(datos.personas().stream().noneMatch(r->r.personaId().startsWith("afectado-")))invalid();
                 for(var r:datos.personas())related(r,byId.get(r.personaId()),"true".equals(c.get("identifica-responsables")));
                 if(!datos.instituciones().isEmpty()&&!"true".equals(c.get("identifica-responsables")))invalid();

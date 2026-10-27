@@ -69,8 +69,17 @@ describe('Recorridos adultos trasladados del mockup',()=>{
   it('vulneración captura NNA desconocido, adulto relacionado e institución sin inventar identidades',async()=>{
     const {review}=mount();await identity();await reason('vulneracion');await last();await userEvent.click(byId('riesgo-no'));await userEvent.selectOptions(byId('relacion'),'testigo');await userEvent.type(byId('relato'),'Relato sintético');await userEvent.selectOptions(byId('adult-region'),'13');
     await userEvent.click(screen.getByRole('checkbox',{name:/No conozco otros datos/}));await userEvent.click(screen.getByRole('button',{name:/Agregar persona adulta/}));await userEvent.selectOptions(byId('ra-relationship-1'),'Testigo');
-    await userEvent.click(byId('identifica-responsables'));await userEvent.selectOptions(byId('sb-kind-1'),'institucion');await userEvent.type(byId('sb-entity-1'),'Entidad sintética');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));
-    const capture=review.mock.calls[0][0];expect(capture.personas).toEqual([{personaId:'afectado-1',detalles:{datosDesconocidos:'true'}},{personaId:'relacionado-1',detalles:{relacion:'Testigo'}}]);expect(capture.instituciones[0].nombre).toBe('Entidad sintética');expect(capture.personas.some((p:{personaId:string})=>p.personaId.startsWith('senalado'))).toBe(false);
+    await userEvent.click(byId('identifica-responsables'));await userEvent.selectOptions(byId('sb-kind-1'),'institucion');await userEvent.type(byId('sb-entity-1'),'Entidad sintética');
+    for(const id of ['hechos-region','hechos-commune'])expect((byId(id) as HTMLSelectElement).required).toBe(true);
+    await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));
+    await within(byId('adult-errors')).findByText('Completa Región de los hechos.');await within(byId('adult-errors')).findByText('Completa Comuna de los hechos.');
+    await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));await waitFor(()=>expect(document.activeElement).toBe(byId('adult-errors')));expect(review).not.toHaveBeenCalled();
+    for(const id of ['hechos-region','hechos-commune'])expect(byId(id).getAttribute('aria-invalid')).toBe('true');
+    await userEvent.selectOptions(byId('hechos-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));
+    await within(byId('adult-errors')).findByText('Completa Comuna de los hechos.');
+    await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));await waitFor(()=>expect(document.activeElement).toBe(byId('adult-errors')));expect(review).not.toHaveBeenCalled();
+    await userEvent.selectOptions(byId('hechos-commune'),'Santiago');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));
+    const capture=review.mock.calls[0][0];expect(capture.campos).toMatchObject({'hechos-region':'13','hechos-commune':'Santiago'});expect(capture.personas).toEqual([{personaId:'afectado-1',detalles:{datosDesconocidos:'true'}},{personaId:'relacionado-1',detalles:{relacion:'Testigo'}}]);expect(capture.instituciones[0].nombre).toBe('Entidad sintética');expect(capture.personas.some((p:{personaId:string})=>p.personaId.startsWith('senalado'))).toBe(false);
   });
   it('un archivo rechazado bloquea revisión y puede retirarse sin perder el formulario',async()=>{
     const files={replace:vi.fn().mockRejectedValue(new ApiError(400)),clear:vi.fn().mockResolvedValue(undefined)};const {review}=mount(false,files);await identity();await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');

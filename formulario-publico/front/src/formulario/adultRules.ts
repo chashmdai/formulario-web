@@ -9,7 +9,7 @@ export interface PersonReference {personaId:string;detalles:Record<string,string
 export interface InstitutionReference {nombre:string;tipo:string;rol:string;region:string;comuna:string}
 export interface AdultCapture {campos:Record<string,string>;personas:PersonReference[];instituciones:InstitutionReference[];adjuntos:string[]}
 const narratives=new Set(['relato','entrevista-motivo','consulta-general-detalle','stats-descripcion']);
-const labels:Record<string,string>={motivo:'Motivo principal',tema:'Tipo de consulta','adult-region':'Región',relato:'Relato',publico:'Público al que se dirige',actividad:'Actividad','entrevista-motivo':'Motivo de la entrevista','entrevista-rol':'Perfil de quien solicita','entrevista-rol-otro':'Otro perfil','stats-descripcion':'Antecedentes estadísticos solicitados','consulta-general-detalle':'Consulta general','nombre-organizacion':'Nombre de la organización','tipo-organizacion':'Tipo de organización','relacion-familiar':'Parentesco','relacion':'Tu relación con el NNA'};
+const labels:Record<string,string>={motivo:'Motivo principal',tema:'Tipo de consulta','adult-region':'Región','hechos-region':'Región de los hechos','hechos-commune':'Comuna de los hechos',relato:'Relato',publico:'Público al que se dirige',actividad:'Actividad','entrevista-motivo':'Motivo de la entrevista','entrevista-rol':'Perfil de quien solicita','entrevista-rol-otro':'Otro perfil','stats-descripcion':'Antecedentes estadísticos solicitados','consulta-general-detalle':'Consulta general','nombre-organizacion':'Nombre de la organización','tipo-organizacion':'Tipo de organización','relacion-familiar':'Parentesco','relacion':'Tu relación con el NNA'};
 export function adultMaxLength(id:string):number{return narratives.has(id)?5000:500;}
 export function adultRequired(c:FormValues,complete=true):string[]{
   const required=['motivo'];
@@ -21,7 +21,7 @@ export function adultRequired(c:FormValues,complete=true):string[]{
     if(c.tema==='entrevista')required.push('entrevista-motivo','entrevista-rol',...(c['entrevista-rol']==='otro'?['entrevista-rol-otro']:[]));
     if(c.tema==='estadisticas')required.push('stats-descripcion');
   }
-  if(c.motivo==='vulneracion')required.push('riesgo','relacion','relato',...(c.relacion==='otro-familiar'?['relacion-familiar']:[]));
+  if(c.motivo==='vulneracion')required.push('riesgo','relacion','hechos-region','hechos-commune','relato',...(c.relacion==='otro-familiar'?['relacion-familiar']:[]));
   if(c.motivo==='promocion')required.push('organizacion','actividad','publico','relato',...(c.organizacion==='si'?['tipo-organizacion','nombre-organizacion']:[]));
   return required;
 }

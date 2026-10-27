@@ -12,6 +12,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import java.util.stream.Stream;
 import tools.jackson.databind.json.JsonMapper;
 import static cl.nexbyte.siger.formulario.IdentificacionCiudadana.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -38,7 +41,7 @@ class AdultosFormularioJdbcTest {
     }
     Map<String,String> general(){return new HashMap<>(Map.of("motivo","consulta","tema","general","consulta-confirmada","true","consulta-general-detalle","Consulta sintética","adult-region","13"));}
     Map<String,String> promotion(){return new HashMap<>(Map.of("motivo","promocion","organizacion","no","actividad","Taller","publico","Adolescentes","relato","Relato sintético","adult-region","13"));}
-    Map<String,String> violation(){return new HashMap<>(Map.of("motivo","vulneracion","riesgo","no","relacion","testigo","relato","Relato sintético","adult-region","13"));}
+    Map<String,String> violation(){return new HashMap<>(Map.of("motivo","vulneracion","riesgo","no","relacion","testigo","relato","Relato sintético","adult-region","13","hechos-region","13","hechos-commune","Santiago"));}
     DatosFormulario data(Map<String,String> fields,List<DatosFormulario.Relacion> people,List<DatosFormulario.Institucion> institutions){return new DatosFormulario(fields,people,institutions,List.of());}
     RecepcionFormularioJdbc.Estado send(Map<String,String> fields){return service.recibir(UUID.randomUUID(),journey,session,data(fields,List.of(),List.of()));}
     void person(String id,Rol role,Map<String,String> declarations){journeys.identificar(journey,id,role,null,null,session,"127.0.0.1",null);if(!declarations.isEmpty())journeys.declarar(journey,id,declarations,session);}
@@ -68,6 +71,41 @@ class AdultosFormularioJdbcTest {
     @Test void ubicacionesFechasContactoYRelatoSeValidanEnServidor(){
         iniciar(Tipo.ADULTO_DECLARADO);for(var patch:List.of(Map.of("adult-region","00"),Map.of("adult-commune","Comuna inexistente"),Map.of("email","correo-invalido"),Map.of("telefono","123"),Map.of("fecha-actividad","2027-02-30"),Map.of("promocion-commune","Santiago"),Map.of("relato","x".repeat(5001)),Map.of("actividad","Actividad inventada"))){var c=promotion();c.putAll(patch);assertThrows(IllegalArgumentException.class,()->send(c));}
         for(var key:List.of("relato","publico","actividad","organizacion")){var c=promotion();c.remove(key);assertThrows(IllegalArgumentException.class,()->send(c));}
+    }
+    static Stream<Arguments> hechosInvalidos(){
+        return Stream.of(
+            Arguments.of("región ausente",null,"Santiago"),
+            Arguments.of("comuna ausente","13",null),
+            Arguments.of("ambas ausentes",null,null),
+            Arguments.of("región vacía","","Santiago"),
+            Arguments.of("comuna vacía","13",""),
+            Arguments.of("ambas vacías","",""),
+            Arguments.of("región en blanco","   ","Santiago"),
+            Arguments.of("comuna en blanco","13","   "),
+            Arguments.of("ambas en blanco","   ","   "),
+            Arguments.of("región inválida","00","Santiago"),
+            Arguments.of("comuna ajena a la región","05","Santiago"));
+    }
+    @ParameterizedTest(name="{0}") @MethodSource("hechosInvalidos")
+    void vulneracionRechazaTerritorioDeHechosIncompletoOInconsistente(String scenario,String region,String commune){
+        iniciar(Tipo.ADULTO_DECLARADO);var affected=unknown();var c=violation();c.remove("hechos-region");c.remove("hechos-commune");
+        if(region!=null)c.put("hechos-region",region);if(commune!=null)c.put("hechos-commune",commune);
+        assertThrows(IllegalArgumentException.class,()->service.recibir(UUID.randomUUID(),journey,session,data(c,List.of(affected),List.of())),scenario);
+        assertEquals("BORRADOR",journeys.consultar(journey,session).estado());assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
+    }
+    @ParameterizedTest @ValueSource(strings={"ADULTO_DECLARADO","ADULTO_CU"})
+    void vulneracionConTerritorioValidoSeCustodiaFirmadaEIdempotente(String kind){
+        iniciar(Tipo.valueOf(kind));var affected=unknown();var c=violation();c.put("hechos-region","05");c.put("hechos-commune","Valparaíso");
+        var key=UUID.randomUUID();var payload=data(c,List.of(affected),List.of());var state=service.recibir(key,journey,session,payload);
+        assertEquals(state,service.recibir(key,journey,session,payload));var delivery=service.reclamar(1).getFirst().entrega();
+        delivery.validar(Map.of("test-publico",signer.getPublic()),mapper);
+        assertEquals(c,delivery.comunicacion().datos().campos());assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
+    }
+    @Test void territorioNnaAfectadoConservaComunaOpcional(){
+        iniciar(Tipo.ADULTO_DECLARADO);person("afectado-1",Rol.AFECTADO_NNA,Map.of("primerNombre","NOMBRE"));
+        var affected=new DatosFormulario.Relacion("afectado-1",Map.of("region","13"));
+        service.recibir(UUID.randomUUID(),journey,session,data(violation(),List.of(affected),List.of()));
+        assertEquals(List.of(affected),service.reclamar(1).getFirst().entrega().comunicacion().datos().personas());
     }
     @Test void vulneracionPermiteDatosNnaDesconocidosSinRelajarMinimosDelPresentador(){
         iniciar(Tipo.ADULTO_DECLARADO);var r=unknown();var c=violation();service.recibir(UUID.randomUUID(),journey,session,data(c,List.of(r),List.of()));

@@ -75,6 +75,12 @@ class FormularioCompletoJdbcTest {
         assertEquals(409,assertThrows(FalloTecnico.class,()->journeys.reiniciarPersona(journey,"presentador-nna",session)).status);
         assertEquals(409,assertThrows(FalloTecnico.class,()->files.reemplazar(journey,session,List.of())).status);
     }
+    @Test void nnaIndependienteMantieneRegionObligatoriaYComunaOpcional(){
+        var fields=new HashMap<>(datos().campos());fields.remove("nna-region");
+        assertThrows(IllegalArgumentException.class,()->service.recibir(UUID.randomUUID(),journey,session,datos(fields,List.of())));
+        fields.put("nna-region","13");service.recibir(UUID.randomUUID(),journey,session,datos(fields,List.of()));
+        assertEquals(fields,service.reclamar(1).getFirst().entrega().comunicacion().datos().campos());assertFalse(fields.containsKey("nna-commune"));
+    }
     @Test void validacionCondicionalRechazaCamposInactivosYProcedenciasInyectadas(){
         for(var patch:List.of(Map.of("nna-region","00"),Map.of("nna-commune","COMUNA INVENTADA"),Map.of("nna-story","x".repeat(5001)),Map.of("nna-primary-email","oculto@example.test"),Map.of("autenticada","true"),Map.of("nna-secondary-method","email"),Map.of("nna-treatment-text","oculto"))){
             var fields=new HashMap<>(datos().campos());fields.putAll(patch);assertThrows(IllegalArgumentException.class,()->service.recibir(UUID.randomUUID(),journey,session,datos(fields,List.of())));

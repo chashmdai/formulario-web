@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { adultCapture, adultMaxLength, adultValues, validateAdult, validateCards } from './adultRules';
 import type { AdultPersonCard } from './adultRules';
 import type { IdentityView } from './api';
+import type { FormValues } from './nnaRules';
 const general=()=>({motivo:'consulta',tema:'general','consulta-confirmada':'true','consulta-general-detalle':'Consulta sintética','adult-region':'13'});
 const promotion=()=>({motivo:'promocion',organizacion:'no',actividad:'Taller',publico:'Adolescentes',relato:'Relato sintético','adult-region':'13'});
-const violation=()=>({motivo:'vulneracion',riesgo:'no',relacion:'testigo',relato:'Relato sintético','adult-region':'13'});
+const violation=()=>({motivo:'vulneracion',riesgo:'no',relacion:'testigo',relato:'Relato sintético','adult-region':'13','hechos-region':'13','hechos-commune':'Santiago'});
 const view=(id:string):IdentityView=>({personaId:id,estado:'REVISADO',autenticada:false,runInformado:false,camposFaltantes:['primerNombre','primerApellido'],camposObligatorios:[],valoresDeclarados:{},mensaje:''});
 describe('Reglas de captura adulta trasladadas del mockup',()=>{
   it('distingue paso de motivo y captura completa, y bloquea la ruta de empleo',()=>{
@@ -36,6 +37,37 @@ describe('Reglas de captura adulta trasladadas del mockup',()=>{
     expect(validateAdult(violation())).toEqual({});expect(validateAdult({...violation(),riesgo:''})).toHaveProperty('riesgo');expect(validateAdult({...violation(),relacion:'otro-familiar'})).toHaveProperty('relacion-familiar');
     expect(validateAdult({...violation(),relacion:'otro-familiar','relacion-familiar':'Abuela o abuelo'})).toEqual({});expect(validateAdult({...violation(),email:'invalido',telefono:'123','hechos-region':'13','hechos-commune':'Comuna inventada'})).toHaveProperty('email');
     expect(validateAdult({...violation(),email:'sintetico@example.test',telefono:'+56 9 1234 5678'})).toEqual({});
+  });
+  it.each([
+    ['región ausente',undefined,'Santiago',['hechos-region','hechos-commune']],
+    ['comuna ausente','13',undefined,['hechos-commune']],
+    ['ambas ausentes',undefined,undefined,['hechos-region','hechos-commune']],
+    ['región vacía','','Santiago',['hechos-region','hechos-commune']],
+    ['comuna vacía','13','',['hechos-commune']],
+    ['ambas vacías','','',['hechos-region','hechos-commune']],
+    ['región en blanco','   ','Santiago',['hechos-region','hechos-commune']],
+    ['comuna en blanco','13','   ',['hechos-commune']],
+    ['ambas en blanco','   ','   ',['hechos-region','hechos-commune']],
+    ['región inválida','00','Santiago',['hechos-region','hechos-commune']],
+    ['comuna ajena a la región','05','Santiago',['hechos-commune']],
+  ] as const)('vulneración rechaza %s',(_case,region,commune,invalid)=>{
+    const c:Record<string,string>={...violation()};
+    delete c['hechos-region'];delete c['hechos-commune'];
+    if(region!==undefined)c['hechos-region']=region;if(commune!==undefined)c['hechos-commune']=commune;
+    expect(Object.keys(validateAdult(c)).sort()).toEqual([...invalid].sort());
+  });
+  it.each([['13','Santiago'],['05','Valparaíso']])('vulneración admite y captura el territorio válido %s / %s',(region,commune)=>{
+    const c:FormValues={...violation(),'hechos-region':region,'hechos-commune':commune};
+    expect(validateAdult(c)).toEqual({});
+    expect(adultCapture(c,[],[]).campos).toMatchObject({'hechos-region':region,'hechos-commune':commune});
+  });
+  it('el territorio del NNA afectado conserva su opcionalidad',()=>{
+    const affected:AdultPersonCard={id:'afectado-1',role:'AFECTADO_NNA',detalles:{}};
+    const known={...view(affected.id),valoresDeclarados:{primerNombre:'NOMBRE'}};
+    const views=new Map([[affected.id,known]]);
+    expect(validateCards(violation(),[affected],views)).toEqual({});
+    expect(validateCards(violation(),[{...affected,detalles:{region:'13'}}],views)).toEqual({});
+    expect(validateCards(violation(),[{...affected,detalles:{region:'05',comuna:'Santiago'}}],views)).toHaveProperty(affected.id);
   });
   it('no incorpora personas de otra ruta ni instituciones desmarcadas',()=>{
     const cards:AdultPersonCard[]=[{id:'afectado-1',role:'AFECTADO_NNA',detalles:{datosDesconocidos:'true'}},{id:'senalado-1',role:'PERSONA_SENALADA',kind:'institucion',detalles:{nombre:'Entidad',tipo:'Organismo público',region:'13',comuna:'Santiago'}}];
