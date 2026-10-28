@@ -75,12 +75,14 @@ class ClientePiseeTest {
             assertThat(pending.get(2, TimeUnit.SECONDS).estado()).isEqualTo(TIMEOUT);
         } finally { release.countDown(); }
     }
-    @Test void noHabilitaQAProduccionNiCredencialesEnUrl() throws Exception {
+    @Test void rechazaOrigenesInsegurosAmbientesDesconocidosYCredencialAusente() throws Exception {
         assertThatThrownBy(() -> new ClientePisee(true, URI.create("http://user:pass@localhost"), null, Duration.ofSeconds(1), 1, Clock.systemUTC())).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ClientePisee(true, URI.create("http://publico.example"), null, Duration.ofSeconds(1), 1, Clock.systemUTC())).isInstanceOf(IllegalArgumentException.class);
         var env = new MockEnvironment().withProperty("PISEE_SRCEI_ENABLED", "true").withProperty("PISEE_ENVIRONMENT", "PROD").withProperty("PISEE_DEV_AUTHORIZED", "true");
-        assertThatThrownBy(() -> new PiseeConfiguration().clientePisee(env)).isInstanceOf(IllegalStateException.class);
-        env.withProperty("PISEE_ENVIRONMENT", "DEV"); env.setActiveProfiles("production");
-        assertThatThrownBy(() -> new PiseeConfiguration().clientePisee(env)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new PiseeConfiguration().clientePisee(env)).isInstanceOf(IllegalArgumentException.class);
+        env.withProperty("PISEE_ENVIRONMENT", "PRODUCTION"); env.setActiveProfiles("production");
+        // El ambiente ya es admisible; sigue siendo obligatoria la credencial privada del Nodo.
+        assertThatThrownBy(() -> new PiseeConfiguration().clientePisee(env)).isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("PISEE_LOCAL_AUTHORIZATION_PATH");
     }
 }

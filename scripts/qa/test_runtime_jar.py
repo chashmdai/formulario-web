@@ -264,6 +264,22 @@ public class TinyServer {
         self.assertFalse((self.private / "app.pid").exists())
         self.assertFalse((self.private / "migration.log").exists())
 
+    def test_cli_cu_productivo_usa_habilitacion_privada_sin_bloqueo_por_ambiente(self):
+        props={"server.address":"127.0.0.1","server.port":"18443","server.ssl.enabled":"true",
+               "siger.claveunica.environment":"PRODUCTION","siger.claveunica.callback-approved":"true",
+               "siger.claveunica.public-origin":"https://claveunica.formularioadulto.defensorianinez.gob.cl",
+               "siger.claveunica.redirect-uri":"https://claveunica.formularioadulto.defensorianinez.gob.cl/redirect",
+               "siger.claveunica.logout-uri":"https://claveunica.formularioadulto.defensorianinez.gob.cl/logout"}
+        self.runtime.config.write_text("".join(k+"="+v+chr(10) for k,v in props.items()))
+        command=[sys.executable,str(LINUX/"arrancar-nna-local.py"),str(self.private),"--estado"]
+        result=subprocess.run(command,check=True,capture_output=True,text=True)
+        self.assertEqual("DETENIDO",json.loads(result.stdout)["estado"])
+        self.assertFalse((self.private/"app.pid").exists())
+        for key,value in [("server.address","0.0.0.0"),("server.ssl.enabled","false"),("siger.claveunica.redirect-uri","https://otro.gob.cl/redirect")]:
+            invalid=dict(props);invalid[key]=value
+            self.runtime.config.write_text("".join(k+"="+v+chr(10) for k,v in invalid.items()))
+            self.assertNotEqual(0,subprocess.run(command,capture_output=True).returncode)
+
     def test_multimedia_cli_conserva_guardas_del_laboratorio(self):
         self.runtime.config.write_text("server.address=127.0.0.1\nserver.port=19443\nserver.ssl.enabled=true\nsiger.claveunica.callback-approved=false\nPISEE_SRCEI_ENABLED=false\nformulario.multimedia.habilitada=true\npublico.db.url=jdbc:mysql://127.0.0.1:13306/robust_public_media_lab?fixture=true\n")
         command = [sys.executable, str(LINUX / "arrancar-multimedia-local.py"), str(self.private), "--estado"]

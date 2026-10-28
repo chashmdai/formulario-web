@@ -1,0 +1,21 @@
+# Overlay de referencia, no autónomo. Credenciales reales exclusivamente en configuración privada.
+siger.claveunica.environment=PRODUCTION
+siger.claveunica.client-id=${CU_CLIENT_ID}
+siger.claveunica.client-secret=${CU_CLIENT_SECRET}
+siger.claveunica.callback-approved=true
+siger.claveunica.public-origin=https://claveunica.formularioadulto.defensorianinez.gob.cl
+siger.claveunica.redirect-uri=https://claveunica.formularioadulto.defensorianinez.gob.cl/redirect
+siger.claveunica.logout-uri=https://claveunica.formularioadulto.defensorianinez.gob.cl/logout
+server.servlet.session.cookie.secure=true
+# Nodo actual DEV. Conservar su URL, autorización y allowlist privadas existentes.
+PISEE_SRCEI_ENABLED=true
+PISEE_ENVIRONMENT=DEV
+PISEE_DEV_AUTHORIZED=true
+# Cuando TI entregue Nodo productivo: cambiar a PRODUCTION y actualizar
+# PISEE_BASE_URL y PISEE_LOCAL_AUTHORIZATION_PATH en configuración privada.
+# La allowlist DEV no se aplica al Nodo productivo. Roles, finalidad y cuotas se mantienen.
+# No habilitar eliminación como efecto de configurar CU:
+ciclo-vida.online-habilitado=false
+ciclo-vida.eliminacion.habilitada=false
+ciclo-vida.modalidad=GARANTIA_INDEPENDIENTE
+ciclo-vida.ack-riesgo-aceptado=false

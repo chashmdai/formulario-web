@@ -15,10 +15,13 @@ public class PiseeConfiguration {
         boolean enabled = env.getProperty("PISEE_SRCEI_ENABLED", Boolean.class, false);
         String authorization = null;
         if (enabled) {
-            if (env.matchesProfiles("production", "prod") || !"SANDBOX".equals(env.getProperty("siger.claveunica.environment", "SANDBOX")))
-                throw new IllegalStateException("La integración DEV no puede habilitarse en un proceso QA/producción");
-            if (!"DEV".equals(env.getProperty("PISEE_ENVIRONMENT")) || !env.getProperty("PISEE_DEV_AUTHORIZED", Boolean.class, false))
-                throw new IllegalStateException("Este adaptador requiere autorización explícita DEV; QA/PROD aún no validados");
+            String stage = env.getRequiredProperty("PISEE_ENVIRONMENT");
+            if (!java.util.Set.of("DEV", "PRODUCTION").contains(stage))
+                throw new IllegalArgumentException("PISEE_ENVIRONMENT debe ser DEV o PRODUCTION");
+            if ("DEV".equals(stage) && !env.getProperty("PISEE_DEV_AUTHORIZED", Boolean.class, false))
+                throw new IllegalStateException("PISEE DEV requiere su autorización existente");
+            // El ambiente de credenciales CU es independiente del Nodo. La autorización
+            // del consumidor productivo la acredita la configuración privada del Nodo.
             String file = env.getRequiredProperty("PISEE_LOCAL_AUTHORIZATION_PATH");
             Path path = Path.of(file);
             if (Files.size(path) > 256) throw new IllegalArgumentException("Credencial local PISEE excesiva");

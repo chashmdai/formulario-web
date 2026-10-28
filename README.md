@@ -16,7 +16,7 @@ Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexby
 
 > **Actualización · 26/10/2026.** V12 implementa una [alternativa de 72 h por ACK](docs/RETENCION_ACK_72H_2026-10-26.md), deshabilitada por defecto, sin exigir respaldo individual. La política independiente sigue siendo predeterminada. Código local, sin despliegue, retiradas ni push.
 
-> **Referencia histórica · 25/10/2026.** Este cierre reúne el baseline funcional, multimedia, receptor transitorio V10/V11 y agente Windows 1.1. Las verificaciones del cierre están en el [registro de ingeniería](docs/CIERRE_INGENIERIA_FORMULARIO_PUBLICO_2026-10-25.md). **Publicación de código no significa despliegue:** los laboratorios existentes siguen en V7/V8, con el mantenimiento nuevo y la retirada deshabilitados. La estimación operativa del **96 %** no es cobertura de pruebas, certificación, aceptación definitiva ni autorización productiva. El baseline sigue siendo evolutivo.
+> **Referencia histórica · 25/10/2026.** Este cierre reúne el baseline funcional, multimedia, receptor transitorio V10/V11 y agente Windows 1.1. Las verificaciones del cierre están en el [registro de ingeniería](docs/CIERRE_INGENIERIA_FORMULARIO_PUBLICO_2026-10-25.md). **Actualización 28/10:** los laboratorios ya se migraron a V12, con mantenimiento y retirada deshabilitados. Ver [actualización local](docs/ACTUALIZACION_LAB_MAIN_2026-10-28.md) y [CU productiva y PISEE configurable](docs/CLAVEUNICA_PRODUCCION_PISEE_2026-10-28.md). La estimación operativa del **96 %** no es cobertura de pruebas, certificación, aceptación definitiva ni autorización productiva. El baseline sigue siendo evolutivo.
 
 ## Índice
 
@@ -370,13 +370,13 @@ Las dos omisiones son workers reales (`MEDIA_REAL_CHECK`) y recuperación de pro
 
 | Estado de infraestructura al consolidar | Situación |
 |---|---|
-| Laboratorio integrado | `robust_public_local`, V7; multimedia apagada; integraciones Sandbox/DEV existentes conservadas |
-| Laboratorio multimedia | `robust_public_media_lab`, V8; multimedia activa solo allí |
-| Código publicado / local | V1–V11 publicados; V12/pruebas locales revisables, sin despliegue o push; publicar no aplica migraciones |
+| Laboratorio integrado | `robust_public_local`, V12; CU productiva para certificación, PISEE DEV y multimedia con almacén propio |
+| Laboratorio multimedia | `robust_public_media_lab`, V12; multimedia activa y almacén independiente |
+| Código publicado / local | V12 publicada y desplegada en WSL; preparación CU/PISEE del 28/10 en rama local, sin push; publicar no aplica migraciones |
 | Mantenimiento / retirada nuevos | `ciclo-vida.online-habilitado=false` y `ciclo-vida.eliminacion.habilitada=false` —o ausentes— en ambos laboratorios |
-| Producción | No habilitada; guardas existentes de recorridos Sandbox/perfiles de laboratorio intactas |
+| Producción | Código admite CU/recorridos y Nodo productivos mediante configuración; infraestructura pública y habilitaciones de proveedores aún no acreditadas |
 
-La puesta en operación requiere calificar presupuesto real y respaldo/restore, aplicar las migraciones pendientes hasta V12 y observar con retirada cerrada antes de autorizarla. En la modalidad independiente requiere agente/medio independiente y claves separadas; en ACK de 72 h requiere aceptación y referencia de riesgo explícitas y las comprobaciones del [procedimiento V12](docs/RETENCION_ACK_72H_2026-10-26.md). La minimización y el mecanismo periódico están implementados. Además de la instalación/configuración, las guardas deliberadas de producción requieren revisión y cambio autorizado con pruebas; no se levantan como efecto de publicar este código. Levantar las guardas productivas y el [hardening final de ambos aplicativos](docs/PLAN_HARDENING_PRODUCCION_DIFERIDO.md) pertenecen a una unidad posterior explícita.
+La puesta en operación requiere calificar presupuesto real y respaldo/restore; los laboratorios ya están en V12 y mantienen la retirada cerrada. La VM definitiva debe aplicar sus migraciones de forma controlada. En la modalidad independiente requiere agente/medio independiente y claves separadas; en ACK de 72 h requiere aceptación y referencia de riesgo explícitas y las comprobaciones del [procedimiento V12](docs/RETENCION_ACK_72H_2026-10-26.md). La minimización y el mecanismo periódico están implementados. Las restricciones artificiales por ambiente de CU/formulario se retiraron mediante el cambio autorizado del 28/10, con regresiones. Permanecen TLS/OIDC, autorización por recurso, privacidad y custodia. El [hardening final de ambos aplicativos](docs/PLAN_HARDENING_PRODUCCION_DIFERIDO.md) sigue siendo una unidad operativa posterior.
 
 Para continuar: leer [arquitectura](docs/ARQUITECTURA_RECEPTOR_TRANSITORIO.md), [checkpoint](docs/CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) y [consolidación en main](docs/CONSOLIDACION_MAIN_2026-10-25.md); revisar rama/status/diff antes de editar, conservar datos/commits y no modificar contratos, claves ni migraciones aplicadas por cambios de UI. Los informes fechados del 23–24/10 y V9 conservan evidencia histórica; prevalecen la arquitectura vigente y su extensión V12 para retención y operación. **No iniciar nuevas funcionalidades ni habilitar retiradas por el solo hecho de publicar código.**
 
@@ -683,7 +683,7 @@ Tras autenticar se cambia el identificador de sesión, se sustituye el principal
 
 `CU_REDIRECT_URI` debe corresponder al callback aprobado `/redirect` y `CU_LOGOUT_URI` al retorno `/logout`. El POST `/auth/logout` exige CSRF, invalida sesión/cookie y redirige al logout del proveedor. El retorno GET no cierra por sí solo una sesión CU todavía activa: devuelve 409; `/auth/session-expired` sirve para cerrar el proveedor cuando la sesión local ya expiró.
 
-[ClaveUnicaProperties](formulario-publico/backend/src/main/java/cl/nexbyte/siger/identidad/ClaveUnicaProperties.java) valida URIs, secretos y cookie Secure. PRODUCTION exige HTTPS, dominios institucionales .gob.cl y callback aprobado. **Esto no elimina la guarda adicional de FormularioConfiguration que restringe los recorridos nuevos a SANDBOX.** La habilitación productiva futura exige revisar y probar esas guardas de código, además de credenciales y registro de dominio. No se ejecutó en este cierre.
+[ClaveUnicaProperties](formulario-publico/backend/src/main/java/cl/nexbyte/siger/identidad/ClaveUnicaProperties.java) valida URIs, secretos y cookie Secure. PRODUCTION exige HTTPS, dominios institucionales .gob.cl y callback aprobado. El formulario ya no restringe sus recorridos a SANDBOX: CU y PISEE seleccionan ambientes independientes. El laboratorio permite presentar el Client ID productivo para certificación mientras el Nodo sigue en DEV. Esto no acredita la activación del proveedor ni una instalación pública productiva.
 
 La evidencia real Sandbox anterior comprende autorización → callback → intercambio → identidad → sesión → logout, sin saltar TLS/OIDC: [informe HTTPS](docs/SANDBOX_HTTPS_WSL_2026-10-23.md), [cierre adulto](docs/CIERRE_ADULTOS_2026-10-24.md). No se repitió contra Gobierno en esta auditoría. El hostname local autorizado no equivale a DNS público ni a habilitación de producción.
 
@@ -704,7 +704,7 @@ La consulta se asocia a recorrido/persona y se persiste; los leases, revisiones 
 
 El Nodo PISEE Linux es un servicio separado en red privada, con estado/certificados institucionales montados fuera de la imagen. El backend utiliza su interfaz local autorizada, no los certificados del Nodo para firmar comprobantes. La correspondencia de su par X.509, rutas y configuración forma parte del procedimiento PISEE; no regenerar certificados o copiar backups arbitrarios. [Preparación Linux](docs/LINUX_DOCKER.md) y [manual de repositorios](docs/MANUAL_REPOSITORIOS.md).
 
-[PiseeConfiguration](formulario-publico/backend/src/main/java/cl/nexbyte/siger/srcei/PiseeConfiguration.java) exige autorización explícita DEV y SANDBOX, rechaza prod/production y otros ambientes no validados. `PISEE_ALLOWED_RUNS_PATH` es una lista privada acotada; no se publica su contenido. `PISEE_BASE_URL` apunta a la red local autorizada, con timeout/concurrencia configurables. Producción SRCeI requiere habilitación, certificados, conectividad y revisión del adaptador/guardas con evidencia del ambiente de destino; no basta cambiar un booleano.
+[PiseeConfiguration](formulario-publico/backend/src/main/java/cl/nexbyte/siger/srcei/PiseeConfiguration.java) admite `PISEE_ENVIRONMENT=DEV` o `PRODUCTION` independientemente de CU. DEV conserva `PISEE_DEV_AUTHORIZED` y la allowlist privada. En PRODUCTION, el Nodo institucional autoriza las consultas del presentador; se mantienen consentimiento, módulo 11, cuotas y prohibición de consultas de terceros. El cambio de Nodo se hace por configuración: origen, autorización local y ambiente, sin recompilar si conserva el contrato. Habilitación, certificados, conectividad y recuperación del servicio real se verifican cuando TI entregue el Nodo.
 
 ### Inventario de confianza: no intercambiar certificados y firmas
 
@@ -800,10 +800,10 @@ En todos: MySQL/IPC/Nodo no se publican; SIGER nunca recibe conexiones entrantes
 | Área | Clasificación del estado | Requisito antes de habilitar |
 |---|---|---|
 | Recorridos, validaciones, custodia e idempotencia | Implementado/comprobado con pruebas y laboratorio | Incorporar observaciones funcionales compatibles y aceptación del recorrido de destino |
-| Guardas production/prod y SANDBOX | **Bloqueo real de producción, deliberado en código** | Revisión y cambio autorizado con pruebas del ambiente; no existe una bandera que certifique o salte esa revisión |
+| Ambientes de aplicación | Restricción artificial Sandbox/prod retirada con pruebas; TLS/OIDC y controles documentales conservados | Configurar TLS y despliegue de la VM; quitar una restricción no certifica infraestructura |
 | Dominio/HTTPS/ingreso público | Preparado parcialmente, no desplegado públicamente | TI aprueba red, dominio, cadena, proxy y operación/renovación; comprobar trayecto real |
 | ClaveÚnica | Sandbox real validado anteriormente | Cliente/callback/secretos/algoritmo de producción y pruebas autorizadas de login/logout |
-| PISEE/SRCeI | DEV autorizado validado; producción bloqueada | Habilitación/certificados/conectividad y revisión del adaptador/guardas sin reutilizar DEV |
+| PISEE/SRCeI | DEV conservado; selección productiva implementada con dobles | Instalar el Nodo productivo aprobado, certificados/autorización y conexión; verificar el servicio real |
 | Contrato y consumidor SIGER | Contrato 1.0/1.1 y evidencia sintética/artefacto previo | Confirmar la versión realmente instalada y E2E de ambos entornos, COMMIT/ACK, duplicados y documentos |
 | Multimedia | Perfil acotado probado en laboratorio | Calificar máximos físicos, firmas AV, aislamiento y capacidad; nuevas cargas del despliegue deben usar el perfil inspeccionado |
 | Canal de adjuntos clásico | Compatibilidad/BLOB históricos conservados; validación básica+AV | No presentarlo como análisis profundo de PDF/imágenes; con multimedia habilitada el POST multipart nuevo devuelve 409 |

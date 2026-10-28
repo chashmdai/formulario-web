@@ -12,21 +12,21 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("directorio_privado", type=Path)
     opciones(p)
-    p.add_argument("--permitir-cu-sandbox", action="store_true", help="Opt-in explícito que conserva callbacks oficiales")
+    p.add_argument("--permitir-cu-sandbox", action="store_true", help="Compatibilidad: habilitación CU controlada por callback-approved en configuración privada")
     a = p.parse_args()
     try:
         runtime = RuntimeJar(a.directorio_privado, 18443)
         private = runtime.private
         root = Path(__file__).resolve().parents[2]
         props = dict(line.split("=", 1) for line in runtime.config.read_text().splitlines() if "=" in line and not line.startswith("#"))
-        if props.get("server.address") != "127.0.0.1" or props.get("server.port") != "18443" or props.get("server.ssl.enabled") != "true" or props.get("siger.claveunica.environment") != "SANDBOX":
-            p.error("Solo laboratorio integrado loopback/TLS Sandbox")
-        if props.get("siger.claveunica.callback-approved") != "false" and not a.permitir_cu_sandbox:
-            p.error("El callback requiere --permitir-cu-sandbox")
-        if a.permitir_cu_sandbox:
+        if props.get("server.address") != "127.0.0.1" or props.get("server.port") != "18443" or props.get("server.ssl.enabled") != "true":
+            p.error("Solo laboratorio integrado loopback 18443/TLS")
+        if props.get("siger.claveunica.environment") not in {"SANDBOX", "QA", "PRODUCTION"}:
+            p.error("Ambiente CU inválido")
+        if props.get("siger.claveunica.callback-approved") == "true":
             domain = "https://claveunica.formularioadulto.defensorianinez.gob.cl"
             if props.get("siger.claveunica.redirect-uri") != domain + "/redirect" or props.get("siger.claveunica.logout-uri") != domain + "/logout" or props.get("siger.claveunica.public-origin") != domain:
-                p.error("Conservar exactamente callbacks y origen oficiales Sandbox")
+                p.error("Conservar exactamente callbacks y origen registrados")
         os.umask(0o077)
         with runtime.lock():
             result = runtime.action(a)
