@@ -8,5 +8,7 @@ services:
     ports: !reset []
     cap_add: [NET_BIND_SERVICE]
     volumes:
+      # Hoja adicional para el nuevo hostname; clave y CA existentes se conservan.
+      - ${FORMULARIO_TLS_CERT_FILE:-${SANDBOX_TLS_DIR}/site.pem}:/run/siger/site.pem:ro
       - ./sandbox/Caddyfile.formulario-local:/etc/caddy/Caddyfile:ro
       - ${SANDBOX_TLS_DIR:?Reutilizar TLS local confiado}/rootCA.pem:/run/siger/rootCA.pem:ro

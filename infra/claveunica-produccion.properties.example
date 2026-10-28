@@ -1,11 +1,12 @@
+# Registrar estas URI exactas en Gobierno Digital antes de validar un login real.
 # Overlay de referencia, no autónomo. Credenciales reales exclusivamente en configuración privada.
 siger.claveunica.environment=PRODUCTION
 siger.claveunica.client-id=${CU_CLIENT_ID}
 siger.claveunica.client-secret=${CU_CLIENT_SECRET}
 siger.claveunica.callback-approved=true
-siger.claveunica.public-origin=https://claveunica.formularioadulto.defensorianinez.gob.cl
-siger.claveunica.redirect-uri=https://claveunica.formularioadulto.defensorianinez.gob.cl/redirect
-siger.claveunica.logout-uri=https://claveunica.formularioadulto.defensorianinez.gob.cl/logout
+siger.claveunica.public-origin=https://formulario.defensorianinez.cl
+siger.claveunica.redirect-uri=https://formulario.defensorianinez.cl/redirect
+siger.claveunica.logout-uri=https://formulario.defensorianinez.cl/logout
 server.servlet.session.cookie.secure=true
 # Nodo actual DEV. Conservar su URL, autorización y allowlist privadas existentes.
 PISEE_SRCEI_ENABLED=true

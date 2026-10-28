@@ -280,6 +280,24 @@ public class TinyServer {
             self.runtime.config.write_text("".join(k+"="+v+chr(10) for k,v in invalid.items()))
             self.assertNotEqual(0,subprocess.run(command,capture_output=True).returncode)
 
+    def test_cli_dominio_formulario_exacto_y_callbacks_coherentes(self):
+        origin = "https://formulario.defensorianinez.cl"
+        props = {"server.address": "127.0.0.1", "server.port": "18443", "server.ssl.enabled": "true",
+                 "siger.claveunica.environment": "PRODUCTION", "siger.claveunica.callback-approved": "true",
+                 "siger.claveunica.public-origin": origin, "siger.claveunica.redirect-uri": origin + "/redirect",
+                 "siger.claveunica.logout-uri": origin + "/logout"}
+        command = [sys.executable, str(LINUX / "arrancar-nna-local.py"), str(self.private), "--estado"]
+        self.runtime.config.write_text("".join(k + "=" + v + chr(10) for k, v in props.items()))
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertEqual("DETENIDO", json.loads(result.stdout)["estado"])
+        for key, value in [("siger.claveunica.public-origin", origin + ".example.org"),
+                           ("siger.claveunica.redirect-uri", origin + "/otra-ruta"),
+                           ("siger.claveunica.logout-uri", "https://otro.gob.cl/logout")]:
+            invalid = dict(props); invalid[key] = value
+            self.runtime.config.write_text("".join(k + "=" + v + chr(10) for k, v in invalid.items()))
+            self.assertNotEqual(0, subprocess.run(command, capture_output=True).returncode)
+        self.assertFalse((self.private / "app.pid").exists())
+
     def test_multimedia_cli_conserva_guardas_del_laboratorio(self):
         self.runtime.config.write_text("server.address=127.0.0.1\nserver.port=19443\nserver.ssl.enabled=true\nsiger.claveunica.callback-approved=false\nPISEE_SRCEI_ENABLED=false\nformulario.multimedia.habilitada=true\npublico.db.url=jdbc:mysql://127.0.0.1:13306/robust_public_media_lab?fixture=true\n")
         command = [sys.executable, str(LINUX / "arrancar-multimedia-local.py"), str(self.private), "--estado"]

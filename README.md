@@ -18,6 +18,8 @@ Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexby
 
 > **Referencia histórica · 25/10/2026.** Este cierre reúne el baseline funcional, multimedia, receptor transitorio V10/V11 y agente Windows 1.1. Las verificaciones del cierre están en el [registro de ingeniería](docs/CIERRE_INGENIERIA_FORMULARIO_PUBLICO_2026-10-25.md). **Actualización 28/10:** los laboratorios ya se migraron a V12, con mantenimiento y retirada deshabilitados. Ver [actualización local](docs/ACTUALIZACION_LAB_MAIN_2026-10-28.md) y [CU productiva y PISEE configurable](docs/CLAVEUNICA_PRODUCCION_PISEE_2026-10-28.md). La estimación operativa del **96 %** no es cobertura de pruebas, certificación, aceptación definitiva ni autorización productiva. El baseline sigue siendo evolutivo.
 
+**Dominio local vigente · 28/10/2026:** [https://formulario.defensorianinez.cl/?vista=inicio](https://formulario.defensorianinez.cl/?vista=inicio). Resolución local Windows/WSL y TLS de laboratorio; el DNS público no se ha creado. ClaveÚnica necesita registrar las nuevas URI en Gobierno Digital. Ver [cambio de dominio, verificaciones y reversión](docs/DOMINIO_FORMULARIO_2026-10-28.md).
+
 ## Índice
 
 - [1. Qué resuelve y dónde termina su responsabilidad](#s1)
@@ -683,7 +685,7 @@ Tras autenticar se cambia el identificador de sesión, se sustituye el principal
 
 `CU_REDIRECT_URI` debe corresponder al callback aprobado `/redirect` y `CU_LOGOUT_URI` al retorno `/logout`. El POST `/auth/logout` exige CSRF, invalida sesión/cookie y redirige al logout del proveedor. El retorno GET no cierra por sí solo una sesión CU todavía activa: devuelve 409; `/auth/session-expired` sirve para cerrar el proveedor cuando la sesión local ya expiró.
 
-[ClaveUnicaProperties](formulario-publico/backend/src/main/java/cl/nexbyte/siger/identidad/ClaveUnicaProperties.java) valida URIs, secretos y cookie Secure. PRODUCTION exige HTTPS, dominios institucionales .gob.cl y callback aprobado. El formulario ya no restringe sus recorridos a SANDBOX: CU y PISEE seleccionan ambientes independientes. El laboratorio permite presentar el Client ID productivo para certificación mientras el Nodo sigue en DEV. Esto no acredita la activación del proveedor ni una instalación pública productiva.
+[ClaveUnicaProperties](formulario-publico/backend/src/main/java/cl/nexbyte/siger/identidad/ClaveUnicaProperties.java) valida URIs, secretos y cookie Secure. PRODUCTION exige HTTPS, dominios institucionales .gob.cl o el nombre exacto formulario.defensorianinez.cl, cookie Secure y callback aprobado. El formulario ya no restringe sus recorridos a SANDBOX: CU y PISEE seleccionan ambientes independientes. El laboratorio permite presentar el Client ID productivo para certificación mientras el Nodo sigue en DEV. Esto no acredita la activación del proveedor ni una instalación pública productiva.
 
 La evidencia real Sandbox anterior comprende autorización → callback → intercambio → identidad → sesión → logout, sin saltar TLS/OIDC: [informe HTTPS](docs/SANDBOX_HTTPS_WSL_2026-10-23.md), [cierre adulto](docs/CIERRE_ADULTOS_2026-10-24.md). No se repitió contra Gobierno en esta auditoría. El hostname local autorizado no equivale a DNS público ni a habilitación de producción.
 

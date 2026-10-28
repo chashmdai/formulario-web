@@ -24,7 +24,9 @@ def main():
         if props.get("siger.claveunica.environment") not in {"SANDBOX", "QA", "PRODUCTION"}:
             p.error("Ambiente CU inválido")
         if props.get("siger.claveunica.callback-approved") == "true":
-            domain = "https://claveunica.formularioadulto.defensorianinez.gob.cl"
+            domain = props.get("siger.claveunica.public-origin")
+            if domain not in {"https://claveunica.formularioadulto.defensorianinez.gob.cl", "https://formulario.defensorianinez.cl"}:
+                p.error("Origen institucional no autorizado para el laboratorio")
             if props.get("siger.claveunica.redirect-uri") != domain + "/redirect" or props.get("siger.claveunica.logout-uri") != domain + "/logout" or props.get("siger.claveunica.public-origin") != domain:
                 p.error("Conservar exactamente callbacks y origen registrados")
         os.umask(0o077)

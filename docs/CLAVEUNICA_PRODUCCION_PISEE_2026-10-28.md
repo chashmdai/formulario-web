@@ -12,9 +12,9 @@ No hay una excepción temporal que obligue a otra modificación de código al mi
 
 | Elemento | Estado |
 |---|---|
-| URL | https://claveunica.formularioadulto.defensorianinez.gob.cl/?vista=inicio |
+| URL | https://formulario.defensorianinez.cl/?vista=inicio; actualización de dominio del mismo día |
 | CU | PRODUCTION; par extraído de las etiquetas Client ID/Secret Producción del paquete institucional |
-| Callback local | Habilitado; mismo /redirect, /logout y origen registrados |
+| Callback local | Habilitado; rutas /redirect y /logout; registro del nuevo dominio pendiente de confirmación SGD |
 | PISEE | DEV, idéntica URL, autorización, allowlist, timeout y concurrencia anteriores |
 | Formularios | Adultos y NNA habilitados |
 | Adjuntos | Multimedia habilitada en el integrado, almacén privado propio fuera de Git |
@@ -34,7 +34,7 @@ La aplicación usa las credenciales productivas; que el botón responda localmen
 - DEV conserva su autorización existente y la lista privada acotada.
 - PRODUCTION consulta con la autorización del Nodo institucional y no reutiliza la allowlist DEV. Se mantienen finalidad PRESENTADOR, consentimiento/canal cuando corresponda, RUN/DV módulo 11, cuotas y prohibición de búsquedas de terceros.
 - El lanzador integrado admite SANDBOX/QA/PRODUCTION; la habilitación se lee de la configuración privada callback-approved. La opción antigua --permitir-cu-sandbox se mantiene por compatibilidad, pero no es un segundo bloqueo.
-- ClaveUnicaProperties sigue exigiendo HTTPS, .gob.cl, cookies Secure y callback aprobado para PRODUCTION.
+- ClaveUnicaProperties exige HTTPS, dominios .gob.cl o el hostname exacto formulario.defensorianinez.cl, cookies Secure y callback aprobado para PRODUCTION. Ver [actualización de dominio](DOMINIO_FORMULARIO_2026-10-28.md).
 - Endpoints, state, nonce, firma de ID token, UserInfo, logout y formatos documentales 1.0/1.1 no se alteran.
 - No hay migraciones nuevas ni cambios a SIGER, al agente o al Nodo DEV.
 
@@ -99,3 +99,7 @@ Evidencia completa privada: .local/cu-produccion-20261028/. Backups y credencial
 SGD debe entregar el acceso temporal y revisar login/callback/Token/UserInfo/logout sobre este candidato. La institución tramita el Nodo productivo. La futura VM requiere sus DNS, certificado, base, almacenamiento, operación y pruebas de conectividad reales.
 
 No quedan restricciones de código por SANDBOX/production/prod para esas integraciones. Las validaciones de seguridad y los requisitos externos siguen vigentes; no se presenta WSL como producción pública o sistema certificado.
+
+## Actualización posterior: dominio del formulario
+
+El hostname anterior corresponde a la evidencia inicial de esta unidad. La configuración vigente, el certificado adicional, el origen canónico y las verificaciones posteriores están en [DOMINIO_FORMULARIO_2026-10-28.md](DOMINIO_FORMULARIO_2026-10-28.md). No se da por registrado el nuevo callback ante SGD por cambiar una propiedad local.
