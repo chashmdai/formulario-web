@@ -83,3 +83,7 @@ python3 scripts/linux/arrancar-nna-local.py /home/nexbyteproveedor/.local/share/
 El comando Compose solo es un procedimiento de recuperación del proxy; no inicia otra JVM ni migra bases. La instancia Java se recupera con su lanzador y selección inmutables existentes. Tras reiniciar WSL, revisar resolución local porque WSL puede regenerar /etc/hosts.
 
 Las trazas privadas y el plan de reversión están en .local/dominio-formulario-20261028/; no se versionan secretos, cookies ni códigos. La comprobación visual manual y el registro/habilitación de las URI nuevas por SGD permanecen pendientes. No hubo push ni modificación del DNS público.
+
+### Comprobación del laboratorio aislado anterior
+
+El puerto directo 19443 se mantuvo sin modificar. Su URL anterior responde HTTP 200 desde WSL con la CA local y validación de hostname/TLS. curl.exe de Windows sobre ese puerto directo informa CRYPT_E_NO_REVOCATION_CHECK (Schannel, certificado anterior sin comprobación de revocación disponible). No se deshabilitó revocación ni se cambió ese certificado para resolver un problema ajeno al nuevo origen. El acceso canónico nuevo por 443 sí devuelve HTTP 200 y TLS verificado desde Windows sin excepciones.
