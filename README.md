@@ -52,7 +52,7 @@ El Formulario implementa recorridos de adultos con/sin ClaveÚnica y de NNA con 
 
 [SIGER institucional](https://github.com/chashmdai/sistema-de-requerimientos) registra COM, conserva la Comunicación y sus originales, y administra su gestión posterior. Sus bases, sesiones y despliegue son independientes. **El comprobante público acredita recepción temporal; no sustituye el folio ni el ACK institucional.**
 
-La identificación adulta también admite documentos extranjeros declarados sin RUN; los afectados pueden registrarse individualmente, por grupos o de ambas formas.
+La identificación adulta también admite documentos extranjeros declarados sin RUN; los afectados pueden registrarse individualmente, por grupos o de ambas formas. La nacionalidad se elige mediante un [catálogo de países con buscador](docs/SELECTOR_NACIONALIDAD_2026-10-31.md), con texto libre únicamente para la opción excepcional.
 
 La validación institucional puede ajustar redacciones, opciones, campos o presentación. Estos cambios no congelan la integración ni justifican reescribir originales históricos; su efecto contractual debe evaluarse explícitamente. Ver [baseline funcional evolutivo](docs/BASELINE_FORMULARIO_PUBLICO_2026-10-24.md).
 

@@ -189,7 +189,7 @@ class AdultosFormularioJdbcTest {
         journey=journeys.iniciar(Tipo.ADULTO_DECLARADO,true,"ADULTO_LAB_1",session,"127.0.0.1").id();
         var view=journeys.identificarExtranjera(journey,session,"127.0.0.1");
         assertFalse(view.autenticada());assertFalse(view.runInformado());assertTrue(view.camposObligatorios().containsAll(DOCUMENTO_EXTRANJERO));
-        var declared=Map.of("primerNombre","DECLARADO","primerApellido","APELLIDO","nacionalidad","SINTÉTICA","tipoDocumento",type,"numeroDocumento","AB/123-xyz.45");
+        var declared=Map.of("primerNombre","DECLARADO","primerApellido","APELLIDO","nacionalidad",type.equals("OTRO")?"Otra / situación especial: Apátrida":"Perú","tipoDocumento",type,"numeroDocumento","AB/123-xyz.45");
         journeys.declarar(journey,"presentador-adulto",declared,session);
         assertEquals(journeys.persona(journey,"presentador-adulto",session),journeys.identificarExtranjera(journey,session,"127.0.0.1"));
         var c=general();c.put("email"," x@x.x ");c.put("adult-preferred","PREFERIDO");c.put("adult-treatment","elle");

@@ -27,7 +27,7 @@ async function reason(page,why,topic,full){
 async function identify(page,foreign,cu){
  if(cu){await page.locator('#adult-run:not(:disabled)').waitFor();assert(await page.locator('#adult-run').getAttribute('readonly')!==null);return;}
  if(foreign){
-  await page.getByRole('radio',{name:/extranjera sin RUN/}).check();await page.locator('#adult-nationality').fill('SINTÉTICA');await page.locator('#adult-document-kind').selectOption('PASAPORTE');await page.locator('#adult-document-number').fill('AB/123-xyz.45');
+  await page.getByRole('radio',{name:/extranjera sin RUN/}).check();await page.locator('#adult-nationality').selectOption('Perú');await page.locator('#adult-document-kind').selectOption('PASAPORTE');await page.locator('#adult-document-number').fill('AB/123-xyz.45');
  }else{await page.locator('#adult-run').fill('12345678');await page.locator('#adult-run-dv').fill('5');}
  await page.locator('#adult-names').fill('DECLARADO');await page.locator('#adult-first').fill('APELLIDO');
 }

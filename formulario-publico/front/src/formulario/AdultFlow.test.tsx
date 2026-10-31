@@ -127,14 +127,14 @@ describe('Recorridos adultos trasladados del mockup',()=>{
     const {review}=mount();await userEvent.click(screen.getByRole('radio',{name:/extranjera sin RUN/}));
     await userEvent.type(await screen.findByRole('textbox',{name:/^Primer nombre/}),'NOMBRE');
     await userEvent.type(screen.getByRole('textbox',{name:/^Primer apellido/}),'APELLIDO');
-    await userEvent.type(screen.getByRole('textbox',{name:/^Nacionalidad/}),'SINTÉTICA');
+    await userEvent.selectOptions(screen.getByRole('combobox',{name:/^Nacionalidad/}),'Perú');
     await userEvent.selectOptions(screen.getByRole('combobox',{name:/^Tipo de documento/}),'PASAPORTE');
     await userEvent.type(screen.getByRole('textbox',{name:/^Número del documento/}),'AB/123-X');
     await userEvent.type(byId('adult-preferred'),'PREFERIDO');await userEvent.selectOptions(byId('adult-treatment'),'elle');
     expect(screen.queryByRole('textbox',{name:/^RUN/})).toBeNull();
     await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.type(byId('email'),'x@x.x');
     await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledOnce());
-    expect(review.mock.calls[0][1]).toMatchObject({autenticada:false,runInformado:false,valoresDeclarados:{tipoDocumento:'PASAPORTE',numeroDocumento:'AB/123-X',primerNombre:'NOMBRE'}});
+    expect(review.mock.calls[0][1]).toMatchObject({autenticada:false,runInformado:false,valoresDeclarados:{tipoDocumento:'PASAPORTE',numeroDocumento:'AB/123-X',primerNombre:'NOMBRE',nacionalidad:'Perú'}});
     expect(review.mock.calls[0][0].campos).toMatchObject({'adult-preferred':'PREFERIDO','adult-treatment':'elle',email:'x@x.x'});
     expect(identifyPerson).not.toHaveBeenCalled();expect(identifyForeignPerson).toHaveBeenCalledOnce();
   });

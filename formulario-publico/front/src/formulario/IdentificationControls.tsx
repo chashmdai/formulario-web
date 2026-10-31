@@ -1,3 +1,5 @@
+import {NationalitySelect} from '../ui/NationalitySelect';
+import {canonicalNationality,validNationality} from './nationality';
 import {ReadableSelect} from '../ui/ReadableSelect';
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode, Ref } from 'react';
@@ -19,7 +21,7 @@ const metadata: {key: IdentityField; suffix: string; label: string; type?: strin
   {key: 'segundoApellido', suffix: 'second', label: 'Segundo apellido'},
   {key: 'fechaNacimiento', suffix: 'birth', label: 'Fecha de nacimiento', type: 'date', help: 'Puedes completar este dato si lo conoces (opcional).'},
   {key: 'sexo', suffix: 'sex', label: 'Sexo registral', help: 'Este dato no define cómo prefieres que nos dirijamos a ti.'},
-  {key: 'nacionalidad', suffix: 'nationality', label: 'Nacionalidad', help: 'Indica tu nacionalidad, según los antecedentes que declaras.'},
+  {key: 'nacionalidad', suffix: 'nationality', label: 'Nacionalidad', help: 'Busca y selecciona el país correspondiente a la nacionalidad que declaras.'},
   {key: 'tipoDocumento', suffix: 'document-kind', label: 'Tipo de documento de identificación'},
   {key: 'numeroDocumento', suffix: 'document-number', label: 'Número del documento', help: 'Cópialo como aparece en tu documento; puede contener letras y distintos separadores.'},
   {key: 'edad', suffix: 'age', label: 'Edad', type: 'number', help: 'Déjalo en blanco si no la sabes.'},
@@ -166,12 +168,14 @@ export function IdentificationControls({journey, session, nna = false, children,
     if (busy || !restored) return null;
     const current = view?.estado === 'REVISADO' ? view : await review();
     if (!current || current.estado !== 'REVISADO') return null;
-    const input = view ? values : current.valoresDeclarados;
+    const input = {...(view ? values : current.valoresDeclarados)};
+    if(foreign&&input.nacionalidad)input.nacionalidad=canonicalNationality(input.nacionalidad);
     const problems: Record<string, string> = {};
     for (const key of current.camposObligatorios) if (!(input[key] || '').trim()) problems[key] = `Completa ${metadata.find(m => m.key === key)?.label || 'este campo'}.`;
     for (const [key, value] of Object.entries(input)) {
       if (!value) continue;
       if (['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido'].includes(key) && (!/^[\p{L}\p{M} .'-]+$/u.test(value) || !/\p{L}/u.test(value))) problems[key] = 'Escribe solo letras y separadores de nombres.';
+      if(key==='nacionalidad'&&!validNationality(value))problems[key]='Selecciona un país o completa Otra / situación especial.';
       if (key === 'edad' && (!/^\d{1,2}$/.test(value) || Number(value) > 17)) problems[key] = 'Indica una edad entre 0 y 17 años, o deja el campo en blanco.';
     }
     setErrors(problems);
@@ -263,7 +267,7 @@ export function IdentificationControls({journey, session, nna = false, children,
         return <div className="field" data-identity-attr={m.suffix} key={m.key}>
           <label htmlFor={id}>{m.label}{(['segundoApellido', 'edad'].includes(m.key) || (nna && m.key === 'segundoNombre')) && <span className="muted-label"> {m.key === 'edad' ? '(opcional)' : '(si corresponde)'}</span>}
             {required && <span aria-hidden="true" className="required-mark"> *</span>}{!nna && <span className="identity-source" id={`source-${m.suffix}`}>{sourceFor(m.key)}</span>}</label>
-          {m.key === 'tipoDocumento' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Selecciona un tipo de documento</option><option value="PASAPORTE">Pasaporte</option><option value="IDENTIDAD_EXTRANJERA">Documento de identidad extranjero</option><option value="OTRO">Otro documento de identificación</option></ReadableSelect></div> : m.key === 'sexo' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></ReadableSelect></div>
+          {m.key === 'nacionalidad' ? <NationalitySelect id={id} name={id} value={values.nacionalidad||''} required={required} disabled={busy} aria-invalid={!!errors.nacionalidad} aria-describedby={id+'-help '+id+'-error'} onValueChange={value=>setValues(old=>({...old,nacionalidad:value}))}/> : m.key === 'tipoDocumento' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Selecciona un tipo de documento</option><option value="PASAPORTE">Pasaporte</option><option value="IDENTIDAD_EXTRANJERA">Documento de identidad extranjero</option><option value="OTRO">Otro documento de identificación</option></ReadableSelect></div> : m.key === 'sexo' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></ReadableSelect></div>
             : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : ['nacionalidad','numeroDocumento'].includes(m.key)?120:500} {...(m.key === 'edad' ? {min: 0, max: 17, inputMode: 'numeric' as const} : {})} {...(['primerNombre','segundoNombre','primerApellido','segundoApellido'].includes(m.key) ? {'data-name-part': true} : {})} />}
           <p className="field-help" id={`${id}-help`}>{m.help}</p><p className="field-error" id={`${id}-error`} hidden={!errors[m.key]}>{errors[m.key]}</p>
         </div>;

@@ -109,7 +109,7 @@ class FormularioHttpTest {
             .andExpect(jsonPath("$.autenticada").value(false)).andExpect(jsonPath("$.runInformado").value(false)).andExpect(jsonPath("$.valoresDeclarados").isEmpty());
         String person="/api/formulario/recorridos/"+id+"/personas/presentador-adulto";
         mvc.perform(post(person+"/declaracion").secure(true).session(session).with(csrf()).contentType("application/json")
-            .content("{\"atributos\":{\"primerNombre\":\"DECLARADO\",\"primerApellido\":\"APELLIDO\",\"nacionalidad\":\"SINTÉTICA\",\"tipoDocumento\":\"PASAPORTE\",\"numeroDocumento\":\"AB/123-X\"}}"))
+            .content("{\"atributos\":{\"primerNombre\":\"DECLARADO\",\"primerApellido\":\"APELLIDO\",\"nacionalidad\":\"Perú\",\"tipoDocumento\":\"PASAPORTE\",\"numeroDocumento\":\"AB/123-X\"}}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.valoresDeclarados.numeroDocumento").value("AB/123-X")).andExpect(jsonPath("$.autenticada").value(false));
         mvc.perform(get(person).secure(true).session(new MockHttpSession())).andExpect(status().isNotFound());
         var nna=iniciar(session,"NNA");mvc.perform(post("/api/formulario/recorridos/"+nna+"/identificacion-extranjera").secure(true).session(session).with(csrf())).andExpect(status().isBadRequest());

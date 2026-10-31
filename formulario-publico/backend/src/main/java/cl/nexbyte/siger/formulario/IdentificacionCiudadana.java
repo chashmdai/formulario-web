@@ -136,7 +136,7 @@ public final class IdentificacionCiudadana {
     public static void validar(String key,String value,Clock clock) {
         if(value.length()>500||value.codePoints().anyMatch(Character::isISOControl)) throw new IllegalArgumentException("Atributo inválido");
         if(NOMBRES.contains(key) && (!value.matches("[\\p{L}\\p{M} .'-]+")||value.codePoints().noneMatch(Character::isLetter))) throw new IllegalArgumentException("Nombre inválido");
-        if(key.equals("nacionalidad")&&(value.length()>120||value.codePoints().noneMatch(Character::isLetter)))throw new IllegalArgumentException("Nacionalidad inválida");
+        if(key.equals("nacionalidad")&&!NacionalidadesFormulario.valida(value))throw new IllegalArgumentException("Nacionalidad inválida");
         if(key.equals("tipoDocumento")&&!Set.of("PASAPORTE","IDENTIDAD_EXTRANJERA","OTRO").contains(value))throw new IllegalArgumentException("Tipo de documento inválido");
         if(key.equals("numeroDocumento")&&(value.length()>120||value.isBlank()))throw new IllegalArgumentException("Número de documento inválido");
         if(key.equals("fechaNacimiento"))try {

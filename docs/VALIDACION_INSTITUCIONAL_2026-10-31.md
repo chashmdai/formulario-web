@@ -33,7 +33,7 @@ Requiere HTTPS, sesión propietaria, CSRF, recorrido editable ADULTO_DECLARADO y
 
 La Persona mantiene su estructura y rol PRESENTADOR. runNumero/runDv son null, modulo11=false, autenticada=false y no hay consulta/ref/fecha SRCeI. Se añade el atributo interno tipoIdentificacion=DOCUMENTO_EXTRANJERO, emitido en servidor con fuente DECLARACION_CIUDADANA. Nacionalidad, tipoDocumento y numeroDocumento tienen esa misma procedencia y nivel DECLARADO_NO_CONTRASTADO.
 
-Tipos: PASAPORTE, IDENTIDAD_EXTRANJERA y OTRO. Nacionalidad y número tienen límite de 120 caracteres; el número es texto, conserva letras, caso y separadores, sin módulo 11 ni un patrón nacional universal. El número no acredita existencia, validez o titularidad del documento.
+Tipos: PASAPORTE, IDENTIDAD_EXTRANJERA y OTRO. Ajuste posterior del mismo día: nacionalidad utiliza un [selector de países con buscador y excepción acotada](SELECTOR_NACIONALIDAD_2026-10-31.md). El detalle excepcional y el número de documento admiten hasta 120 caracteres cada uno; el número es texto, conserva letras, caso y separadores, sin módulo 11 ni un patrón nacional universal. El número no acredita existencia, validez o titularidad del documento.
 
 La proyección ciudadana conserva las mismas claves de control y solo devuelve declaraciones propias, campos faltantes y obligatorios. Los atributos registrales siguen protegidos. Las preferencias adult-preferred, adult-treatment y adult-treatment-text se conservan en datos.campos, sin sustituir nombres o sexo registrales.
 

@@ -114,4 +114,19 @@ describe('Identificación ciudadana conectada al servidor', () => {
     await run();await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));expect(identifyPerson).toHaveBeenCalledWith(journey.id,'presentador-adulto','PRESENTADOR','12345678','5');
   });
 
+  it('guarda una nacionalidad histórica solo al confirmar la opción excepcional visible',async()=>{
+    const foreign:IdentityView={...empty(),runInformado:false,camposFaltantes:['primerNombre','primerApellido','nacionalidad','tipoDocumento','numeroDocumento'],camposObligatorios:['primerNombre','primerApellido','nacionalidad','tipoDocumento','numeroDocumento'],valoresDeclarados:{primerNombre:'DECLARADO',primerApellido:'APELLIDO',nacionalidad:'Venezolana',tipoDocumento:'PASAPORTE',numeroDocumento:'AB/123-xyz'}};
+    vi.mocked(getPerson).mockResolvedValue(foreign);mount();
+    const other=await screen.findByRole('textbox',{name:/Indica tu nacionalidad/});expect((other as HTMLInputElement).value).toBe('Venezolana');
+    await userEvent.click(screen.getByRole('button',{name:'Guardar identificación'}));
+    await waitFor(()=>expect(declarePerson).toHaveBeenCalledWith(journey.id,'presentador-adulto',expect.objectContaining({nacionalidad:'Otra / situación especial: Venezolana'})));
+  });
+  it('no guarda una excepción sin detalle',async()=>{
+    const foreign:IdentityView={...empty(),runInformado:false,camposFaltantes:['primerNombre','primerApellido','nacionalidad'],camposObligatorios:['primerNombre','primerApellido','nacionalidad'],valoresDeclarados:{primerNombre:'DECLARADO',primerApellido:'APELLIDO'}};
+    vi.mocked(getPerson).mockResolvedValue(foreign);mount();
+    await userEvent.selectOptions(await screen.findByRole('combobox',{name:/^Nacionalidad/}),'__OTRA__');
+    await userEvent.click(screen.getByRole('button',{name:'Guardar identificación'}));
+    expect(screen.getByText('Selecciona un país o completa Otra / situación especial.')).toBeTruthy();expect(declarePerson).not.toHaveBeenCalled();
+  });
+
 });
