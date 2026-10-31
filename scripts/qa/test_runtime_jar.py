@@ -281,7 +281,7 @@ public class TinyServer {
             self.assertNotEqual(0,subprocess.run(command,capture_output=True).returncode)
 
     def test_cli_dominio_formulario_exacto_y_callbacks_coherentes(self):
-        origin = "https://formulario.defensorianinez.cl"
+        origin = "https://formulario.defensorianinez.gob.cl"
         props = {"server.address": "127.0.0.1", "server.port": "18443", "server.ssl.enabled": "true",
                  "siger.claveunica.environment": "PRODUCTION", "siger.claveunica.callback-approved": "true",
                  "siger.claveunica.public-origin": origin, "siger.claveunica.redirect-uri": origin + "/redirect",
@@ -291,6 +291,7 @@ public class TinyServer {
         result = subprocess.run(command, check=True, capture_output=True, text=True)
         self.assertEqual("DETENIDO", json.loads(result.stdout)["estado"])
         for key, value in [("siger.claveunica.public-origin", origin + ".example.org"),
+                           ("siger.claveunica.public-origin", "https://formulario.defensorianinez.cl"),
                            ("siger.claveunica.redirect-uri", origin + "/otra-ruta"),
                            ("siger.claveunica.logout-uri", "https://otro.gob.cl/logout")]:
             invalid = dict(props); invalid[key] = value

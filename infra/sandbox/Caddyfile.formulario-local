@@ -11,14 +11,14 @@
     }
 }
 
-https://formulario.defensorianinez.cl, https://claveunica.formularioadulto.defensorianinez.gob.cl {
+https://formulario.defensorianinez.gob.cl, https://formulario.defensorianinez.cl, https://claveunica.formularioadulto.defensorianinez.gob.cl {
     bind 127.0.0.1
     tls /run/siger/site.pem /run/siger/site-key.pem {
         protocols tls1.2 tls1.3
     }
     # Un solo origen de sesión: no iniciar OIDC desde el alias anterior.
-    @anterior host claveunica.formularioadulto.defensorianinez.gob.cl
-    redir @anterior https://formulario.defensorianinez.cl{uri} 308
+    @anterior host formulario.defensorianinez.cl claveunica.formularioadulto.defensorianinez.gob.cl
+    redir @anterior https://formulario.defensorianinez.gob.cl{uri} 308
     reverse_proxy https://127.0.0.1:18443 {
         header_up Host {host}
         header_up -Forwarded

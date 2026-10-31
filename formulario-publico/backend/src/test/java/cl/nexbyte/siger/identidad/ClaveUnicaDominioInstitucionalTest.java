@@ -18,14 +18,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
     "siger.claveunica.environment=PRODUCTION", "siger.claveunica.client-id=test-client",
     "siger.claveunica.client-secret=test-secret", "siger.claveunica.callback-approved=true",
-    "siger.claveunica.public-origin=https://formulario.defensorianinez.cl",
-    "siger.claveunica.redirect-uri=https://formulario.defensorianinez.cl/redirect",
-    "siger.claveunica.logout-uri=https://formulario.defensorianinez.cl/logout",
+    "siger.claveunica.public-origin=https://formulario.defensorianinez.gob.cl",
+    "siger.claveunica.redirect-uri=https://formulario.defensorianinez.gob.cl/redirect",
+    "siger.claveunica.logout-uri=https://formulario.defensorianinez.gob.cl/logout",
     "server.servlet.session.cookie.secure=true"
 })
 @AutoConfigureMockMvc(print = org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint.NONE)
 class ClaveUnicaDominioInstitucionalTest {
-    static final String ORIGIN = "https://formulario.defensorianinez.cl";
+    static final String ORIGIN = "https://formulario.defensorianinez.gob.cl";
     @Autowired MockMvc mvc;
     @Autowired ClaveUnicaProperties configured;
 
@@ -42,15 +42,15 @@ class ClaveUnicaDominioInstitucionalTest {
         return p;
     }
 
-    @Test void autorizaOrigenExactoYConservaDominiosHistoricos() {
+    @Test void admiteDominioCorregidoYConservaDominiosHistoricos() {
         properties(ORIGIN).validate();
         properties("https://claveunica.formularioadulto.defensorianinez.gob.cl").validate();
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"https://formulario.defensorianinez.cl.example.org",
-        "https://otro.defensorianinez.cl", "https://defensorianinez.cl",
-        "http://formulario.defensorianinez.cl", "https://127.0.0.1",
+    @ValueSource(strings = {"https://formulario.defensorianinez.gob.cl.example.org",
+        "https://formulario.defensorianinez.cl", "https://otro.defensorianinez.cl", "https://defensorianinez.cl",
+        "http://formulario.defensorianinez.gob.cl", "https://127.0.0.1",
         "https://formulario-defensorianinez.cl"})
     void rechazaDominiosParecidosYTransporteInseguro(String origin) {
         assertThatThrownBy(() -> properties(origin).validate()).isInstanceOf(IllegalStateException.class);
@@ -86,6 +86,6 @@ class ClaveUnicaDominioInstitucionalTest {
         mvc.perform(get(URI.create(ORIGIN + "/redirect")).secure(true).param("code", "synthetic").param("state", "incorrect"))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl(ORIGIN + "/?auth=failed"));
         assertThat(ProviderLogout.url(configured)).endsWith(
-                "redirect=https%3A%2F%2Fformulario.defensorianinez.cl%2Flogout");
+                "redirect=https%3A%2F%2Fformulario.defensorianinez.gob.cl%2Flogout");
     }
 }

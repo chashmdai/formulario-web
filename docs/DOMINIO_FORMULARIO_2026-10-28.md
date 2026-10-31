@@ -1,5 +1,7 @@
 # Dominio del Formulario · 28/10/2026
 
+> **Referencia histórica.** El responsable corrigió el dominio el 31/10/2026: debe ser **formulario.defensorianinez.gob.cl**. Este documento conserva la evidencia anterior; la configuración vigente está en [DOMINIO_FORMULARIO_2026-10-31.md](DOMINIO_FORMULARIO_2026-10-31.md).
+
 ## Alcance
 
 URL canónica solicitada: https://formulario.defensorianinez.cl/?vista=inicio.
