@@ -1,11 +1,13 @@
+import {ReadableSelect} from '../ui/ReadableSelect';
 import {MediaAttachments} from '../ui/MediaAttachments';
 import {MobileInput} from '../ui/MobileInput';
-import {cleanEmail} from './contacts';
+import {EmailInput} from '../ui/EmailInput';
 import {AttachmentStatus} from '../ui/AttachmentStatus';
+import {requestDate} from './adultRules';
 import type { AdultContext } from "./AdultFlow";
 
 /** Estructura y textos trasladados del mockup institucional. */
-export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
+export function AdultStepThree({ctx}: {ctx:AdultContext}) {const groupLabel=ctx.groupCount+" "+(ctx.groupCount===1?"grupo":"grupos");return (
 <section aria-labelledby="titulo-informacion" className="paper" data-section-tone="communication" id="informacion" hidden={(!ctx.full && ctx.step !== 3) || !ctx.ready}>
 {" "}<div className="paper-top">
 {" "}<div className="paper-heading">
@@ -15,7 +17,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<p className="paper-caption">{"\n                      Algunas preguntas dependen del motivo; otras son comunes a\n                      todos los ingresos.\n                    "}</p>
 {" "}</div>
 {" "}</div>
-{" "}<span className="status-label">{"Preguntas por validar"}</span>
+{" "}<span className="status-label">{"Tu comunicación"}</span>
 {" "}</div>
 {" "}<div className="paper-body">
 {" "}<div className="form-grid">
@@ -45,13 +47,13 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="entrevista-rol">{"¿Desde qué ámbito realizas la solicitud?\n                            "}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("entrevista-rol")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="entrevista-rol" name="entrevista-rol" {...ctx.bind("entrevista-rol")}>
+{" "}<ReadableSelect id="entrevista-rol" name="entrevista-rol" {...ctx.bind("entrevista-rol")}>
 {" "}<option value="">{"Selecciona una opción"}</option>
 {" "}<option value="estudiante">{"Estudiante"}</option>
 {" "}<option value="independiente">{"\n                                Persona independiente / a título personal\n                              "}</option>
 {" "}<option value="prensa">{"\n                                Prensa o medio de comunicación\n                              "}</option>
 {" "}<option value="otro">{"Otro"}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}<div className="field" hidden={!ctx.shown("entrevista-rol-otro-wrap")} id="entrevista-rol-otro-wrap">
@@ -74,11 +76,11 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}</div>
 {" "}</div>
 {" "}<div className="conditional pane-fields" data-tema="estadisticas" hidden={!ctx.shown("tema:estadisticas")}>
-{" "}<p className="section-intro">{"\n                          Indica qué dato no encontraste en las fuentes\n                          públicas.\n                        "}</p>
+{" "}<p className="section-intro">{"\n                          Indica qué información no encontraste en las fuentes\n                          públicas.\n                        "}</p>
 {" "}<div className="field">
-{" "}<label htmlFor="stats-descripcion">{"¿Qué dato o indicador necesitas?\n                            "}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("stats-descripcion")}>{" *"}</span>
+{" "}<label htmlFor="stats-descripcion">{"¿Qué información necesitas?\n                            "}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("stats-descripcion")}>{" *"}</span>
 </label>
-<textarea id="stats-descripcion" name="stats-descripcion" placeholder="Ej.: cantidad de NNA, tema, unidad de medida y desglose requerido..." rows={4} {...ctx.bind("stats-descripcion")} maxLength={ctx.maxLength("stats-descripcion")}>
+<textarea id="stats-descripcion" name="stats-descripcion" placeholder="Ej.: tema de estudio, publicación, período o información específica..." rows={4} {...ctx.bind("stats-descripcion")} maxLength={ctx.maxLength("stats-descripcion")}>
 </textarea>
 {" "}</div>
 {" "}<div className="paired-fields">
@@ -131,7 +133,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="relacion">{"¿Cuál es tu relación con el niño, niña o\n                          adolescente?"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("relacion")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="relacion" name="relacion" {...ctx.bind("relacion")}>
+{" "}<ReadableSelect id="relacion" name="relacion" {...ctx.bind("relacion")}>
 {" "}<option value="">{"Selecciona una opción"}</option>
 {" "}<option value="madre">{"Madre"}</option>
 {" "}<option value="padre">{"Padre"}</option>
@@ -142,14 +144,14 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<option value="testigo">{"Persona testigo"}</option>
 {" "}<option value="organizacion">{"\n                              Representante de una organización\n                            "}</option>
 {" "}<option value="otro">{"\n                              Otra persona con vínculo con el NNA\n                            "}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}<div className="field" hidden={!ctx.shown("relacion-familiar-wrap")} id="relacion-familiar-wrap">
 {" "}<label htmlFor="relacion-familiar">{"¿Qué parentesco tienes con el NNA?"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("relacion-familiar")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="relacion-familiar" name="relacion-familiar" {...ctx.bind("relacion-familiar")}>
+{" "}<ReadableSelect id="relacion-familiar" name="relacion-familiar" {...ctx.bind("relacion-familiar")}>
 {" "}<option value="">{"Selecciona el parentesco"}</option>
 {" "}<option>{"Abuela o abuelo"}</option>
 {" "}<option>{"Tía o tío"}</option>
@@ -158,18 +160,18 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<option>{"Madrastra o padrastro"}</option>
 {" "}<option>{"Madrina o padrino"}</option>
 {" "}<option>{"Otro parentesco familiar"}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}<div className="pane-fields location-block">
-{" "}<p className="micro-heading">{"\n                          Lugar de los hechos\n                          "}<span className="field-help">{"Selecciona la región y la comuna."}</span>
+{" "}<p className="micro-heading">{"\n                          Lugar de los hechos\n                          "}<span className="field-help">{"Selecciona la región. La comuna es opcional si no la conoces."}</span>
 {" "}</p>
 {" "}<div className="paired-fields">
 {" "}<div className="field">
 {" "}<label htmlFor="hechos-region">{"Región donde ocurre u ocurrió"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("hechos-region")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="hechos-region" name="hechos-region" {...ctx.bind("hechos-region")}>
+{" "}<ReadableSelect id="hechos-region" name="hechos-region" {...ctx.bind("hechos-region")}>
 {" "}<option value="">{"Selecciona una región"}</option>
 {" "}<option value="15">{"Arica y Parinacota"}</option>
 {" "}<option value="01">{"Tarapacá"}</option>
@@ -187,15 +189,15 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<option value="10">{"Los Lagos"}</option>
 {" "}<option value="11">{"\n                                  Aysén del General Carlos Ibáñez del Campo\n                                "}</option>
 {" "}<option value="12">{"\n                                  Magallanes y de la Antártica Chilena\n                                "}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}<div className="field">
-{" "}<label htmlFor="hechos-commune">{"Comuna de los hechos"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("hechos-commune")}>{" *"}</span>
+{" "}<label htmlFor="hechos-commune">{"Comuna de los hechos"}<span className="muted-label"> (opcional)</span><span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("hechos-commune")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="hechos-commune" name="hechos-commune" {...ctx.bind("hechos-commune")}>
-<option value="">{ctx.value("hechos-region") ? "Selecciona una comuna" : "Selecciona primero una región"}</option>{ctx.communes("hechos").map(name => <option key={name}>{name}</option>)}</select>
+{" "}<ReadableSelect id="hechos-commune" name="hechos-commune" {...ctx.bind("hechos-commune")}>
+<option value="">{ctx.value("hechos-region") ? "Selecciona una comuna" : "Selecciona primero una región"}</option>{ctx.communes("hechos").map(name => <option key={name}>{name}</option>)}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}</div>
@@ -204,19 +206,6 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("lugar")}>{" *"}</span>
 </label>
 <input id="lugar" name="lugar" placeholder="Ej.: sector, establecimiento, dirección aproximada" type="text" {...ctx.bind("lugar")} maxLength={ctx.maxLength("lugar")} />
-{" "}</div>
-{" "}</div>
-{" "}<div className="field">
-{" "}<label htmlFor="momento">{"¿Cuándo ocurrió o ocurre la situación?"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("momento")}>{" *"}</span>
-</label>
-{" "}<div className="select-wrap">
-{" "}<select id="momento" name="momento" {...ctx.bind("momento")}>
-{" "}<option value="">{"Selecciona una opción"}</option>
-{" "}<option>{"Está ocurriendo actualmente"}</option>
-{" "}<option>{"Ocurrió recientemente"}</option>
-{" "}<option>{"Ocurrió tiempo atrás"}</option>
-{" "}<option>{"No lo sé"}</option>
-{" "}</select>
 {" "}</div>
 {" "}</div>
 {" "}</div>
@@ -236,14 +225,14 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="tipo-organizacion">{"Tipo de entidad"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("tipo-organizacion")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="tipo-organizacion" name="tipo-organizacion" {...ctx.bind("tipo-organizacion")}>
+{" "}<ReadableSelect id="tipo-organizacion" name="tipo-organizacion" {...ctx.bind("tipo-organizacion")}>
 {" "}<option value="">{"Selecciona un tipo"}</option>
 {" "}<option>{"ONG o fundación"}</option>
 {" "}<option>{"Establecimiento educacional"}</option>
 {" "}<option>{"Servicio u organismo público"}</option>
 {" "}<option>{"Empresa u otra persona jurídica"}</option>
 {" "}<option>{"Otra organización"}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}<div className="field">
@@ -256,13 +245,13 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="actividad">{"¿Qué actividad te interesa?"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("actividad")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="actividad" name="actividad" {...ctx.bind("actividad")}>
+{" "}<ReadableSelect id="actividad" name="actividad" {...ctx.bind("actividad")}>
 {" "}<option value="">{"Selecciona una actividad"}</option>
 {" "}<option>{"Charla"}</option>
 {" "}<option>{"Taller"}</option>
 {" "}<option>{"Capacitación"}</option>
 {" "}<option>{"Otra actividad"}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}<div className="field">
@@ -274,15 +263,15 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="fecha-actividad">{"Fecha tentativa\n                          "}<span className="muted-label">{"(si la tienes)"}</span>
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("fecha-actividad")}>{" *"}</span>
 </label>
-<input id="fecha-actividad" name="fecha-actividad" type="date" {...ctx.bind("fecha-actividad")} maxLength={ctx.maxLength("fecha-actividad")} />
+<input id="fecha-actividad" name="fecha-actividad" type="date" min={requestDate()} {...ctx.bind("fecha-actividad")} maxLength={ctx.maxLength("fecha-actividad")} />
 {" "}</div>
 {" "}<div className="paired-fields">
 {" "}<div className="field">
-{" "}<label htmlFor="promocion-region">{"Región donde se realizaría la actividad\n                            "}<span className="muted-label">{"(opcional)"}</span>
+{" "}<label htmlFor="promocion-region">{"Región donde se realizaría la actividad\n                            "}
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("promocion-region")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="promocion-region" name="promocion-region" {...ctx.bind("promocion-region")}>
+{" "}<ReadableSelect id="promocion-region" name="promocion-region" {...ctx.bind("promocion-region")}>
 {" "}<option value="">{"Selecciona una región"}</option>
 {" "}<option value="15">{"Arica y Parinacota"}</option>
 {" "}<option value="01">{"Tarapacá"}</option>
@@ -300,16 +289,16 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<option value="10">{"Los Lagos"}</option>
 {" "}<option value="11">{"\n                                Aysén del General Carlos Ibáñez del Campo\n                              "}</option>
 {" "}<option value="12">{"\n                                Magallanes y de la Antártica Chilena\n                              "}</option>
-{" "}</select>
-{" "}</div>
+{" "}</ReadableSelect>
+{" "}</div><p className="field-help">Si ya indicaste tu región de residencia, la preseleccionamos. Puedes elegir una región distinta.</p>
 {" "}</div>
 {" "}<div className="field">
-{" "}<label htmlFor="promocion-commune">{"Comuna de la actividad\n                            "}<span className="muted-label">{"(opcional)"}</span>
+{" "}<label htmlFor="promocion-commune">{"Comuna de la actividad\n                            "}
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("promocion-commune")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select id="promocion-commune" name="promocion-commune" {...ctx.bind("promocion-commune")}>
-<option value="">{ctx.value("promocion-region") ? "Selecciona una comuna" : "Selecciona primero una región"}</option>{ctx.communes("promocion").map(name => <option key={name}>{name}</option>)}</select>
+{" "}<ReadableSelect id="promocion-commune" name="promocion-commune" {...ctx.bind("promocion-commune")}>
+<option value="">{ctx.value("promocion-region") ? "Selecciona una comuna" : "Selecciona primero una región"}</option>{ctx.communes("promocion").map(name => <option key={name}>{name}</option>)}</ReadableSelect>
 {" "}</div>
 {" "}</div>
 {" "}</div>
@@ -329,7 +318,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}</div>
 {" "}</div>
 {" "}<div className="pane-fields">
-{" "}<div className="field">
+{" "}<div className="field" hidden={ctx.value("motivo")==="consulta"&&ctx.value("tema")==="estadisticas"}>
 {" "}<label htmlFor="relato">{"Cuéntanos con tus propias palabras"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("relato")}>{" *"}</span>
 </label>
 {" "}<p className="field-help" id="relato-help">{"\n                          Para vulneraciones y actividades de Promoción, incluye\n                          una descripción que permita comprender tu\n                          comunicación.\n                        "}</p>
@@ -341,8 +330,8 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="email">{"Correo electrónico de contacto\n                          "}<span className="muted-label">{"(opcional)"}</span>
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("email")}>{" *"}</span>
 </label>
-<input autoComplete="email" id="email" inputMode="email" name="email" placeholder="nombre@ejemplo.cl" type="email" {...ctx.bind("email")} onBlur={e=>ctx.setValue("email",cleanEmail(e.target.value))} aria-describedby="email-help email-error" maxLength={ctx.maxLength("email")} />
-{" "}<div className="field-help" id="email-help">{"\n                          Podría utilizarse para dar respuesta, según el\n                          procedimiento aprobado.\n                        "}</div>
+<EmailInput id="email" name="email" value={ctx.value("email")} onValueChange={v=>ctx.setValue("email",v)} disabled={ctx.bind("email").disabled} required={ctx.required("email")} aria-invalid={!!ctx.errors.email} aria-describedby="email-help email-error" aria-errormessage={ctx.errors.email?"email-error":undefined}/>
+{" "}<div className="field-help" id="email-help">Este correo permitirá que la Defensoría te contacte sobre tu comunicación.</div>
 <p className="field-error" id="email-error" hidden={!ctx.errors.email}>{ctx.errors.email}</p>
 {" "}</div>
 {" "}<div className="field">
@@ -383,7 +372,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<label htmlFor="adult-region">{"Región"}<span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("adult-region")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="adult-region-help adult-region-error" id="adult-region" name="adult-region" {...ctx.bind("adult-region")}>
+{" "}<ReadableSelect aria-describedby="adult-region-help adult-region-error" id="adult-region" name="adult-region" {...ctx.bind("adult-region")}>
 {" "}<option value="">{"Selecciona una región"}</option>
 {" "}<option value="15">{"Arica y Parinacota"}</option>
 {" "}<option value="01">{"Tarapacá"}</option>
@@ -401,7 +390,7 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<option value="10">{"Los Lagos"}</option>
 {" "}<option value="11">{"\n                                Aysén del General Carlos Ibáñez del Campo\n                              "}</option>
 {" "}<option value="12">{"\n                                Magallanes y de la Antártica Chilena\n                              "}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="adult-region-help">{"\n                            Selecciona la región donde resides.\n                          "}</p>
 {" "}<p className="field-error" id="adult-region-error" hidden={!ctx.errors["adult-region"]}>{ctx.errors["adult-region"]}</p>
@@ -411,8 +400,8 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 <span className="required-mark conditional-required" aria-hidden="true" hidden={!ctx.required("adult-commune")}>{" *"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="adult-commune-help adult-commune-error" id="adult-commune" name="adult-commune" {...ctx.bind("adult-commune")}>
-<option value="">{ctx.value("adult-region") ? "Selecciona una comuna" : "Selecciona primero una región"}</option>{ctx.communes("adult").map(name => <option key={name}>{name}</option>)}</select>
+{" "}<ReadableSelect aria-describedby="adult-commune-help adult-commune-error" id="adult-commune" name="adult-commune" {...ctx.bind("adult-commune")}>
+<option value="">{ctx.value("adult-region") ? "Selecciona una comuna" : "Selecciona primero una región"}</option>{ctx.communes("adult").map(name => <option key={name}>{name}</option>)}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="adult-commune-help">{"\n                            Comunas disponibles según la región seleccionada.\n                            Campo opcional.\n                          "}</p>
 {" "}<p className="field-error" id="adult-commune-error" hidden={!ctx.errors["adult-commune"]}>{ctx.errors["adult-commune"]}</p>
@@ -437,10 +426,14 @@ export function AdultStepThree({ctx}: {ctx:AdultContext}) {return (
 {" "}<h3>{"Datos de los NNA involucrados"}</h3>
 {" "}<p className="section-intro">{"\n                          Agrega solo los antecedentes que conozcas. No\n                          necesitas conocer el RUN para informar la situación.\n                        "}</p>
 {" "}</div>
-{" "}<span className="count-pill" id="afectados-count">{ctx.count("AFECTADO_NNA")} NNA</span>
+{" "}<span className="count-pill" id="afectados-count">{ctx.value("afectados-modalidad")==="grupal"?groupLabel:ctx.count("AFECTADO_NNA")+" NNA"+(ctx.value("afectados-modalidad")==="mixta"?" · "+groupLabel:"")}</span>
 {" "}</div>
-{" "}<div className="repeat-list" id="afectados-list">{ctx.people("AFECTADO_NNA")}</div>
-{" "}<button className="btn btn-secondary add-item" id="agregar-afectado" type="button" onClick={() => ctx.action("agregar-afectado")}>{"\n                      + Agregar otro NNA\n                    "}</button>
+{" "}<fieldset className="fieldset affected-mode"><legend>¿Cómo quieres registrar a los NNA afectados?</legend><div className="radio-row">
+<label className="radio-pill"><input type="radio" name="afectados-modalidad" {...ctx.radio("afectados-modalidad","individual")}/> Individualmente</label>
+<label className="radio-pill"><input type="radio" name="afectados-modalidad" {...ctx.radio("afectados-modalidad","grupal")}/> Como grupo</label>
+<label className="radio-pill"><input type="radio" name="afectados-modalidad" {...ctx.radio("afectados-modalidad","mixta")}/> Personas y grupos</label>
+</div></fieldset><div className="repeat-list" hidden={ctx.value("afectados-modalidad")==="grupal"} id="afectados-list">{ctx.people("AFECTADO_NNA")}</div>
+{" "}<button className="btn btn-secondary add-item" id="agregar-afectado" hidden={ctx.value("afectados-modalidad")==="grupal"} type="button" onClick={() => ctx.action("agregar-afectado")}>{"\n                      + Agregar otro NNA\n                    "}</button><div id="afectados-grupos" hidden={!["grupal","mixta"].includes(ctx.value("afectados-modalidad"))}><h4>Grupos de NNA afectados <span className="count-pill">{ctx.groupCount}</span></h4><p className="field-help">Puedes describir un curso, un grupo scout u otra agrupación sin identificar a todos sus integrantes.</p>{ctx.groups()}<button type="button" className="btn btn-secondary add-item" disabled={ctx.busy||ctx.groupCount>=5} onClick={()=>ctx.action("agregar-grupo")}>+ Agregar otro grupo</button></div>
 {" "}</div>
 {" "}<div className="nna-subsection">
 {" "}<div className="subsection-header">

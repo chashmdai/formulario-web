@@ -1,5 +1,6 @@
+import {ReadableSelect} from '../ui/ReadableSelect';
 import {MobileInput} from '../ui/MobileInput';
-import {cleanEmail} from './contacts';
+import {EmailInput} from '../ui/EmailInput';
 import type { NnaContext } from "./NnaFlow";
 import { IdentificationControls } from "./IdentificationControls";
 import { GeoFields } from "./GeoFields";
@@ -37,7 +38,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div className="field">
 {" "}<label htmlFor="nna-treatment">{"¿Cómo prefieres que nos refiramos a ti?"}</label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="nna-treatment-help nna-treatment-error" id="nna-treatment" name="nna-treatment" {...ctx.bind("nna-treatment")}>
+{" "}<ReadableSelect aria-describedby="nna-treatment-help nna-treatment-error" id="nna-treatment" name="nna-treatment" {...ctx.bind("nna-treatment")}>
 {" "}<option value="">{"Sin preferencia indicada"}</option>
 {" "}<option value="nombre">{"Usen mi nombre"}</option>
 {" "}<option value="ella">{"Ella"}</option>
@@ -45,7 +46,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<option value="elle">{"Elle"}</option>
 {" "}<option value="otra">{"De otra forma"}</option>
 {" "}<option value="noresponde">{"\n                            Prefiero no responder\n                          "}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="nna-treatment-help">{"\n                        Elige la forma que prefieras o deja esta pregunta en blanco.\n                      "}</p>
 {" "}<p className="field-error" id="nna-treatment-error" hidden={!ctx.errors["nna-treatment"]}>{ctx.errors["nna-treatment"]}</p>
@@ -69,13 +70,13 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<label htmlFor="nna-primary-method">{"¿Cómo podemos contactarte?\n                        "}<span aria-hidden="true" className="required-mark">{"*"}</span>
 </label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="nna-primary-method-help nna-primary-method-error" id="nna-primary-method" name="nna-primary-method" {...ctx.bind("nna-primary-method")}>
+{" "}<ReadableSelect aria-describedby="nna-primary-method-help nna-primary-method-error" id="nna-primary-method" name="nna-primary-method" {...ctx.bind("nna-primary-method")}>
 {" "}<option value="">{"Selecciona una opción"}</option>
 {" "}<option value="celular">{"Celular"}</option>
 {" "}<option value="email">{"Correo electrónico"}</option>
 {" "}<option value="social">{"Red social"}</option>
 {" "}<option value="unsafe">{"\n                            No tengo una forma segura de contacto\n                          "}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="nna-primary-method-help">{"\n                        Indica un medio seguro para que la institución pueda\n                        contactarte.\n                      "}</p>
 {" "}<p className="field-error" id="nna-primary-method-error" hidden={!ctx.errors["nna-primary-method"]}>{ctx.errors["nna-primary-method"]}</p>
@@ -91,7 +92,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div data-channel="email" data-contact="nna-primary" hidden={!ctx.shown("nna-primary:email")}>
 {" "}<div className="field">
 {" "}<label htmlFor="nna-primary-email">{"Correo electrónico"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-email").required}>{" *"}</span></label>
-<input aria-describedby="nna-primary-email-help nna-primary-email-error" id="nna-primary-email" name="nna-primary-email" placeholder="nombre@ejemplo.cl" type="email" autoComplete="email" inputMode="email" maxLength={254} {...ctx.bind("nna-primary-email")} onBlur={e=>ctx.setValue("nna-primary-email",cleanEmail(e.target.value))} />
+<EmailInput id="nna-primary-email" name="nna-primary-email" value={ctx.value("nna-primary-email")} onValueChange={v=>ctx.setValue("nna-primary-email",v)} disabled={ctx.bind("nna-primary-email").disabled} required={ctx.bind("nna-primary-email").required} aria-invalid={!!ctx.errors["nna-primary-email"]} aria-describedby="nna-primary-email-help nna-primary-email-error" aria-errormessage={ctx.errors["nna-primary-email"]?"nna-primary-email-error":undefined}/>
 {" "}<p className="field-help" id="nna-primary-email-help">
 </p>
 {" "}<p className="field-error" id="nna-primary-email-error" hidden={!ctx.errors["nna-primary-email"]}>{ctx.errors["nna-primary-email"]}</p>
@@ -101,7 +102,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div className="field">
 {" "}<label htmlFor="nna-primary-network">{"¿Qué red social utilizas?"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-primary-network").required}>{" *"}</span></label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="nna-primary-network-help nna-primary-network-error" id="nna-primary-network" name="nna-primary-network" {...ctx.bind("nna-primary-network")}>
+{" "}<ReadableSelect aria-describedby="nna-primary-network-help nna-primary-network-error" id="nna-primary-network" name="nna-primary-network" {...ctx.bind("nna-primary-network")}>
 {" "}<option value="">{"Selecciona una red social"}</option>
 {" "}<option>{"Instagram"}</option>
 {" "}<option>{"TikTok"}</option>
@@ -110,7 +111,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<option>{"Facebook"}</option>
 {" "}<option>{"X (Twitter)"}</option>
 {" "}<option value="otra">{"Otra red social"}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="nna-primary-network-help">
 </p>
@@ -139,12 +140,12 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div className="field">
 {" "}<label htmlFor="nna-safe">{"¿Es seguro que te contactemos por ese medio?"}</label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="nna-safe-help nna-safe-error" id="nna-safe" name="nna-safe" {...ctx.bind("nna-safe")}>
+{" "}<ReadableSelect aria-describedby="nna-safe-help nna-safe-error" id="nna-safe" name="nna-safe" {...ctx.bind("nna-safe")}>
 {" "}<option value="">{"Prefiero no indicarlo"}</option>
 {" "}<option value="yes">{"Sí"}</option>
 {" "}<option value="unsure">{"\n                              No estoy seguro o segura\n                            "}</option>
 {" "}<option value="no">{"\n                              No, necesito acordar otra forma\n                            "}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="nna-safe-help">{"\n                          Es opcional. Puedes decirnos si necesitas alguna\n                          precaución.\n                        "}</p>
 {" "}<p className="field-error" id="nna-safe-error" hidden={!ctx.errors["nna-safe"]}>{ctx.errors["nna-safe"]}</p>
@@ -156,12 +157,12 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div className="field">
 {" "}<label htmlFor="nna-secondary-method">{"Otra forma de contacto"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-method").required}>{" *"}</span></label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="nna-secondary-method-help nna-secondary-method-error" id="nna-secondary-method" name="nna-secondary-method" {...ctx.bind("nna-secondary-method")}>
+{" "}<ReadableSelect aria-describedby="nna-secondary-method-help nna-secondary-method-error" id="nna-secondary-method" name="nna-secondary-method" {...ctx.bind("nna-secondary-method")}>
 {" "}<option value="">{"Selecciona una opción"}</option>
 {" "}<option value="celular">{"Celular"}</option>
 {" "}<option value="email">{"Correo electrónico"}</option>
 {" "}<option value="social">{"Red social"}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="nna-secondary-method-help">
 </p>
@@ -178,7 +179,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div data-channel="email" data-contact="nna-secondary" hidden={!ctx.shown("nna-secondary:email")}>
 {" "}<div className="field">
 {" "}<label htmlFor="nna-secondary-email">{"Correo electrónico"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-email").required}>{" *"}</span></label>
-<input aria-describedby="nna-secondary-email-help nna-secondary-email-error" id="nna-secondary-email" name="nna-secondary-email" placeholder="nombre@ejemplo.cl" type="email" autoComplete="email" inputMode="email" maxLength={254} {...ctx.bind("nna-secondary-email")} onBlur={e=>ctx.setValue("nna-secondary-email",cleanEmail(e.target.value))} />
+<EmailInput id="nna-secondary-email" name="nna-secondary-email" value={ctx.value("nna-secondary-email")} onValueChange={v=>ctx.setValue("nna-secondary-email",v)} disabled={ctx.bind("nna-secondary-email").disabled} required={ctx.bind("nna-secondary-email").required} aria-invalid={!!ctx.errors["nna-secondary-email"]} aria-describedby="nna-secondary-email-help nna-secondary-email-error" aria-errormessage={ctx.errors["nna-secondary-email"]?"nna-secondary-email-error":undefined}/>
 {" "}<p className="field-help" id="nna-secondary-email-help">
 </p>
 {" "}<p className="field-error" id="nna-secondary-email-error" hidden={!ctx.errors["nna-secondary-email"]}>{ctx.errors["nna-secondary-email"]}</p>
@@ -188,7 +189,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<div className="field">
 {" "}<label htmlFor="nna-secondary-network">{"¿Qué red social utilizas?"}<span aria-hidden="true" className="required-mark conditional-required" hidden={!ctx.bind("nna-secondary-network").required}>{" *"}</span></label>
 {" "}<div className="select-wrap">
-{" "}<select aria-describedby="nna-secondary-network-help nna-secondary-network-error" id="nna-secondary-network" name="nna-secondary-network" {...ctx.bind("nna-secondary-network")}>
+{" "}<ReadableSelect aria-describedby="nna-secondary-network-help nna-secondary-network-error" id="nna-secondary-network" name="nna-secondary-network" {...ctx.bind("nna-secondary-network")}>
 {" "}<option value="">{"\n                                Selecciona una red social\n                              "}</option>
 {" "}<option>{"Instagram"}</option>
 {" "}<option>{"TikTok"}</option>
@@ -197,7 +198,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}<option>{"Facebook"}</option>
 {" "}<option>{"X (Twitter)"}</option>
 {" "}<option value="otra">{"Otra red social"}</option>
-{" "}</select>
+{" "}</ReadableSelect>
 {" "}</div>
 {" "}<p className="field-help" id="nna-secondary-network-help">
 </p>

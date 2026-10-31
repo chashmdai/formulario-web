@@ -284,3 +284,33 @@ html[data-theme] .field .mobile-input input{min-width:0;width:100%;border:0;box-
 html[data-theme] .mobile-input:focus-within{outline:3px solid var(--focus);outline-offset:3px}
 html[data-theme] .mobile-input:has([aria-invalid=true]){border-color:var(--ui-danger)}
 html[data-theme] .mobile-input:has(:disabled){opacity:.65}
+
+/* Ajustes de validación institucional: espacio flexible, etiquetas completas y foco existente. */
+#form-experience :is(.form-grid,.paired-fields,.repeat-fields,.identity-input-grid)>*,
+#form-experience :is(.form-pane,.field,.repeat-card,.mobile-control){min-width:0}
+#form-experience .field>label{display:block;max-width:100%;line-height:1.5;overflow-wrap:anywhere}
+#form-experience .required-mark{position:static;vertical-align:baseline;white-space:nowrap}
+#form-experience :is(.paper-top,.repeat-card-head,.subsection-header){flex-wrap:wrap;gap:.75rem}
+#form-experience :is(input:not([type=checkbox]):not([type=radio]),select,textarea){box-sizing:border-box;max-width:100%;min-width:0;font:inherit;line-height:1.4}
+#form-experience :is(input:not([type=checkbox]):not([type=radio]),select){min-height:3em;height:auto}
+#form-experience :is(.ack-checkbox,.radio-pill)>span{min-width:0;overflow-wrap:anywhere}
+#form-experience .mobile-prefix{flex-shrink:0;white-space:nowrap}
+#form-experience .mobile-input input{min-width:0;flex:1}
+#form-experience .selected-option{overflow-wrap:anywhere;white-space:normal;margin-top:.35rem}
+#form-experience .affected-group .field:has(textarea){grid-column:1/-1}
+#form-experience :is(.field-help,.field-error,.summary-row dd,.resource-link,.repeat-card h4){overflow-wrap:anywhere}
+@media(max-width:720px){
+ #form-experience :is(.form-grid,.paired-fields,.repeat-fields,.identity-input-grid){grid-template-columns:minmax(0,1fr)}
+ #form-experience .paper-top .status-label{max-width:100%;white-space:normal}
+ #form-experience .radio-row{align-items:stretch}
+ #form-experience .radio-pill{white-space:normal;min-width:0}
+}
+
+#form-experience .ack-status{color:var(--ui-warning)}
+#form-experience .ack-status.ok{color:var(--ui-success)}
+#form-experience .affected-group h4{margin:0}
+
+#form-experience .affected-group + .add-item{margin-top:1rem}
+
+#form-experience .select-wrap:has(.readable-selection)::after{top:1.5em;bottom:auto}
+#form-experience .readable-selection{display:block;line-height:1.45;margin-top:.4rem;overflow-wrap:anywhere;white-space:normal}

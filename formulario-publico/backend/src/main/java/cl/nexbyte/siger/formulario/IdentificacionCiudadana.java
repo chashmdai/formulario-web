@@ -35,7 +35,31 @@ public final class IdentificacionCiudadana {
     }
     public record Vista(String personaId, String estado, boolean autenticada, boolean runInformado, Set<String> camposFaltantes,
             Set<String> camposObligatorios, Map<String,String> valoresDeclarados, String mensaje) {}
-    public static final Set<String> CAMPOS = Set.of("primerNombre", "segundoNombre", "primerApellido", "segundoApellido", "fechaNacimiento", "sexo", "edad");
+    private static final Set<String> CAMPOS_BASE = Set.of("primerNombre", "segundoNombre", "primerApellido", "segundoApellido", "fechaNacimiento", "sexo", "edad");
+    public static final Set<String> DOCUMENTO_EXTRANJERO = Set.of("nacionalidad", "tipoDocumento", "numeroDocumento");
+    public static final Set<String> CAMPOS;
+    static { var fields=new HashSet<>(CAMPOS_BASE);fields.addAll(DOCUMENTO_EXTRANJERO);CAMPOS=Set.copyOf(fields); }
+    public static boolean extranjera(Persona p) {
+        var marker=p.atributos().get("tipoIdentificacion");
+        return p.rol()==Rol.PRESENTADOR && p.id().equals("presentador-adulto") && !p.autenticada()
+            && p.runNumero()==null && !p.modulo11() && marker!=null
+            && marker.fuente()==Fuente.DECLARACION_CIUDADANA && "DOCUMENTO_EXTRANJERO".equals(marker.valor());
+    }
+    public static Persona crearExtranjera(Clock clock) {
+        var attrs=new HashMap<String,Valor>();
+        put(attrs,"tipoIdentificacion","DOCUMENTO_EXTRANJERO",null,Fuente.DECLARACION_CIUDADANA,clock.instant(),UUID.randomUUID());
+        return new Persona("presentador-adulto",Rol.PRESENTADOR,null,null,false,false,
+            ResultadoSrcei.Estado.NO_HABILITADO,null,null,attrs,Map.of());
+    }
+    public static boolean documentoExtranjeroCompleto(Persona p,Clock clock) {
+        if(!extranjera(p))return false;
+        for(var key:DOCUMENTO_EXTRANJERO) {
+            var value=p.atributos().get(key);
+            if(!util(value)||value.fuente()!=Fuente.DECLARACION_CIUDADANA)return false;
+            validar(key,value.valor(),clock);
+        }
+        return true;
+    }
     private static final Set<String> NOMBRES = Set.of("primerNombre", "segundoNombre", "primerApellido", "segundoApellido");
 
     public static Persona crear(String id, Rol rol, RunConsulta run, AutenticacionCiudadana autenticacion, ResultadoSrcei resultado, Clock clock) {
@@ -77,7 +101,8 @@ public final class IdentificacionCiudadana {
         attrs.put(key,new Valor(value,code,source,source==Fuente.CLAVE_UNICA_USERINFO?"IDENTIDAD_AUTENTICADA":"DECLARADO_NO_CONTRASTADO",at,evidence));
     }
     public static Vista vista(Persona p) {
-        var missing=new HashSet<>(CAMPOS);
+        var missing=new HashSet<>(CAMPOS_BASE);
+        if(extranjera(p))missing.addAll(DOCUMENTO_EXTRANJERO);
         if(p.rol()==Rol.AFECTADO_NNA || (p.rol()==Rol.PRESENTADOR && p.id().equals("presentador-nna"))) {
             missing.remove("fechaNacimiento"); missing.remove("sexo");
         } else missing.remove("edad");
@@ -91,9 +116,9 @@ public final class IdentificacionCiudadana {
         p.atributos().forEach((key,value)->{if(value.fuente()==Fuente.DECLARACION_CIUDADANA && CAMPOS.contains(key)) declared.put(key,value.valor());});
         // Los campos declarados siguen siendo editables, los recuperados nunca se exponen.
         missing.addAll(declared.keySet());
-        var required=new HashSet<>(p.rol()==Rol.PRESENTADOR?Set.of("primerNombre","primerApellido"):Set.<String>of()); required.retainAll(missing);
+        var required=new HashSet<>(p.rol()==Rol.PRESENTADOR?Set.of("primerNombre","primerApellido"):Set.<String>of()); if(extranjera(p))required.addAll(DOCUMENTO_EXTRANJERO); required.retainAll(missing);
         return new Vista(p.id(),"REVISADO",p.autenticada(),p.runNumero()!=null,Set.copyOf(missing),Set.copyOf(required),Map.copyOf(declared),
-                "Completa los datos solicitados. La revisión del RUN no acredita tu identidad.");
+                extranjera(p)?"Estos antecedentes son declarados y no autentican ni verifican tu identidad.":"Completa los datos solicitados. La revisión del RUN no acredita tu identidad.");
     }
     public static Persona declarar(Persona p,Map<String,String> values,Clock clock) {
         if(values==null||values.size()>CAMPOS.size()||!CAMPOS.containsAll(values.keySet())) throw new IllegalArgumentException("Campos de identificación inválidos");
@@ -111,6 +136,9 @@ public final class IdentificacionCiudadana {
     public static void validar(String key,String value,Clock clock) {
         if(value.length()>500||value.codePoints().anyMatch(Character::isISOControl)) throw new IllegalArgumentException("Atributo inválido");
         if(NOMBRES.contains(key) && (!value.matches("[\\p{L}\\p{M} .'-]+")||value.codePoints().noneMatch(Character::isLetter))) throw new IllegalArgumentException("Nombre inválido");
+        if(key.equals("nacionalidad")&&(value.length()>120||value.codePoints().noneMatch(Character::isLetter)))throw new IllegalArgumentException("Nacionalidad inválida");
+        if(key.equals("tipoDocumento")&&!Set.of("PASAPORTE","IDENTIDAD_EXTRANJERA","OTRO").contains(value))throw new IllegalArgumentException("Tipo de documento inválido");
+        if(key.equals("numeroDocumento")&&(value.length()>120||value.isBlank()))throw new IllegalArgumentException("Número de documento inválido");
         if(key.equals("fechaNacimiento"))try {
             if(!value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")||LocalDate.parse(value).isAfter(LocalDate.now(clock))||LocalDate.parse(value).isBefore(LocalDate.now(clock).minusYears(130)))throw new IllegalArgumentException("Fecha inválida");
         }catch(DateTimeException error){throw new IllegalArgumentException("Fecha inválida");}

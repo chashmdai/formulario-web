@@ -45,7 +45,7 @@ export function AdultAccess({dialogRef, onClose, onManual, onCu, manualUnavailab
               <use href="#i-arrow"></use>
             </svg></button
           ><small
-            >Podrás continuar con tu RUN y completar los datos que te solicitemos.</small
+            >Podrás identificarte con RUN chileno o, si eres una persona extranjera sin RUN, con los antecedentes de tu documento.</small
           >
         </div>
       </div>

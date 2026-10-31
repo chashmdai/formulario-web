@@ -16,4 +16,11 @@ describe('Edición del celular con prefijo fijo',()=>{
  it('reemplaza un número completo pegado y conserva la edición parcial',async()=>{
   const user=userEvent.setup();render(<Harness/>);const input=screen.getByLabelText('Celular') as HTMLInputElement;await user.type(input,'87654321');await user.paste('+56912345678');expect(input.value).toBe('12345678');input.setSelectionRange(2,4);await user.paste('00');expect(input.value).toBe('12005678');
  });
+ it('admite solo ocho dígitos y rechaza pegado inválido sin sustituir un número válido',async()=>{
+  const user=userEvent.setup();render(<Harness/>);const input=screen.getByLabelText('Celular') as HTMLInputElement;
+  await user.type(input,'12ab3456789');expect(input.value).toBe('12345678');
+  await user.paste('+1 234 567 8901');expect(input.value).toBe('12345678');expect(screen.getByRole('alert').textContent).toContain('No se incorporó');
+  input.setSelectionRange(0,8);await user.paste('87654321');expect(input.value).toBe('87654321');expect(screen.queryByRole('alert')).toBeNull();
+ });
+
 });

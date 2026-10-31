@@ -45,12 +45,13 @@ public final class RecepcionFormularioJdbc {
             if(!disponible())throw new FalloTecnico(503);
             if(route.tipo()!=Tipo.NNA&&!adultos)throw new FalloTecnico(503);
             var selected=new HashSet<String>();selected.add(route.tipo()==Tipo.NNA?"presentador-nna":"presentador-adulto");canonical.personas().forEach(p->selected.add(p.personaId()));
-            var people=recorridos.personasInternas(journey,session,selected);validation.validar(route.tipo(),canonical,people);
+            var receivedAt=clock.instant();
+            var people=recorridos.personasInternas(journey,session,selected);validation.validar(route.tipo(),canonical,people,receivedAt);
             var files=adjuntos.internos(journey);
             if(!new HashSet<>(canonical.adjuntos()).equals(new HashSet<>(files.stream().map(AdjuntosFormulario.Descriptor::id).toList())))throw new IllegalArgumentException("Adjuntos no corresponden al recorrido");
             if(!files.equals(verifiedFiles))throw new FalloTecnico(409);
             String documentVersion=adjuntos.multimedia(files)?"1.1":"1.0";
-            var content=new EntregaFormulario.Contenido(documentVersion,id,journey,route.tipo(),clock.instant(),route.avisoVersion(),route.aceptaCanal(),canonical,people,files);
+            var content=new EntregaFormulario.Contenido(documentVersion,id,journey,route.tipo(),receivedAt,route.avisoVersion(),route.aceptaCanal(),canonical,people,files);
             String bodyHash=CanonFormulario.huella("CONTENIDO",content,mapper),sourceHash=EntregaFormulario.procedencia(content,mapper);
             var proof=ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",id,content.recibidaEn(),"CUSTODIA_PUBLICA",bodyHash,sourceHash,"FORMULARIO_PUBLICO_DDN",route.avisoVersion()),keyId,key,mapper);
             var delivery=new EntregaFormulario(content,bodyHash,sourceHash,proof);delivery.validar(trust,mapper);

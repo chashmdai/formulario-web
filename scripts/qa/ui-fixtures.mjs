@@ -14,6 +14,9 @@ export async function fixture(context,kind,{closed=false}={}){
    else if(p.endsWith('/recepcion/capacidades'))data={adultos:!closed,nna:!closed};
    else if(p.endsWith('/actual')){data=journey||{};if(!journey)status=404;}
    else if(p==='/api/formulario/recorridos'&&m==='POST')data=journey={id:'11111111-1111-4111-8111-111111111111',tipo:body.tipo,avisoVersion:body.avisoVersion,aceptaCanal:body.aceptaCanalDigital,estado:'BORRADOR',venceEn:'2026-10-25T00:00:00Z'};
+   else if(p.endsWith('/identificacion-extranjera')&&m==='POST'){
+    data=empty('presentador-adulto','PRESENTADOR');data.mensaje='Estos antecedentes son declarados y no autentican ni verifican tu identidad.';data.runInformado=false;data.camposFaltantes.push('nacionalidad','tipoDocumento','numeroDocumento');data.camposObligatorios.push('nacionalidad','tipoDocumento','numeroDocumento');people.set('presentador-adulto',data);
+   }
    else if(p.endsWith('/adjuntos')){
     if(m==='POST'&&flags.rejectFiles){status=400;data={};}else{if(m==='POST')files=[{id:'22222222-2222-4222-8222-222222222222',nombre:'antecedentes.txt',tamanio:2456,sha256:'a'.repeat(64),tipo:'text/plain',estado:'VALIDADO'}];if(m==='DELETE')files=[];data=files;}
    }else if(p.endsWith('/comunicaciones')&&m==='POST'){

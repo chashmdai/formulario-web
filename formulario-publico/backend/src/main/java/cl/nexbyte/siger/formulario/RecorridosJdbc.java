@@ -179,6 +179,25 @@ public final class RecorridosJdbc {
             return vista(resolved);
         });
     }
+    /** Identidad extranjera declarada: finalidad exclusiva del presentador adulto, sin llamada registral. */
+    public Vista identificarExtranjera(UUID journey,String session,String address) {
+        capacidad();var head=consultar(journey,session);
+        if(head.tipo()!=Tipo.ADULTO_DECLARADO||!head.aceptaCanal())throw new FalloTecnico(400);
+        return db.transaction(()->{
+            var row=fila(journey,session,true);editable(row);
+            var existing=db.sql.queryForList("SELECT body,query_state FROM citizen_person WHERE journey_id=? AND person_id='presentador-adulto'",journey.toString());
+            if(!existing.isEmpty()) {
+                var old=leer(existing.getFirst().get("body").toString());
+                if(!extranjera(old)||!"REVISADO".equals(existing.getFirst().get("query_state")))throw new FalloTecnico(409);
+                return vista(old);
+            }
+            if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person WHERE journey_id=?",Integer.class,journey.toString())>=30)throw new FalloTecnico(429);
+            var initial=crearExtranjera(clock);
+            db.sql.update("INSERT INTO citizen_person(journey_id,person_id,role,body,query_state,query_lease,lease_until_ms) VALUES(?,?,'PRESENTADOR',?,'REVISADO',NULL,0)",
+                journey.toString(),"presentador-adulto",mapper.writeValueAsString(initial));
+            return vista(initial);
+        });
+    }
     public Vista declarar(UUID journey,String person,Map<String,String> values,String session) {
         capacidad();return db.transaction(()->{
             var row=fila(journey,session,true);editable(row);

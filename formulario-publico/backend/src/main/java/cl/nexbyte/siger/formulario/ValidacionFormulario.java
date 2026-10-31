@@ -6,10 +6,16 @@ import static cl.nexbyte.siger.formulario.IdentificacionCiudadana.*;
 /** Validación del agregado capturado; los atributos personales provienen únicamente de la sesión persistida. */
 public final class ValidacionFormulario {
     private final TerritorioFormulario territorio;
-    public ValidacionFormulario(TerritorioFormulario territorio){this.territorio=territorio;}
-    public void validar(Tipo tipo,DatosFormulario datos,List<Persona> personas) {
+    private final java.time.Clock clock;
+    public ValidacionFormulario(TerritorioFormulario territorio){this(territorio,java.time.Clock.systemUTC());}
+    public ValidacionFormulario(TerritorioFormulario territorio,java.time.Clock clock){this.territorio=territorio;this.clock=java.util.Objects.requireNonNull(clock);}
+    public void validar(Tipo tipo,DatosFormulario datos,List<Persona> personas) {validarConReloj(tipo,datos,personas,clock);}
+    public void validar(Tipo tipo,DatosFormulario datos,List<Persona> personas,java.time.Instant recibidaEn) {
+        validarConReloj(tipo,datos,personas,java.time.Clock.fixed(recibidaEn,java.time.ZoneOffset.UTC));
+    }
+    private void validarConReloj(Tipo tipo,DatosFormulario datos,List<Persona> personas,java.time.Clock requestClock) {
         if(tipo==null||datos==null||personas==null)invalid();
-        if(tipo!=Tipo.NNA){new ValidacionAdultos(territorio).validar(tipo,datos,personas);return;}
+        if(tipo!=Tipo.NNA){new ValidacionAdultos(territorio,requestClock).validar(tipo,datos,personas);return;}
         if(!datos.personas().isEmpty()||!datos.instituciones().isEmpty())invalid();
         if(personas.size()!=1||!personas.getFirst().id().equals("presentador-nna")||personas.getFirst().rol()!=Rol.PRESENTADOR||personas.getFirst().autenticada()||!completa(personas.getFirst()))invalid();
         var c=datos.campos();var allowed=new HashSet<>(Set.of("nna-region","nna-commune","nna-preferred","nna-treatment","nna-contact-instructions","nna-story","nna-primary-method","nna-extra-contact"));

@@ -4,6 +4,7 @@ import {canonicalMobile,cleanEmail,validEmail} from './contacts';
 import {adultValues,validateAdult} from './adultRules';
 import {nnaValues,validateNna} from './nnaRules';
 describe('Normalización compartida de contactos',()=>{
+ it('acepta x@x.x como formato, sin afirmar titularidad',()=>{expect(validEmail(' x@x.x ')).toBe(true);expect(cleanEmail(' x@x.x ')).toBe('x@x.x');});
  it.each(cases.movilesValidos)('normaliza móvil %s', (raw,want)=>expect(canonicalMobile(raw)).toBe(want));
  it.each(cases.movilesInvalidos)('rechaza móvil %s',raw=>expect(canonicalMobile(raw)).toBeNull());
  it.each(cases.correosValidos)('acepta correo %s sin cambiar su parte local',raw=>{expect(validEmail(raw)).toBe(true);expect(cleanEmail(raw)).toBe(raw.trim());});

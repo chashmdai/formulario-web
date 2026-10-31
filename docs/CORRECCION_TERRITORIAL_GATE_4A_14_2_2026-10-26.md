@@ -1,5 +1,7 @@
 # GATE 4A.14.2 · Región y comuna obligatorias en vulneración adulta
 
+> **Evidencia histórica sustituida para ingresos nuevos.** La observación institucional aprobada del 31/10/2026 mantiene región obligatoria y establece comuna opcional en vulneración adulta. Ver [validación vigente](VALIDACION_INSTITUCIONAL_2026-10-31.md). Los resultados siguientes corresponden al requisito anterior y se conservan como trazabilidad.
+
 Fecha: 26/10/2026. Base: `e94225d1fa0d0d62f2be0b5ca9375e9f4a7fa9e3`.
 Rama local: `fix-territorio-vulneracion-gate4a14-2`. Sin push ni despliegue.
 

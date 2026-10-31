@@ -20,6 +20,8 @@ Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexby
 
 **Dominio local vigente · corregido el 31/10/2026:** [https://formulario.defensorianinez.gob.cl/?vista=inicio](https://formulario.defensorianinez.gob.cl/?vista=inicio). Resolución local Windows/WSL y TLS de laboratorio; el DNS público no se ha creado. ClaveÚnica necesita registrar las nuevas URI en Gobierno Digital. Ver [cambio de dominio, verificaciones y reversión](docs/DOMINIO_FORMULARIO_2026-10-31.md).
 
+**Validación institucional aprobada · 31/10/2026:** [observaciones implementadas y pruebas](docs/VALIDACION_INSTITUCIONAL_2026-10-31.md). Incluye identificación extranjera declarada sin RUN, grupos de NNA, preferencias adultas, territorio/fechas, contactos y advertencias sin borradores. Cambios de código en rama de revisión, sin despliegue ni habilitación ciudadana.
+
 ## Índice
 
 - [1. Qué resuelve y dónde termina su responsabilidad](#s1)
@@ -49,6 +51,8 @@ Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexby
 El Formulario implementa recorridos de adultos con/sin ClaveÚnica y de NNA con RUN voluntario/sin RUN; consultas, promoción y vulneración de derechos; personas relacionadas, instituciones, territorio y contacto seguro. Incluye identificación por sesión, preguntas condicionales, validaciones, revisión, envío idempotente, adjuntos privados y comprobante. La interfaz soporta móvil, teclado, temas claro/oscuro/alto contraste, escala de texto y reducción de movimiento.
 
 [SIGER institucional](https://github.com/chashmdai/sistema-de-requerimientos) registra COM, conserva la Comunicación y sus originales, y administra su gestión posterior. Sus bases, sesiones y despliegue son independientes. **El comprobante público acredita recepción temporal; no sustituye el folio ni el ACK institucional.**
+
+La identificación adulta también admite documentos extranjeros declarados sin RUN; los afectados pueden registrarse individualmente, por grupos o de ambas formas.
 
 La validación institucional puede ajustar redacciones, opciones, campos o presentación. Estos cambios no congelan la integración ni justifican reescribir originales históricos; su efecto contractual debe evaluarse explícitamente. Ver [baseline funcional evolutivo](docs/BASELINE_FORMULARIO_PUBLICO_2026-10-24.md).
 

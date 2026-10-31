@@ -30,7 +30,7 @@ class AdultosFormularioJdbcTest {
         files=new AdjuntosFormulario(db,journeys,b->true);signer=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();institution=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
         service=crear(true);var control=new ControlesOperacion(db);control.cambiar(control.estado().revision(),true,true,"NORMAL","PRUEBA_LOCAL");
     }
-    RecepcionFormularioJdbc crear(boolean adults)throws Exception{return new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"test-publico",signer.getPrivate(),Map.of("test-publico",signer.getPublic()),Map.of("test-institucion",institution.getPublic()),clock,true,adults);}
+    RecepcionFormularioJdbc crear(boolean adults)throws Exception{return new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper),clock),"test-publico",signer.getPrivate(),Map.of("test-publico",signer.getPublic()),Map.of("test-institucion",institution.getPublic()),clock,true,adults);}
     @AfterEach void close(){if(db!=null){db.sql.update("DELETE FROM citizen_submission");db.sql.update("DELETE FROM citizen_attachment");db.sql.update("DELETE FROM citizen_identity_history");db.sql.update("DELETE FROM citizen_person");db.sql.update("DELETE FROM citizen_journey");db.sql.update("DELETE FROM citizen_abuse_bucket");db.close();}}
     void iniciar(Tipo kind){
         journey=journeys.iniciar(kind,true,"ADULTO_LAB_1",session,"127.0.0.1").id();AutenticacionCiudadana auth=null;
@@ -40,7 +40,7 @@ class AdultosFormularioJdbcTest {
         journeys.declarar(journey,"presentador-adulto",declarations,session);
     }
     Map<String,String> general(){return new HashMap<>(Map.of("motivo","consulta","tema","general","consulta-confirmada","true","consulta-general-detalle","Consulta sintética","adult-region","13"));}
-    Map<String,String> promotion(){return new HashMap<>(Map.of("motivo","promocion","organizacion","no","actividad","Taller","publico","Adolescentes","relato","Relato sintético","adult-region","13"));}
+    Map<String,String> promotion(){return new HashMap<>(Map.of("motivo","promocion","organizacion","no","actividad","Taller","publico","Adolescentes","relato","Relato sintético","adult-region","13","promocion-region","13","promocion-commune","Santiago"));}
     Map<String,String> violation(){return new HashMap<>(Map.of("motivo","vulneracion","riesgo","no","relacion","testigo","relato","Relato sintético","adult-region","13","hechos-region","13","hechos-commune","Santiago"));}
     DatosFormulario data(Map<String,String> fields,List<DatosFormulario.Relacion> people,List<DatosFormulario.Institucion> institutions){return new DatosFormulario(fields,people,institutions,List.of());}
     RecepcionFormularioJdbc.Estado send(Map<String,String> fields){return service.recibir(UUID.randomUUID(),journey,session,data(fields,List.of(),List.of()));}
@@ -69,19 +69,16 @@ class AdultosFormularioJdbcTest {
         iniciar(Tipo.ADULTO_DECLARADO);var no=promotion();no.put("nombre-organizacion","Campo inactivo");assertThrows(IllegalArgumentException.class,()->send(no));no.remove("nombre-organizacion");send(no);
     }
     @Test void ubicacionesFechasContactoYRelatoSeValidanEnServidor(){
-        iniciar(Tipo.ADULTO_DECLARADO);for(var patch:List.of(Map.of("adult-region","00"),Map.of("adult-commune","Comuna inexistente"),Map.of("email","correo-invalido"),Map.of("telefono","123"),Map.of("fecha-actividad","2027-02-30"),Map.of("promocion-commune","Santiago"),Map.of("relato","x".repeat(5001)),Map.of("actividad","Actividad inventada"))){var c=promotion();c.putAll(patch);assertThrows(IllegalArgumentException.class,()->send(c));}
+        iniciar(Tipo.ADULTO_DECLARADO);for(var patch:List.of(Map.of("adult-region","00"),Map.of("adult-commune","Comuna inexistente"),Map.of("email","correo-invalido"),Map.of("telefono","123"),Map.of("fecha-actividad","2027-02-30"),Map.of("promocion-region","05","promocion-commune","Santiago"),Map.of("relato","x".repeat(5001)),Map.of("actividad","Actividad inventada"))){var c=promotion();c.putAll(patch);assertThrows(IllegalArgumentException.class,()->send(c));}
         for(var key:List.of("relato","publico","actividad","organizacion")){var c=promotion();c.remove(key);assertThrows(IllegalArgumentException.class,()->send(c));}
     }
     static Stream<Arguments> hechosInvalidos(){
         return Stream.of(
             Arguments.of("región ausente",null,"Santiago"),
-            Arguments.of("comuna ausente","13",null),
             Arguments.of("ambas ausentes",null,null),
             Arguments.of("región vacía","","Santiago"),
-            Arguments.of("comuna vacía","13",""),
             Arguments.of("ambas vacías","",""),
             Arguments.of("región en blanco","   ","Santiago"),
-            Arguments.of("comuna en blanco","13","   "),
             Arguments.of("ambas en blanco","   ","   "),
             Arguments.of("región inválida","00","Santiago"),
             Arguments.of("comuna ajena a la región","05","Santiago"));
@@ -149,4 +146,89 @@ class AdultosFormularioJdbcTest {
         var record=new ComprobanteInstitucional.Contenido("1.0","SIGER_DDN","COMUNICACION_REGISTRADA",received.id(),UUID.randomUUID(),1,"COM-1",clock.instant(),"FORMULARIO_WEB_PUBLICO",delivery.sha256(),delivery.huellaProcedencia());
         var ack=new RegistroInstitucional(record,ComprobanteInstitucional.firmar(record,"test-institucion",institution.getPrivate(),mapper));service.confirmar(received.id(),reserved.reserva(),ack);assertEquals("REGISTRADA_SIGER",service.consultar(received.id(),session).estado());
     }
+    @ParameterizedTest @ValueSource(strings={"","   "})
+    void vulneracionAdmiteComunaDesconocidaYNoSolicitaMomento(String commune){
+        iniciar(Tipo.ADULTO_DECLARADO);var affected=unknown();var c=violation();c.put("hechos-commune",commune);
+        var payload=data(c,List.of(affected),List.of());var id=UUID.randomUUID();
+        assertEquals(service.recibir(id,journey,session,payload),service.recibir(id,journey,session,payload));
+        var delivery=service.reclamar(1).getFirst().entrega();delivery.validar(Map.of("test-publico",signer.getPublic()),mapper);
+        assertFalse(delivery.comunicacion().datos().campos().containsKey("momento"));
+    }
+    @Test void momentoEliminadoNoSeAceptaEnNuevasCapturas(){
+        iniciar(Tipo.ADULTO_DECLARADO);var affected=unknown();var c=violation();c.put("momento","No lo sé");
+        assertThrows(IllegalArgumentException.class,()->service.recibir(UUID.randomUUID(),journey,session,data(c,List.of(affected),List.of())));
+    }
+    @Test void promocionComunaObligatoriaYFechaNoAnteriorASolicitud(){
+        iniciar(Tipo.ADULTO_DECLARADO);
+        for(var key:List.of("promocion-region","promocion-commune")){var c=promotion();c.remove(key);assertThrows(IllegalArgumentException.class,()->send(c));}
+        var today=LocalDate.now(clock.withZone(ZoneId.of("America/Santiago")));var c=promotion();c.put("fecha-actividad",today.minusDays(1).toString());
+        assertThrows(IllegalArgumentException.class,()->send(c));c.put("fecha-actividad",today.toString());send(c);
+    }
+    @ParameterizedTest @ValueSource(strings={"grupal","mixta"})
+    void afectadosColectivosPersistenSinInventarIdentidades(String mode){
+        iniciar(Tipo.ADULTO_DECLARADO);var c=violation();c.remove("hechos-commune");
+        c.putAll(Map.of("afectados-modalidad",mode,"grupo-nna-1-nombre","Curso sintético","grupo-nna-1-descripcion","Curso de un establecimiento educativo de prueba","grupo-nna-1-cantidad","25","grupo-nna-1-region","13"));
+        var relations=mode.equals("mixta")?List.of(unknown()):List.<DatosFormulario.Relacion>of();
+        var payload=data(c,relations,List.of());var id=UUID.randomUUID();
+        assertEquals(service.recibir(id,journey,session,payload),service.recibir(id,journey,session,payload));
+        var document=service.reclamar(1).getFirst().entrega();document.validar(Map.of("test-publico",signer.getPublic()),mapper);
+        assertEquals(mode.equals("mixta")?2:1,document.comunicacion().personas().size());
+        assertEquals("25",document.comunicacion().datos().campos().get("grupo-nna-1-cantidad"));
+        assertEquals("1.0",document.comunicacion().version());
+    }
+    @Test void gruposRequierenContextoYRechazanCantidadTerritorioOCamposInventados(){
+        iniciar(Tipo.ADULTO_DECLARADO);var c=violation();c.putAll(Map.of("afectados-modalidad","grupal","grupo-nna-1-nombre","Curso"));
+        assertThrows(IllegalArgumentException.class,()->send(c));c.put("grupo-nna-1-descripcion","Contexto sintético");
+        for(var patch:List.of(Map.of("grupo-nna-1-cantidad","0"),Map.of("grupo-nna-1-region","05","grupo-nna-1-comuna","Santiago"),Map.of("grupo-nna-6-nombre","Excede límite"),Map.of("grupo-nna-1-fuente","CLAVE_UNICA_USERINFO"),Map.of("afectados-modalidad","individual"),Map.of("afectados-modalidad","mixta"))){
+            var changed=new HashMap<>(c);changed.putAll(patch);assertThrows(IllegalArgumentException.class,()->send(changed));
+        }
+    }
+    @ParameterizedTest @ValueSource(strings={"PASAPORTE","IDENTIDAD_EXTRANJERA","OTRO"})
+    void extranjeroSinRunSeCustodiaComoDeclaradoSinConsultaRegistral(String type){
+        provider=run->{fail("No consultar SRCeI para documento extranjero");return null;};
+        journey=journeys.iniciar(Tipo.ADULTO_DECLARADO,true,"ADULTO_LAB_1",session,"127.0.0.1").id();
+        var view=journeys.identificarExtranjera(journey,session,"127.0.0.1");
+        assertFalse(view.autenticada());assertFalse(view.runInformado());assertTrue(view.camposObligatorios().containsAll(DOCUMENTO_EXTRANJERO));
+        var declared=Map.of("primerNombre","DECLARADO","primerApellido","APELLIDO","nacionalidad","SINTÉTICA","tipoDocumento",type,"numeroDocumento","AB/123-xyz.45");
+        journeys.declarar(journey,"presentador-adulto",declared,session);
+        assertEquals(journeys.persona(journey,"presentador-adulto",session),journeys.identificarExtranjera(journey,session,"127.0.0.1"));
+        var c=general();c.put("email"," x@x.x ");c.put("adult-preferred","PREFERIDO");c.put("adult-treatment","elle");
+        var id=UUID.randomUUID();var payload=data(c,List.of(),List.of());assertEquals(service.recibir(id,journey,session,payload),service.recibir(id,journey,session,payload));
+        var claim=service.reclamar(1).getFirst();var delivery=claim.entrega();delivery.validar(Map.of("test-publico",signer.getPublic()),mapper);
+        var person=delivery.comunicacion().personas().getFirst();assertNull(person.runNumero());assertFalse(person.modulo11());assertFalse(person.autenticada());assertTrue(extranjera(person));
+        assertEquals(ResultadoSrcei.Estado.NO_HABILITADO,person.estadoConsulta());
+        for(var key:DOCUMENTO_EXTRANJERO)assertEquals(Fuente.DECLARACION_CIUDADANA,person.atributos().get(key).fuente());
+        assertEquals("AB/123-xyz.45",person.atributos().get("numeroDocumento").valor());assertEquals("x@x.x",delivery.comunicacion().datos().campos().get("email"));
+        var record=new ComprobanteInstitucional.Contenido("1.0","SIGER_DDN","COMUNICACION_REGISTRADA",id,UUID.randomUUID(),1,"COM-1",clock.instant(),"FORMULARIO_WEB_PUBLICO",delivery.sha256(),delivery.huellaProcedencia());
+        var ack=new RegistroInstitucional(record,ComprobanteInstitucional.firmar(record,"test-institucion",institution.getPrivate(),mapper));
+        delivery.validarRegistro(ack,Map.of("test-institucion",institution.getPublic()),mapper);
+        service.confirmar(id,claim.reserva(),ack);assertEquals("REGISTRADA_SIGER",service.consultar(id,session).estado());
+    }
+    @Test void documentoExtranjeroNoEximeMinimosNiPermiteFabricarProcedencia(){
+        journey=journeys.iniciar(Tipo.ADULTO_DECLARADO,true,"ADULTO_LAB_1",session,"127.0.0.1").id();
+        journeys.identificarExtranjera(journey,session,"127.0.0.1");
+        journeys.declarar(journey,"presentador-adulto",Map.of("primerNombre","DECLARADO","primerApellido","APELLIDO"),session);
+        assertThrows(IllegalArgumentException.class,()->send(general()));
+        for(var attrs:List.of(Map.of("tipoDocumento","RUN_CHILENO"),Map.of("tipoIdentificacion","CLAVE_UNICA_USERINFO"),Map.of("numeroDocumento","x".repeat(121)))){
+            assertThrows(IllegalArgumentException.class,()->journeys.declarar(journey,"presentador-adulto",attrs,session));
+        }
+        var cu=journeys.iniciar(Tipo.ADULTO_CU,true,"ADULTO_LAB_1",session,"127.0.0.2").id();
+        assertEquals(400,assertThrows(FalloTecnico.class,()->journeys.identificarExtranjera(cu,session,"127.0.0.2")).status);
+        assertEquals(404,assertThrows(FalloTecnico.class,()->journeys.identificarExtranjera(journey,"b".repeat(64),"127.0.0.1")).status);
+    }
+    @Test void preferenciasAdultasNoModificanIdentidadClaveUnica(){
+        iniciar(Tipo.ADULTO_CU);var c=general();c.putAll(Map.of("adult-preferred","PREFERIDO","adult-treatment","otra","adult-treatment-text","Por el nombre indicado"));send(c);
+        var content=service.reclamar(1).getFirst().entrega().comunicacion();var presenter=content.personas().getFirst();
+        assertEquals("NOMBRE",presenter.atributos().get("primerNombre").valor());assertEquals(Fuente.CLAVE_UNICA_USERINFO,presenter.atributos().get("primerNombre").fuente());assertEquals("PREFERIDO",content.datos().campos().get("adult-preferred"));
+    }
+
+    @Test void fechaSolicitudUtilizaDiaDeChileAunqueUtcYaSeaElDiaSiguiente()throws Exception{
+        iniciar(Tipo.ADULTO_DECLARADO);
+        var fixed=Clock.fixed(Instant.parse("2026-11-01T01:00:00Z"),ZoneOffset.UTC);
+        var validation=new ValidacionFormulario(new TerritorioFormulario(mapper),fixed);
+        var c=promotion();c.put("fecha-actividad","2026-10-31");
+        validation.validar(Tipo.ADULTO_DECLARADO,data(c,List.of(),List.of()),journeys.personasInternas(journey,session));
+        c.put("fecha-actividad","2026-10-30");assertThrows(IllegalArgumentException.class,()->validation.validar(Tipo.ADULTO_DECLARADO,data(c,List.of(),List.of()),journeys.personasInternas(journey,session)));
+    }
+
 }

@@ -2,7 +2,7 @@ import { ApiError, getCsrf, json } from '../api';
 
 export type JourneyKind = 'ADULTO_CU' | 'ADULTO_DECLARADO' | 'NNA';
 export type PersonRole = 'PRESENTADOR' | 'AFECTADO_NNA' | 'ADULTO_RELACIONADO' | 'PERSONA_SENALADA';
-export const identityFields = ['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido', 'fechaNacimiento', 'sexo', 'edad'] as const;
+export const identityFields = ['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido', 'fechaNacimiento', 'sexo', 'edad', 'nacionalidad', 'tipoDocumento', 'numeroDocumento'] as const;
 export type IdentityField = typeof identityFields[number];
 export type Declarations = Partial<Record<IdentityField, string>>;
 export interface Journey { id: string; tipo: JourneyKind; avisoVersion: string; aceptaCanal: boolean; estado: string; venceEn: string }
@@ -54,6 +54,9 @@ export function identifyPerson(journey: string, person: string, rol: PersonRole,
   identifying.set(key, pending);
   void pending.then(() => identifying.delete(key), () => identifying.delete(key));
   return pending;
+}
+export async function identifyForeignPerson(journey: string): Promise<IdentityView> {
+  return publicView(await mutation<unknown>(root + '/recorridos/' + encodeURIComponent(journey) + '/identificacion-extranjera', 'POST'));
 }
 export async function declarePerson(journey: string, person: string, atributos: Declarations): Promise<IdentityView> {
   return publicView(await mutation<unknown>(`${path(journey, person)}/declaracion`, 'POST', {atributos}));

@@ -1,6 +1,7 @@
 import {FormToolbar, FormProgress, LoadingState} from '../ui/FormChrome';
 import {ReceiptPanel} from '../ui/ReceiptPanel';
 import {ExitDialog} from '../ui/ExitDialog';
+import {useUnsavedChanges} from '../ui/useUnsavedChanges';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '@fontsource/cabin/400.css';
 import '@fontsource/cabin/500.css';
@@ -36,6 +37,7 @@ export default function NnaPage() {
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[locked,setLocked]=useState(false);
   const [initialFiles,setInitialFiles]=useState<Attachment[]>([]);
   const attempt=useRef<{key:string;body:CompleteCapture}|null>(null),navigation=useRef<NnaNavigation>(null),sending=useRef(false);
+  const allowLeave=useUnsavedChanges(dirty&&!receipt);
   const preferences=usePreferences(full);
   const files=useMemo(()=>journey?attachmentPort(journey.id):null,[journey]);
   useEffect(()=>{let active=true;
@@ -70,7 +72,7 @@ export default function NnaPage() {
       <FormToolbar title={'Niñas, niños y adolescentes'} full={full} step={step} total={2} onView={setFull} />
       <div className="page-layout" id="public-surface">
         <FormProgress nna step={step} full={full} disabled={loading||!journey||!!receipt||!!fatal} onNavigate={target=>navigation.current?.go(target)} />
-        <main className="form-area" id="principal" tabIndex={-1} onChangeCapture={()=>setDirty(true)}>
+        <main className="form-area" id="principal" tabIndex={-1} onChangeCapture={()=>setDirty(true)} onDropCapture={()=>setDirty(true)}>
           {loading&&<LoadingState />}
           {fatal&&<div className="paper"><div className="paper-body"><p role="alert">{fatal}</p><button type="button" className="btn btn-primary" onClick={()=>{setLoading(true);setFatal('');setRetry(v=>v+1);}}>Reintentar</button></div></div>}
           {journey&&files&&!fatal&&!loading&&!receipt&&<div>
@@ -82,7 +84,7 @@ export default function NnaPage() {
       </div>
     </div>
     {review&&!receipt&&<ReviewNna review={review} busy={busy} locked={locked} error={error} onBack={()=>{setReview(null);requestAnimationFrame(()=>document.getElementById('nna-review')?.focus());}} onSend={()=>{void send();}} onCheck={()=>{void check();}} />}
-    {exit&&<ExitDialog onStay={()=>setExit(false)} onLeave={()=>window.location.assign('/?vista=inicio')} />}
+    {exit&&<ExitDialog onStay={()=>setExit(false)} onLeave={()=>{allowLeave();window.location.assign('/?vista=inicio');}} />}
     <InstitutionalFooter />
   </>;
 }

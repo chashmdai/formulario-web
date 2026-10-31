@@ -1,0 +1,13 @@
+import {ReadableSelect} from '../ui/ReadableSelect';
+import type {AdultContext} from './AdultFlow';
+import {regiones} from './territorio';
+const order=['15','01','02','03','04','05','13','06','07','16','08','09','14','10','11','12'];
+/** Contexto colectivo declarado; no crea personas ni consultas registrales. */
+export function AffectedGroupCard({ctx,index}:{ctx:AdultContext;index:string}){
+ const prefix='grupo-nna-'+index+'-';
+ const field=(key:string,label:string,required=false)=><div className="field"><label htmlFor={prefix+key}>{label} {required?<span className="required-mark" aria-hidden="true">*</span>:<span className="muted-label">(opcional)</span>}</label>{key==='descripcion'?<textarea id={prefix+key} rows={3} maxLength={500} {...ctx.bind(prefix+key)} required={required}/>:<input id={prefix+key} type="text" inputMode={key==='cantidad'?'numeric':undefined} maxLength={key==='cantidad'?6:500} {...ctx.bind(prefix+key)} required={required}/>}<p className="field-error" id={prefix+key+'-error'} hidden={!ctx.errors[prefix+key]}>{ctx.errors[prefix+key]}</p></div>;
+ return <section className="repeat-card affected-group" aria-label={'Grupo de NNA '+index} id={'grupo-nna-'+index}><div className="repeat-card-head"><h4>Grupo de NNA {index}</h4><button type="button" className="btn btn-secondary" disabled={ctx.busy} onClick={()=>ctx.action('quitar-grupo-'+index)}>Quitar grupo</button></div><p className="field-help">Describe al grupo sin individualizar a cada integrante. No ingreses listas de nombres en estos campos.</p><div className="repeat-fields">{field('nombre','Nombre o referencia del grupo',true)}{field('descripcion','Antecedentes para contextualizar al grupo',true)}{field('cantidad','Cantidad aproximada de NNA')}{field('edades','Edades o tramo aproximado')}
+ <div className="field"><label htmlFor={prefix+'region'}>Región del grupo <span className="muted-label">(si la sabes)</span></label><div className="select-wrap"><ReadableSelect id={prefix+'region'} {...ctx.bind(prefix+'region')}><option value="">Selecciona una región</option>{order.map(code=><option key={code} value={code}>{regiones[code]}</option>)}</ReadableSelect></div></div>
+ <div className="field"><label htmlFor={prefix+'comuna'}>Comuna del grupo <span className="muted-label">(opcional)</span></label><div className="select-wrap"><ReadableSelect id={prefix+'comuna'} {...ctx.bind(prefix+'comuna')} disabled={ctx.busy||!ctx.value(prefix+'region')}><option value="">{ctx.value(prefix+'region')?'Selecciona una comuna':'Selecciona primero una región'}</option>{ctx.communes('grupo-nna-'+index).map(name=><option key={name}>{name}</option>)}</ReadableSelect></div></div>
+ </div></section>;
+}

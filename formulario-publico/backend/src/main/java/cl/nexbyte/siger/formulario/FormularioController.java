@@ -50,6 +50,9 @@ public class FormularioController {
             &&auth.getDetails() instanceof EvidenciaAutenticacion proof&&proof.corresponde(value)?new AutenticacionCiudadana(value,proof):null;
         return respuesta(enabled(request).identificar(id,persona,body.rol(),body.runNumero(),body.runDv(),SesionIngreso.actual(request),request.getRemoteAddr(),identity));
     }
+    @PostMapping("/recorridos/{id}/identificacion-extranjera") ResponseEntity<Vista> extranjera(@PathVariable UUID id,HttpServletRequest request) {
+        return respuesta(enabled(request).identificarExtranjera(id,SesionIngreso.actual(request),request.getRemoteAddr()));
+    }
     @PostMapping("/recorridos/{id}/personas/{persona}/declaracion") ResponseEntity<Vista> declarar(@PathVariable UUID id,@PathVariable String persona,@RequestBody Declaracion body,HttpServletRequest request) {
         return respuesta(enabled(request).declarar(id,persona,body.atributos(),SesionIngreso.actual(request)));
     }

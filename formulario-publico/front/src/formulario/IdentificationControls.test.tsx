@@ -6,8 +6,8 @@ import { IdentificationControls } from './IdentificationControls';
 import type { IdentificationHandle } from './IdentificationControls';
 import type { IdentityView, Journey } from './api';
 import { ApiError } from '../api';
-import { declarePerson, getPerson, identifyPerson, resetPerson } from './api';
-vi.mock('./api', () => ({getPerson: vi.fn(), identifyPerson: vi.fn(), declarePerson: vi.fn(), resetPerson: vi.fn()}));
+import { declarePerson, getPerson, identifyPerson, identifyForeignPerson, resetPerson } from './api';
+vi.mock('./api', () => ({getPerson: vi.fn(), identifyPerson: vi.fn(), identifyForeignPerson: vi.fn(), declarePerson: vi.fn(), resetPerson: vi.fn()}));
 const journey: Journey = {id: 'recorrido-sintetico', tipo: 'ADULTO_DECLARADO', avisoVersion: 'LAB_1', aceptaCanal: true, estado: 'BORRADOR', venceEn: '2026-10-24T00:00:00Z'};
 const empty = (): IdentityView => ({personaId: 'presentador-adulto', estado: 'REVISADO', autenticada: false, runInformado: true,
   camposFaltantes: ['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido', 'fechaNacimiento', 'sexo'], camposObligatorios: ['primerNombre', 'primerApellido'], valoresDeclarados: {}, mensaje: 'Completa los datos solicitados.'});
@@ -103,4 +103,15 @@ describe('Identificación ciudadana conectada al servidor', () => {
     await act(async () => { complete({...empty(), valoresDeclarados: {primerNombre: 'NOMBRE', primerApellido: 'APELLIDO'}}); });
     expect(resolved).toHaveBeenCalledTimes(before);
   });
+  it('restaura solo las declaraciones del documento extranjero sin consultar ni pedir RUN',async()=>{
+    const foreign:IdentityView={...empty(),runInformado:false,camposFaltantes:['primerNombre','primerApellido','nacionalidad','tipoDocumento','numeroDocumento'],camposObligatorios:['primerNombre','primerApellido','nacionalidad','tipoDocumento','numeroDocumento'],valoresDeclarados:{primerNombre:'DECLARADO',primerApellido:'APELLIDO',nacionalidad:'SINTÉTICA',tipoDocumento:'PASAPORTE',numeroDocumento:'AB/123-xyz'}};
+    vi.mocked(getPerson).mockResolvedValue(foreign);mount();
+    expect(await screen.findByDisplayValue('AB/123-xyz')).toBeTruthy();expect(screen.queryByRole('textbox',{name:/^RUN/})).toBeNull();
+    expect(identifyPerson).not.toHaveBeenCalled();expect(identifyForeignPerson).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('radio',{name:'Tengo RUN chileno'}));
+    await waitFor(()=>expect(resetPerson).toHaveBeenCalledWith(journey.id,'presentador-adulto'));
+    expect(screen.queryByDisplayValue('AB/123-xyz')).toBeNull();
+    await run();await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));expect(identifyPerson).toHaveBeenCalledWith(journey.id,'presentador-adulto','PRESENTADOR','12345678','5');
+  });
+
 });

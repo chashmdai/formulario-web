@@ -2,11 +2,11 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api';
-import { getPerson, identifyPerson, declarePerson, resetPerson } from './api';
+import { getPerson, identifyPerson, identifyForeignPerson, declarePerson, resetPerson } from './api';
 import type { IdentityView, Journey } from './api';
 import { AdultFlow } from './AdultFlow';
 import type { AttachmentPort } from './NnaFlow';
-vi.mock('./api',()=>({getPerson:vi.fn(),identifyPerson:vi.fn(),declarePerson:vi.fn(),resetPerson:vi.fn()}));
+vi.mock('./api',()=>({getPerson:vi.fn(),identifyPerson:vi.fn(),identifyForeignPerson:vi.fn(),declarePerson:vi.fn(),resetPerson:vi.fn()}));
 const journey:Journey={id:'adulto-sintetico',tipo:'ADULTO_DECLARADO',avisoVersion:'ADULTO_LAB_1',aceptaCanal:true,estado:'BORRADOR',venceEn:'2026-10-25T00:00:00Z'};
 let authenticated:boolean;const stored=new Map<string,IdentityView>();
 const byId=(id:string)=>document.getElementById(id)!;
@@ -17,6 +17,9 @@ beforeEach(()=>{
   vi.mocked(identifyPerson).mockImplementation(async(_j,p,role,run)=>{
     const cu=role==='PRESENTADOR'&&authenticated;const fields:IdentityView['camposFaltantes']=cu?['fechaNacimiento','sexo']:role==='AFECTADO_NNA'?['primerNombre','segundoNombre','primerApellido','segundoApellido','edad']:role==='PRESENTADOR'?['primerNombre','segundoNombre','primerApellido','segundoApellido','fechaNacimiento','sexo']:['primerNombre','segundoNombre','primerApellido','segundoApellido'];
     const v:IdentityView={personaId:p,estado:'REVISADO',autenticada:cu,runInformado:cu||!!run,camposFaltantes:fields,camposObligatorios:role==='PRESENTADOR'&&!cu?['primerNombre','primerApellido']:[],valoresDeclarados:{},mensaje:'Completa los datos solicitados.'};stored.set(p,v);return v;
+  });
+  vi.mocked(identifyForeignPerson).mockImplementation(async()=>{
+    const v:IdentityView={personaId:'presentador-adulto',estado:'REVISADO',autenticada:false,runInformado:false,camposFaltantes:['primerNombre','primerApellido','nacionalidad','tipoDocumento','numeroDocumento'],camposObligatorios:['primerNombre','primerApellido','nacionalidad','tipoDocumento','numeroDocumento'],valoresDeclarados:{},mensaje:'Identificación declarada.'};stored.set(v.personaId,v);return v;
   });
   vi.mocked(declarePerson).mockImplementation(async(_j,p,values)=>{const v={...stored.get(p)!,valoresDeclarados:values};stored.set(p,v);return v;});
   vi.mocked(resetPerson).mockImplementation(async(_j,p)=>{stored.delete(p);});
@@ -57,29 +60,30 @@ describe('Recorridos adultos trasladados del mockup',()=>{
   });
   it('estadísticas se habilita solo tras revisar fuentes y orientación',async()=>{
     const {review,step}=mount();await identity();await reason('consulta','estadisticas');await userEvent.click(screen.getByRole('button',{name:'Continuar'}));expect(step).not.toHaveBeenCalledWith(3);
-    await userEvent.click(screen.getByRole('checkbox',{name:/Ya revisé el material/}));await last();await userEvent.type(byId('stats-descripcion'),'Datos no publicados');await userEvent.type(byId('stats-periodo'),'2025');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));expect(review.mock.calls[0][0].campos['stats-confirm']).toBe('true');
+    await userEvent.click(screen.getByRole('checkbox',{name:/Ya revisé el material/}));await last();await userEvent.type(byId('stats-descripcion'),'Datos no publicados');await userEvent.type(byId('stats-periodo'),'2025');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));expect(review.mock.calls[0][0].campos['stats-confirm']).toBe('true');expect(review.mock.calls[0][0].campos).not.toHaveProperty('relato');expect(screen.queryByRole('textbox',{name:/^Relato/})).toBeNull();
   });
   it('empleo muestra el canal oficial y no permite revisar una comunicación',async()=>{
     const {review,step}=mount();await identity();await reason('consulta','empleo');expect(screen.getByRole('link',{name:/Ir a Empleos Públicos/}).getAttribute('href')).toBe('https://www.empleospublicos.cl/');await userEvent.click(screen.getByRole('button',{name:'Continuar'}));expect(step).not.toHaveBeenCalledWith(3);expect(review).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Revisar respuestas'})).toBeNull();
   });
   it('promoción exige organización cuando corresponde y conserva actividad, público y relato',async()=>{
-    const {review}=mount();await identity();await reason('promocion');await last();await userEvent.click(screen.getByRole('radio',{name:'Sí'}));await userEvent.selectOptions(byId('actividad'),'Taller');await userEvent.type(byId('publico'),'Adolescentes');await userEvent.type(byId('relato'),'Relato sintético');await userEvent.selectOptions(byId('adult-region'),'13');
+    const {review}=mount();await identity();await reason('promocion');await last();await userEvent.click(screen.getByRole('radio',{name:'Sí'}));await userEvent.selectOptions(byId('actividad'),'Taller');await userEvent.type(byId('publico'),'Adolescentes');await userEvent.type(byId('relato'),'Relato sintético');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.selectOptions(byId('promocion-commune'),'Santiago');
     await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));expect(review).not.toHaveBeenCalled();await userEvent.selectOptions(byId('tipo-organizacion'),'ONG o fundación');await userEvent.type(byId('nombre-organizacion'),'Entidad sintética');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));expect(review.mock.calls[0][0].campos['nombre-organizacion']).toBe('Entidad sintética');
   });
   it('vulneración captura NNA desconocido, adulto relacionado e institución sin inventar identidades',async()=>{
     const {review}=mount();await identity();await reason('vulneracion');await last();await userEvent.click(byId('riesgo-no'));await userEvent.selectOptions(byId('relacion'),'testigo');await userEvent.type(byId('relato'),'Relato sintético');await userEvent.selectOptions(byId('adult-region'),'13');
     await userEvent.click(screen.getByRole('checkbox',{name:/No conozco otros datos/}));await userEvent.click(screen.getByRole('button',{name:/Agregar persona adulta/}));await userEvent.selectOptions(byId('ra-relationship-1'),'Testigo');
     await userEvent.click(byId('identifica-responsables'));await userEvent.selectOptions(byId('sb-kind-1'),'institucion');await userEvent.type(byId('sb-entity-1'),'Entidad sintética');
-    for(const id of ['hechos-region','hechos-commune'])expect((byId(id) as HTMLSelectElement).required).toBe(true);
+    expect((byId('hechos-region') as HTMLSelectElement).required).toBe(true);
+    expect((byId('hechos-commune') as HTMLSelectElement).required).toBe(false);
+    expect(screen.queryByText('¿Cuándo ocurrió o ocurre la situación?')).toBeNull();
     await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));
-    await within(byId('adult-errors')).findByText('Completa Región de los hechos.');await within(byId('adult-errors')).findByText('Completa Comuna de los hechos.');
-    await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));await waitFor(()=>expect(document.activeElement).toBe(byId('adult-errors')));expect(review).not.toHaveBeenCalled();
-    for(const id of ['hechos-region','hechos-commune'])expect(byId(id).getAttribute('aria-invalid')).toBe('true');
-    await userEvent.selectOptions(byId('hechos-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));
-    await within(byId('adult-errors')).findByText('Completa Comuna de los hechos.');
-    await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));await waitFor(()=>expect(document.activeElement).toBe(byId('adult-errors')));expect(review).not.toHaveBeenCalled();
-    await userEvent.selectOptions(byId('hechos-commune'),'Santiago');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));
-    const capture=review.mock.calls[0][0];expect(capture.campos).toMatchObject({'hechos-region':'13','hechos-commune':'Santiago'});expect(capture.personas).toEqual([{personaId:'afectado-1',detalles:{datosDesconocidos:'true'}},{personaId:'relacionado-1',detalles:{relacion:'Testigo'}}]);expect(capture.instituciones[0].nombre).toBe('Entidad sintética');expect(capture.personas.some((p:{personaId:string})=>p.personaId.startsWith('senalado'))).toBe(false);
+    await within(byId('adult-errors')).findByText('Completa Región de los hechos.');
+    await waitFor(()=>expect(byId('formulario').getAttribute('aria-busy')).toBe('false'));
+    await waitFor(()=>expect(document.activeElement).toBe(byId('adult-errors')));
+    expect(review).not.toHaveBeenCalled();
+    await userEvent.selectOptions(byId('hechos-region'),'13');
+    await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledTimes(1));
+    const capture=review.mock.calls[0][0];expect(capture.campos).toMatchObject({'hechos-region':'13'});expect(capture.personas).toEqual([{personaId:'afectado-1',detalles:{datosDesconocidos:'true'}},{personaId:'relacionado-1',detalles:{relacion:'Testigo'}}]);expect(capture.instituciones[0].nombre).toBe('Entidad sintética');expect(capture.personas.some((p:{personaId:string})=>p.personaId.startsWith('senalado'))).toBe(false);
   });
   it('un archivo rechazado bloquea revisión y puede retirarse sin perder el formulario',async()=>{
     const files={replace:vi.fn().mockRejectedValue(new ApiError(400)),clear:vi.fn().mockResolvedValue(undefined)};const {review}=mount(false,files);await identity();await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');
@@ -99,6 +103,40 @@ describe('Recorridos adultos trasladados del mockup',()=>{
   });
   it('permite corregir celular y correo y revisa la representación canónica',async()=>{
     const {review}=mount();await identity();await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.type(byId('telefono'),'12345678');await userEvent.type(byId('email'),'usuario@@correo.algo');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));expect(review).not.toHaveBeenCalled();await userEvent.clear(byId('email'));await userEvent.type(byId('email'),'Usuario+Alias@sub.correo.algo');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledOnce());expect(review.mock.calls[0][0].campos).toMatchObject({telefono:'+56912345678',email:'Usuario+Alias@sub.correo.algo'});
+  });
+
+  it.each(['grupal','mixta'] as const)('vulneración registra afectados en modalidad %s sin inventar integrantes',async mode=>{
+    const {review}=mount(true);await identity();await userEvent.selectOptions(byId('motivo'),'vulneracion');
+    await userEvent.click(screen.getByRole('radio',{name:mode==='grupal'?'Como grupo':'Personas y grupos'}));
+    await userEvent.type(byId('grupo-nna-1-nombre'),'Curso sintético');await userEvent.type(byId('grupo-nna-1-descripcion'),'Curso de establecimiento educativo de prueba, sin individualizar integrantes');
+    await userEvent.type(byId('grupo-nna-1-cantidad'),'25');
+    if(mode==='mixta')await userEvent.click(screen.getByRole('checkbox',{name:/No conozco otros datos/}));
+    await userEvent.click(byId('riesgo-no'));await userEvent.selectOptions(byId('relacion'),'docente');await userEvent.selectOptions(byId('hechos-region'),'13');await userEvent.type(byId('relato'),'Antecedentes sintéticos del grupo');await userEvent.selectOptions(byId('adult-region'),'13');
+    await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledOnce());
+    expect(byId('afectados-count').textContent).toBe(mode==='grupal'?'1 grupo':'1 NNA · 1 grupo');const c=review.mock.calls[0][0];expect(c.campos['grupo-nna-1-nombre']).toBe('Curso sintético');expect(c.personas).toHaveLength(mode==='grupal'?0:1);
+    expect(c.campos).not.toHaveProperty('momento');
+  });
+  it('preselecciona región de promoción y respeta una selección distinta',async()=>{
+    mount(true);await identity();await userEvent.selectOptions(byId('motivo'),'promocion');await userEvent.selectOptions(byId('adult-region'),'13');
+    expect((byId('promocion-region') as HTMLSelectElement).value).toBe('13');
+    expect((byId('promocion-commune') as HTMLSelectElement).required).toBe(true);
+    await userEvent.selectOptions(byId('promocion-region'),'05');await userEvent.selectOptions(byId('adult-region'),'08');
+    expect((byId('promocion-region') as HTMLSelectElement).value).toBe('05');
+  });
+  it('persona extranjera sin RUN completa consulta con documento declarado y preferencias separadas',async()=>{
+    const {review}=mount();await userEvent.click(screen.getByRole('radio',{name:/extranjera sin RUN/}));
+    await userEvent.type(await screen.findByRole('textbox',{name:/^Primer nombre/}),'NOMBRE');
+    await userEvent.type(screen.getByRole('textbox',{name:/^Primer apellido/}),'APELLIDO');
+    await userEvent.type(screen.getByRole('textbox',{name:/^Nacionalidad/}),'SINTÉTICA');
+    await userEvent.selectOptions(screen.getByRole('combobox',{name:/^Tipo de documento/}),'PASAPORTE');
+    await userEvent.type(screen.getByRole('textbox',{name:/^Número del documento/}),'AB/123-X');
+    await userEvent.type(byId('adult-preferred'),'PREFERIDO');await userEvent.selectOptions(byId('adult-treatment'),'elle');
+    expect(screen.queryByRole('textbox',{name:/^RUN/})).toBeNull();
+    await reason('consulta');await last();await userEvent.type(byId('consulta-general-detalle'),'Consulta sintética');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.type(byId('email'),'x@x.x');
+    await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));await waitFor(()=>expect(review).toHaveBeenCalledOnce());
+    expect(review.mock.calls[0][1]).toMatchObject({autenticada:false,runInformado:false,valoresDeclarados:{tipoDocumento:'PASAPORTE',numeroDocumento:'AB/123-X',primerNombre:'NOMBRE'}});
+    expect(review.mock.calls[0][0].campos).toMatchObject({'adult-preferred':'PREFERIDO','adult-treatment':'elle',email:'x@x.x'});
+    expect(identifyPerson).not.toHaveBeenCalled();expect(identifyForeignPerson).toHaveBeenCalledOnce();
   });
 
 });

@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { adultCapture, adultMaxLength, adultValues, validateAdult, validateCards } from './adultRules';
 import type { AdultPersonCard } from './adultRules';
 import type { IdentityView } from './api';
 import type { FormValues } from './nnaRules';
 const general=()=>({motivo:'consulta',tema:'general','consulta-confirmada':'true','consulta-general-detalle':'Consulta sintética','adult-region':'13'});
-const promotion=()=>({motivo:'promocion',organizacion:'no',actividad:'Taller',publico:'Adolescentes',relato:'Relato sintético','adult-region':'13'});
+const promotion=()=>({motivo:'promocion',organizacion:'no',actividad:'Taller',publico:'Adolescentes',relato:'Relato sintético','adult-region':'13','promocion-region':'13','promocion-commune':'Santiago'});
 const violation=()=>({motivo:'vulneracion',riesgo:'no',relacion:'testigo',relato:'Relato sintético','adult-region':'13','hechos-region':'13','hechos-commune':'Santiago'});
 const view=(id:string):IdentityView=>({personaId:id,estado:'REVISADO',autenticada:false,runInformado:false,camposFaltantes:['primerNombre','primerApellido'],camposObligatorios:[],valoresDeclarados:{},mensaje:''});
 describe('Reglas de captura adulta trasladadas del mockup',()=>{
@@ -31,7 +31,7 @@ describe('Reglas de captura adulta trasladadas del mockup',()=>{
     expect(validateAdult(promotion())).toEqual({});expect(validateAdult({...promotion(),organizacion:'si'})).toHaveProperty('nombre-organizacion');
     expect(validateAdult({...promotion(),organizacion:'si','tipo-organizacion':'ONG o fundación','nombre-organizacion':'Entidad','promocion-region':'13','promocion-commune':'Santiago','fecha-actividad':'2027-02-28'})).toEqual({});
     for(const date of ['2027-02-30','0000-01-01'])expect(validateAdult({...promotion(),'fecha-actividad':date})).toHaveProperty('fecha-actividad');
-    expect(validateAdult({...promotion(),'promocion-commune':'Santiago'})).toHaveProperty('promocion-commune');expect(adultValues({...promotion(),'nombre-organizacion':'Oculta'})).not.toHaveProperty('nombre-organizacion');
+    expect(validateAdult({...promotion(),'promocion-region':'05','promocion-commune':'Santiago'})).toHaveProperty('promocion-commune');expect(adultValues({...promotion(),'nombre-organizacion':'Oculta'})).not.toHaveProperty('nombre-organizacion');
   });
   it('vulneración exige riesgo y parentesco condicional; valida ubicación y contacto',()=>{
     expect(validateAdult(violation())).toEqual({});expect(validateAdult({...violation(),riesgo:''})).toHaveProperty('riesgo');expect(validateAdult({...violation(),relacion:'otro-familiar'})).toHaveProperty('relacion-familiar');
@@ -40,14 +40,11 @@ describe('Reglas de captura adulta trasladadas del mockup',()=>{
   });
   it.each([
     ['región ausente',undefined,'Santiago',['hechos-region','hechos-commune']],
-    ['comuna ausente','13',undefined,['hechos-commune']],
-    ['ambas ausentes',undefined,undefined,['hechos-region','hechos-commune']],
+    ['ambas ausentes',undefined,undefined,['hechos-region']],
     ['región vacía','','Santiago',['hechos-region','hechos-commune']],
-    ['comuna vacía','13','',['hechos-commune']],
-    ['ambas vacías','','',['hechos-region','hechos-commune']],
+    ['ambas vacías','','',['hechos-region']],
     ['región en blanco','   ','Santiago',['hechos-region','hechos-commune']],
-    ['comuna en blanco','13','   ',['hechos-commune']],
-    ['ambas en blanco','   ','   ',['hechos-region','hechos-commune']],
+    ['ambas en blanco','   ','   ',['hechos-region']],
     ['región inválida','00','Santiago',['hechos-region','hechos-commune']],
     ['comuna ajena a la región','05','Santiago',['hechos-commune']],
   ] as const)('vulneración rechaza %s',(_case,region,commune,invalid)=>{
@@ -85,4 +82,25 @@ describe('Reglas de captura adulta trasladadas del mockup',()=>{
     affected.detalles.datosDesconocidos='true';signaled.detalles.alias='Apodo';expect(validateCards(c,[affected,signaled],views)).toEqual({});
     expect(validateCards(c,[affected],new Map())).toHaveProperty('afectado-1');expect(validateCards(general(),[affected],new Map())).toEqual({});
   });
+  it.each([undefined,'','   '])('vulneración admite comuna desconocida %s y omite momento',commune=>{
+    const c:Record<string,string>={...violation(),momento:'Campo eliminado'};delete c['hechos-commune'];if(commune!==undefined)c['hechos-commune']=commune;
+    expect(validateAdult(c)).toEqual({});expect(adultValues(c)).not.toHaveProperty('momento');
+  });
+  it('promoción exige región y comuna y rechaza fecha anterior a solicitud en Chile',()=>{
+    vi.useFakeTimers();vi.setSystemTime(new Date('2026-11-01T01:00:00Z'));
+    try{
+      expect(validateAdult({...promotion(),'promocion-region':''})).toHaveProperty('promocion-region');
+      expect(validateAdult({...promotion(),'promocion-commune':''})).toHaveProperty('promocion-commune');
+      expect(validateAdult({...promotion(),'fecha-actividad':'2026-10-30'})).toHaveProperty('fecha-actividad');
+      expect(validateAdult({...promotion(),'fecha-actividad':'2026-10-31'})).toEqual({});
+      expect(validateAdult({...promotion(),'fecha-actividad':'2026-11-01'})).toEqual({});
+    }finally{vi.useRealTimers();}
+  });
+  it('grupos incompletos y cantidades inválidas no llegan a revisión',()=>{
+    const c={...violation(),'afectados-modalidad':'grupal','grupo-nna-1-nombre':'Curso'};
+    expect(validateAdult(c)).toHaveProperty('grupo-nna-1-descripcion');
+    expect(validateAdult({...c,'grupo-nna-1-descripcion':'Curso de establecimiento sintético','grupo-nna-1-cantidad':'0'})).toHaveProperty('grupo-nna-1-cantidad');
+    expect(validateAdult({...c,'grupo-nna-1-descripcion':'Curso de establecimiento sintético'})).toEqual({});
+  });
+
 });

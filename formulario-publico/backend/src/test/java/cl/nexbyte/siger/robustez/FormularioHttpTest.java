@@ -99,4 +99,22 @@ class FormularioHttpTest {
         assertFalse(result.contains("CONTROLADO"));assertFalse(result.contains("REGISTRAL"));assertEquals(1,QUERIES.get());
         assertTrue(db.sql.queryForObject("SELECT body FROM citizen_person WHERE journey_id=?",String.class,id).contains(proof.id().toString()));
     }
+    @Test void identificacionExtranjeraEsPrivadaDeclaradaYRequiereCsrfHttpsYCanalAdulto()throws Exception{
+        var session=new MockHttpSession();String id=iniciar(session,"ADULTO_DECLARADO");
+        String url="/api/formulario/recorridos/"+id+"/identificacion-extranjera";
+        mvc.perform(post(url).secure(true).session(session)).andExpect(status().isForbidden());
+        mvc.perform(post(url).session(session).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(post(url).secure(true).session(new MockHttpSession()).with(csrf())).andExpect(status().isNotFound());
+        mvc.perform(post(url).secure(true).session(session).with(csrf())).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
+            .andExpect(jsonPath("$.autenticada").value(false)).andExpect(jsonPath("$.runInformado").value(false)).andExpect(jsonPath("$.valoresDeclarados").isEmpty());
+        String person="/api/formulario/recorridos/"+id+"/personas/presentador-adulto";
+        mvc.perform(post(person+"/declaracion").secure(true).session(session).with(csrf()).contentType("application/json")
+            .content("{\"atributos\":{\"primerNombre\":\"DECLARADO\",\"primerApellido\":\"APELLIDO\",\"nacionalidad\":\"SINTÉTICA\",\"tipoDocumento\":\"PASAPORTE\",\"numeroDocumento\":\"AB/123-X\"}}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.valoresDeclarados.numeroDocumento").value("AB/123-X")).andExpect(jsonPath("$.autenticada").value(false));
+        mvc.perform(get(person).secure(true).session(new MockHttpSession())).andExpect(status().isNotFound());
+        var nna=iniciar(session,"NNA");mvc.perform(post("/api/formulario/recorridos/"+nna+"/identificacion-extranjera").secure(true).session(session).with(csrf())).andExpect(status().isBadRequest());
+        var cu=iniciar(session,"ADULTO_CU");mvc.perform(post("/api/formulario/recorridos/"+cu+"/identificacion-extranjera").secure(true).session(session).with(csrf())).andExpect(status().isBadRequest());
+        assertEquals(0,QUERIES.get());
+    }
+
 }

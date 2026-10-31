@@ -1,8 +1,9 @@
+import {ReadableSelect} from '../ui/ReadableSelect';
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode, Ref } from 'react';
 import type { Session } from '../api';
 import { ApiError } from '../api';
-import { declarePerson, getPerson, identifyPerson, resetPerson } from './api';
+import { declarePerson, getPerson, identifyPerson, identifyForeignPerson, resetPerson } from './api';
 import type { Declarations, IdentityField, IdentityView, Journey } from './api';
 import { formatRunNumber, pastedRun, runNumber, validRun } from './run';
 
@@ -18,6 +19,9 @@ const metadata: {key: IdentityField; suffix: string; label: string; type?: strin
   {key: 'segundoApellido', suffix: 'second', label: 'Segundo apellido'},
   {key: 'fechaNacimiento', suffix: 'birth', label: 'Fecha de nacimiento', type: 'date', help: 'Puedes completar este dato si lo conoces (opcional).'},
   {key: 'sexo', suffix: 'sex', label: 'Sexo registral', help: 'Este dato no define cómo prefieres que nos dirijamos a ti.'},
+  {key: 'nacionalidad', suffix: 'nationality', label: 'Nacionalidad', help: 'Indica tu nacionalidad, según los antecedentes que declaras.'},
+  {key: 'tipoDocumento', suffix: 'document-kind', label: 'Tipo de documento de identificación'},
+  {key: 'numeroDocumento', suffix: 'document-number', label: 'Número del documento', help: 'Cópialo como aparece en tu documento; puede contener letras y distintos separadores.'},
   {key: 'edad', suffix: 'age', label: 'Edad', type: 'number', help: 'Déjalo en blanco si no la sabes.'},
 ];
 
@@ -30,6 +34,7 @@ export function IdentificationControls({journey, session, nna = false, children,
   const [numero, setNumero] = useState('');
   const [dv, setDv] = useState('');
   const [knowsRun, setKnowsRun] = useState(false);
+  const [foreign, setForeign] = useState(false);
   const [view, setView] = useState<IdentityView | null>(null);
   const [values, setValues] = useState<Declarations>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -50,13 +55,14 @@ export function IdentificationControls({journey, session, nna = false, children,
     if (cu && !next.autenticada) throw new ApiError(401);
     backendExists.current = true;
     setView(next); setValues(next.valoresDeclarados); setErrors({}); setFailure('');
+    if(!cu&&!nna)setForeign(next.camposFaltantes.includes('tipoDocumento'));
     setPhase(next.estado === 'CONSULTANDO' ? 'CONSULTANDO' : 'REVISADO');
     onResolvedRef.current?.(next);
   }
   function fail(error: unknown) {
     setPhase('ERROR');
     setFailure(error instanceof ApiError && error.status === 429 ? 'Espera unos minutos antes de volver a revisar el RUN.'
-      : error instanceof ApiError && error.status === 401 ? 'La sesión expiró. Vuelve a iniciar sesión con ClaveÚnica.'
+      : error instanceof ApiError && error.status === 401 ? cu ? 'La sesión expiró. Vuelve a iniciar sesión con ClaveÚnica.' : 'La sesión expiró. Vuelve al inicio para abrir un formulario.'
       : error instanceof ApiError && error.status === 409 ? 'Los datos cambiaron en otra ventana. Recarga el formulario antes de continuar.'
       : 'No pudimos guardar o revisar tus datos. Inténtalo nuevamente.');
   }
@@ -73,7 +79,7 @@ export function IdentificationControls({journey, session, nna = false, children,
     // Una sola invalidación por identidad existente, incluso si se siguen escribiendo dígitos.
     if (resetNeeded.current) void ensureReset().catch(() => { /* Se conserva el pendiente y se reintenta antes de consultar. */ });
   }
-  function review(withRun = !nna || knowsRun): Promise<IdentityView | null> {
+  function review(withRun = !foreign && (!nna || knowsRun)): Promise<IdentityView | null> {
     if (lookup.current) return lookup.current;
     if (view?.estado === 'REVISADO') return Promise.resolve(view);
     const token = ++generation.current;
@@ -88,7 +94,7 @@ export function IdentificationControls({journey, session, nna = false, children,
         await ensureReset();
         if (token !== generation.current) return null;
         backendExists.current = true;
-        const next = await identifyPerson(journey.id, person, 'PRESENTADOR', cu || !withRun ? undefined : runNumber(numero), cu || !withRun ? undefined : dv.toUpperCase());
+        const next = foreign ? await identifyForeignPerson(journey.id) : await identifyPerson(journey.id, person, 'PRESENTADOR', cu || !withRun ? undefined : runNumber(numero), cu || !withRun ? undefined : dv.toUpperCase());
         if (token !== generation.current) return null;
         received(next); return next;
       } catch (error) { if (token === generation.current) fail(error); return null; }
@@ -117,6 +123,7 @@ export function IdentificationControls({journey, session, nna = false, children,
         backendExists.current = true;
         setView(next); setValues(next.valoresDeclarados); setPhase(next.estado === 'CONSULTANDO' ? 'CONSULTANDO' : 'REVISADO');
         if (nna && next.runInformado) setKnowsRun(true);
+        if(!cu&&!nna)setForeign(next.camposFaltantes.includes('tipoDocumento'));
         onResolvedRef.current?.(next);
       }
     }).catch(error => { if (active) {
@@ -128,12 +135,19 @@ export function IdentificationControls({journey, session, nna = false, children,
   }, [journey.id, cu, nna, person]);
   // Solo el presentador tiene finalidad autorizada. Las tarjetas de terceros no usan este disparador.
   useEffect(() => {
-    if (!restored || cu || !nna && !journey.aceptaCanal || journey.estado !== 'BORRADOR' || phase !== 'INICIAL'
+    if (!restored || cu || foreign || !nna && !journey.aceptaCanal || journey.estado !== 'BORRADOR' || phase !== 'INICIAL'
       || view || nna && !knowsRun || !validRun(runNumber(numero), dv)) return;
     const timer = window.setTimeout(() => { void review(); }, 650);
     return () => window.clearTimeout(timer);
     // La revisión captura estos valores; no depender de su función evita reiniciar el debounce por renders ajenos.
-  }, [restored, cu, journey.aceptaCanal, journey.estado, phase, view, nna, knowsRun, numero, dv]);
+  }, [restored, cu, foreign, journey.aceptaCanal, journey.estado, phase, view, nna, knowsRun, numero, dv]);
+  useEffect(() => {
+    if(foreign && !cu && !nna && restored && phase==='INICIAL' && !view) void review(false);
+  },[foreign,cu,nna,restored,phase,view,journey.id]);
+  function changeIdentification(next:boolean) {
+    if(busy || cu || nna)return;
+    invalidate();setForeign(next);setNumero('');setDv('');
+  }
   async function refresh() {
     const token=++generation.current;setPhase('CONSULTANDO');
     try {const next=await getPerson(journey.id,person);if(token===generation.current)received(next);}
@@ -219,12 +233,17 @@ export function IdentificationControls({journey, session, nna = false, children,
     <p className="field-error" hidden={!errors.run} id={`${prefix}-run-error`}>{errors.run}</p>
   </div>;
   return <>
+    {!nna&&!cu&&<fieldset className="fieldset run-choice"><legend>¿Cómo puedes identificarte?</legend><div className="radio-row">
+      <label className="radio-pill"><input type="radio" name="adult-identification" checked={!foreign} disabled={busy} onChange={()=>changeIdentification(false)} /> Tengo RUN chileno</label>
+      <label className="radio-pill"><input type="radio" name="adult-identification" checked={foreign} disabled={busy} onChange={()=>changeIdentification(true)} /> Soy una persona extranjera sin RUN chileno</label>
+    </div></fieldset>}
+    {foreign&&<p className="info-tip" role="status">Puedes utilizar esta vía aunque estés en situación migratoria irregular. Ingresa los antecedentes del documento que posees. Esta identificación es declarada, no autenticada ni verificada.</p>}
     {nna && <fieldset className="fieldset run-choice"><legend>¿Conoces tu RUN (RUT)?</legend><div className="radio-row">
       <label className="radio-pill"><input type="radio" name="nna-knows-run" checked={knowsRun} onChange={() => changeKnowsRun(true)} disabled={busy} value="yes" /> Sí, quiero ingresarlo</label>
       <label className="radio-pill"><input type="radio" name="nna-knows-run" checked={!knowsRun} onChange={() => changeKnowsRun(false)} disabled={busy} value="no" /> No sé mi RUN / continuar sin RUN</label>
     </div></fieldset>}
     {preservedRun && <div className="field-help"><p>Ya informaste un RUN en este recorrido. No es necesario volver a ingresarlo.</p><button type="button" className="btn btn-secondary" disabled={busy} onClick={invalidate}>Corregir el RUN informado</button></div>}
-    <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={(nna && !knowsRun) || preservedRun}>
+    <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={foreign || (nna && !knowsRun) || preservedRun}>
       {runControls}
       {!cu && <div className="lookup-actions" id={nna ? undefined : 'manual-verify'}>
         <button className="btn btn-secondary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy || !restored} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
@@ -232,7 +251,7 @@ export function IdentificationControls({journey, session, nna = false, children,
         {nna && <button className="btn btn-secondary" id="nna-skip-run" type="button" disabled={busy} onClick={() => changeKnowsRun(false)}>Continuar sin RUN</button>}
       </div>}
     </div>
-    {(nna || cu || preservedRun) && statusMarkup}
+    {(nna || cu || foreign || preservedRun) && statusMarkup}
     {phase === 'ERROR' && <button className="btn btn-secondary" type="button" onClick={() => void (view?.estado === 'CONSULTANDO' ? refresh() : review())}>Volver a intentar</button>}
     <div className={nna ? 'form-grid nna-basics' : 'identity-input-grid'} id={nna ? undefined : 'adult-personal-fields'} hidden={!fields.length && !children && !identity}>
       {fields.map(m => {
@@ -244,8 +263,8 @@ export function IdentificationControls({journey, session, nna = false, children,
         return <div className="field" data-identity-attr={m.suffix} key={m.key}>
           <label htmlFor={id}>{m.label}{(['segundoApellido', 'edad'].includes(m.key) || (nna && m.key === 'segundoNombre')) && <span className="muted-label"> {m.key === 'edad' ? '(opcional)' : '(si corresponde)'}</span>}
             {required && <span aria-hidden="true" className="required-mark"> *</span>}{!nna && <span className="identity-source" id={`source-${m.suffix}`}>{sourceFor(m.key)}</span>}</label>
-          {m.key === 'sexo' ? <div className="select-wrap"><select {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></select></div>
-            : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : 500} {...(m.key === 'edad' ? {min: 0, max: 17, inputMode: 'numeric' as const} : {})} {...(['primerNombre','segundoNombre','primerApellido','segundoApellido'].includes(m.key) ? {'data-name-part': true} : {})} />}
+          {m.key === 'tipoDocumento' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Selecciona un tipo de documento</option><option value="PASAPORTE">Pasaporte</option><option value="IDENTIDAD_EXTRANJERA">Documento de identidad extranjero</option><option value="OTRO">Otro documento de identificación</option></ReadableSelect></div> : m.key === 'sexo' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></ReadableSelect></div>
+            : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : ['nacionalidad','numeroDocumento'].includes(m.key)?120:500} {...(m.key === 'edad' ? {min: 0, max: 17, inputMode: 'numeric' as const} : {})} {...(['primerNombre','segundoNombre','primerApellido','segundoApellido'].includes(m.key) ? {'data-name-part': true} : {})} />}
           <p className="field-help" id={`${id}-help`}>{m.help}</p><p className="field-error" id={`${id}-error`} hidden={!errors[m.key]}>{errors[m.key]}</p>
         </div>;
       })}
@@ -254,6 +273,6 @@ export function IdentificationControls({journey, session, nna = false, children,
       {children}
     </div>
     {!nna && <p className="field-help" id="adult-source-help">{cu ? 'Los datos de tu ingreso con ClaveÚnica no se pueden editar aquí.'
-      : 'Informar un RUN no reemplaza la verificación de identidad con ClaveÚnica.'}</p>}
+      : foreign ? 'Tu nacionalidad, documento y nombres quedan registrados como antecedentes declarados por ti.' : 'Informar un RUN no reemplaza la verificación de identidad con ClaveÚnica.'}</p>}
   </>;
 }
