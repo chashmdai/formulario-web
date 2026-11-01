@@ -26,7 +26,7 @@ Elegir loopback libre24443, directorio/proyecto nuevos y respaldo externo. Lími
 ## 2. Fuente y build
 
 ```bash
-git clone git@github.com:chashmdai/formulario-web.git
+git clone https://github.com/chashmdai/formulario-web.git
 cd formulario-web
 git fetch origin
 git switch main
@@ -113,6 +113,19 @@ ProxyHTTPS→SpringHTTPS/JDBC VERIFY_IDENTITY. Spring ve TLS real; forward-heade
 
 PUT `.../cargas/{id}/bloques/{index}` limitado8MiB; demás26MiB. No POST150/250MiB. Canal clásico10MiB/archivo conservado; con multimedia habilitada nuevos multipart clásicos409. Sin ampliar límites.
 Inspector debe acreditar LANDLOCK3_SECCOMP; AV firmas reales/salud. Si fallan no arranca app; no sustituir por dobles/abrir recepción.
+
+### Smoke sintético reproducible sin toolchains del host
+
+Solo después de autorizar el GATE de pruebas cerrado. El generador usa ffmpeg/Python de la imagen inspector, sin datos ciudadanos ni red. Directorios nuevos y fuera de Git; no ejecutar sobre la QA integrada o sus evidencias.
+
+```bash
+sudo install -d -m 0700 -o 1000 -g 1000 /srv/formulario-qa-sintetica-NUEVA
+sudo docker run --rm --network none --user 1000:1000 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 256m --tmpfs /tmp:uid=1000,gid=1000,mode=0700 --mount type=bind,src="$PWD/scripts/qa/generar-multimedia-sintetica.py",dst=/qa/generar.py,readonly --mount type=bind,src=/srv/formulario-qa-sintetica-NUEVA,dst=/out --entrypoint python3 "ddn-inspector:$REV" /qa/generar.py /out
+sudo env MULTIMEDIA_SYNTHETIC_DIR=/srv/formulario-qa-sintetica-NUEVA MULTIMEDIA_INSPECTOR_SOCKET=/srv/ddn-formulario-candidato/ipc/inspector/inspector.sock MULTIMEDIA_EVIDENCE_DIR=/ruta/privada/evidencia-H5-NUEVA python3 scripts/qa/probar-inspector-multimedia.py
+sudo env MULTIMEDIA_SYNTHETIC_DIR=/srv/formulario-qa-sintetica-NUEVA MULTIMEDIA_AV_SOCKET=/srv/ddn-formulario-candidato/ipc/antivirus/clamd.sock MULTIMEDIA_EVIDENCE_DIR=/ruta/privada/evidencia-H5-NUEVA python3 scripts/qa/probar-clamav-multimedia.py --autorizar-eicar
+```
+
+El último comando usa EICAR benigno explícitamente y un ZIP sintético de~12MiB; no es una prueba de carga ni de máximos150MiB. Cambiar paths solo al candidato aislado verificado. No borrar fixtures/evidencias previos. H2/regresiones se ejecutan dentro del build sin estas dependencias reales; se informan separadamente.
 
 ## 6. Configuración y activación posterior
 
