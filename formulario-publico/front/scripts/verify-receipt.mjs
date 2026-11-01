@@ -24,7 +24,6 @@ try{
   const context=await browser.newContext({viewport:{width:variant.width,height:variant.height},reducedMotion:variant.reduced?'reduce':'no-preference'});
   try{
    const page=await context.newPage();let checks=0,mutations=0;
-   await page.clock.install();
    await page.addInitScript(theme=>localStorage.setItem('siger:theme',theme),variant.theme);
    await context.route('**/*',async route=>{
     const request=route.request(),url=new URL(request.url());
@@ -47,22 +46,28 @@ try{
    await page.getByRole('heading',{name:'Recibimos tu comunicación'}).waitFor();
    assert.equal(await page.getByRole('button',{name:'Descargar comprobante institucional'}).count(),0);
    assert.equal(await page.locator('.receipt-waiting .ui-spinner').count(),1);
-   if(variant.reduced)assert.equal(await page.locator('.receipt-waiting .ui-spinner').evaluate(el=>getComputedStyle(el).animationName),'none');
+   const rotation=await page.locator('.receipt-waiting .ui-spinner').evaluate(async el=>{
+    const first=getComputedStyle(el).transform;
+    await new Promise(resolve=>setTimeout(resolve,240));
+    return {first,second:getComputedStyle(el).transform,animation:getComputedStyle(el).animationName};
+   });
+   if(variant.reduced){assert.equal(rotation.animation,'none');assert.equal(rotation.first,rotation.second);}
+   else{assert.notEqual(rotation.first,rotation.second,'Spinner must actually rotate in a real browser');}
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal overflow');
    await receipt.screenshot({path:path.join(output,variant.name+'-pending.png')});
-   await page.clock.runFor(4000);
    await page.getByRole('alert').filter({hasText:'No pudimos actualizar el estado'}).waitFor();
    assert.equal(await page.getByRole('button',{name:'Descargar comprobante de recepción'}).isEnabled(),true);
    await receipt.screenshot({path:path.join(output,variant.name+'-retry.png')});
-   await page.clock.runFor(4000);
    await page.getByRole('heading',{name:'Comunicación registrada'}).waitFor();
    assert.equal(await page.getByText('COM-000123',{exact:true}).count(),1);
    assert.equal(await page.getByRole('button',{name:'Descargar comprobante institucional'}).isEnabled(),true);
    assert.equal(await page.locator('.receipt-waiting').count(),0);
    assert.equal(await page.getByRole('alert').count(),0);
    await receipt.screenshot({path:path.join(output,variant.name+'-confirmed.png')});
-   await page.clock.runFor(20000);assert.equal(checks,2);assert.equal(mutations,0);
-   results.push({variant:variant.name,status:'PASS',stateGets:checks,mutations,screenshots:3});
+   assert.equal(await page.getByRole('button',{name:'Actualizar estado',exact:true}).count(),0);
+   assert.equal(await page.getByRole('heading',{name:'Guarda tus comprobantes'}).count(),1);
+   await page.waitForTimeout(4500);assert.equal(checks,2);assert.equal(mutations,0);
+   results.push({variant:variant.name,status:'PASS',stateGets:checks,mutations,screenshots:3,realSpinnerRotation:!variant.reduced,reducedMotion:!!variant.reduced});
   }finally{await context.close();}
  }
 }finally{await browser.close();}

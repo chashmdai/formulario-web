@@ -12,16 +12,31 @@ const labels:Record<string,string>={motivo:'Motivo principal',tema:'Tipo de cons
 const options:Record<string,string>={consulta:'Realizar una consulta',vulneracion:'Informar una vulneración de derechos',promocion:'Actividad de Promoción y Difusión',general:'Consulta general',entrevista:'Entrevista',estadisticas:'Estudios, publicaciones o estadísticas sobre niñez y adolescencia',si:'Sí',no:'No',true:'Sí',false:'No',estudiante:'Estudiante',independiente:'Persona independiente / a título personal',prensa:'Prensa o medio de comunicación',otro:'Otro',madre:'Madre',padre:'Padre',cuidador:'Cuidador o cuidadora','otro-familiar':'Otro familiar',docente:'Docente o profesional educativo',salud:'Profesional de salud',testigo:'Persona testigo',organizacion:'Representante de una organización',individual:'Individualmente',grupal:'Grupos de NNA',mixta:'Personas y grupos',nombre:'Usen mi nombre',ella:'Ella',el:'Él',elle:'Elle',otra:'De otra forma',noresponde:'Prefiero no responder',PASAPORTE:'Pasaporte',IDENTIDAD_EXTRANJERA:'Documento de identidad extranjero',OTRO:'Otro documento de identificación'};
 const enumKeys=new Set(['motivo','tema','consulta-confirmada','stats-confirm','entrevista-rol','riesgo','relacion','identifica-responsables','organizacion','datosDesconocidos','adult-treatment','afectados-modalidad','tipoDocumento']);
 function translated(key:string,value:string){if(key.endsWith('-region')||key==='region')return regiones[value]||value;return enumKeys.has(key)?options[value]||value:value;}
-function Section({title,values}:{title:string;values:Record<string,string>}){return <section className="dialog-section"><h3>{title}</h3><dl>{Object.entries(values).filter(([,v])=>v).map(([key,value])=><div className="summary-row" key={key}><dt>{labels[key]||key}</dt><dd>{translated(key,value)}</dd></div>)}</dl></section>;}
+const contactKeys=new Set(['email','telefono']);
+const locationKeys=new Set(['adult-region','adult-commune','adult-address','hechos-region','hechos-commune','lugar','promocion-region','promocion-commune']);
+const storyKeys=new Set(['relato','consulta-general-detalle','entrevista-motivo','stats-descripcion']);
+const preferenceKeys=new Set(['adult-preferred','adult-treatment','adult-treatment-text']);
+function Section({title,values,description}:{title:string;values:Record<string,string>;description?:string}){
+ const rows=Object.entries(values).filter(([,value])=>value);
+ return <section className="dialog-section review-section" aria-label={title}><h3>{title}</h3>{description&&<p className="review-note">{description}</p>}{rows.length?<dl>{rows.map(([key,value])=><div className={`summary-row${storyKeys.has(key)||value.length>180||value.includes('\n')?' summary-row-long':''}`} key={key}><dt>{labels[key]||key}</dt><dd>{translated(key,value)}</dd></div>)}</dl>:<p className="review-empty">No se entregaron antecedentes adicionales en esta sección.</p>}</section>;
+}
 export function ReviewAdult({review,session,busy,locked,error,onBack,onSend,onCheck}:{review:AdultReview;session:Session|null;busy:boolean;locked:boolean;error:string;onBack:()=>void;onSend:()=>void;onCheck:()=>void}){
   const dialog=useRef<HTMLDialogElement>(null);useDialogFocus(dialog);useEffect(()=>{const current=dialog.current;current?.showModal();return()=>current?.close();},[]);
   const identity=review.presenter.autenticada&&session?.authenticated&&session.identity?{RUN:session.identity.run,Nombres:session.identity.nombres,Apellidos:session.identity.apellidos}:review.presenter.valoresDeclarados;
   useEffect(()=>{if(error)dialog.current?.querySelector<HTMLElement>('[role=alert]')?.scrollIntoView?.({block:'nearest',behavior:'auto'});},[error]);
   const counts=new Map<string,number>();
-  return <dialog className="dialog" id="vista-previa" ref={dialog} aria-labelledby="modal-titulo" aria-describedby="modal-descripcion" onCancel={e=>{if(busy||locked)e.preventDefault();else onBack();}}>
+  const entries=Object.entries(review.capture.campos).filter(([key])=>!key.startsWith('grupo-nna-'));
+  const pick=(keys:Set<string>)=>Object.fromEntries(entries.filter(([key])=>keys.has(key)));
+  const communication=Object.fromEntries(entries.filter(([key])=>![contactKeys,locationKeys,storyKeys,preferenceKeys].some(keys=>keys.has(key))));
+  const identityDescription=review.presenter.autenticada?'Identidad autenticada con ClaveÚnica.':review.presenter.camposFaltantes.includes('tipoDocumento')?'Los antecedentes de tu documento son declarados por ti; no equivalen a una identidad autenticada.':'Identificación declarada. Los antecedentes recuperados del Registro Civil se mantienen protegidos y no se muestran aquí.';
+  return <dialog className="dialog review-dialog" id="vista-previa" ref={dialog} aria-labelledby="modal-titulo" aria-describedby="modal-descripcion" onCancel={e=>{if(busy||locked)e.preventDefault();else onBack();}}>
     <div className="dialog-head"><div><h2 id="modal-titulo">Revisión de tu comunicación</h2><p id="modal-descripcion">Este es el resumen de lo que nos contarás. Puedes volver al formulario si necesitas cambiar algo.</p></div><button type="button" className="dialog-close" aria-label="Cerrar revisión" disabled={busy||locked} onClick={onBack}><svg className="icon"><use href="#i-x" /></svg></button></div>
-    <div className="dialog-body" id="resumen"><Section title={review.presenter.autenticada?'Identidad autenticada con ClaveÚnica':'Identificación declarada'} values={identity as Record<string,string>} />
-      <p className="field-help">{review.presenter.camposFaltantes.includes("tipoDocumento")?"Los antecedentes de tu documento son declarados por ti; no equivalen a una identidad autenticada.":"Los antecedentes recuperados del Registro Civil se mantienen protegidos y no se muestran aquí."}</p><Section title="Tu comunicación" values={Object.fromEntries(Object.entries(review.capture.campos).filter(([key])=>!key.startsWith('grupo-nna-')))} />
+    <div className="dialog-body" id="resumen">
+      <Section title="Identificación" description={identityDescription} values={{...identity,...pick(preferenceKeys)} as Record<string,string>}/>
+      <Section title="Contacto" values={pick(contactKeys)}/>
+      <Section title="Ubicación" values={pick(locationKeys)}/>
+      <Section title="Comunicación" values={communication}/>
+      <Section title="Relato" values={pick(storyKeys)}/>
       {groupIndexes(review.capture.campos).map(index=><Section key={index} title={'Grupo de NNA '+index} values={Object.fromEntries(groupFields.map(field=>[field,review.capture.campos['grupo-nna-'+index+'-'+field]||'']))}/>)}
       {review.capture.personas.map(p=>{const kind=p.personaId.split('-')[0],number=(counts.get(kind)||0)+1;counts.set(kind,number);const v=review.people.get(p.personaId);return <Section key={p.personaId} title={`${kind==='afectado'?'NNA':kind==='relacionado'?'Persona adulta relacionada':'Persona señalada'} ${number}`} values={{...v?.valoresDeclarados,RUN:v?.runInformado?'Informado':'No informado',...p.detalles}} />;})}
       {review.capture.instituciones.map((entity,i)=><Section key={i} title={`Institución ${i+1}`} values={{...entity}} />)}

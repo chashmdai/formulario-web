@@ -1,0 +1,24 @@
+<!doctype html><html lang="es" data-theme="light"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prueba local del modal de revisión</title></head><body><div id="root"></div>
+<script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '@fontsource/cabin/400.css';
+import '@fontsource/cabin/600.css';
+import '@fontsource/cabin/700.css';
+import '../src/prototipo/prototipo.css';
+import '../src/ui/loading.css';
+import '../src/ui/experience.css';
+import {InstitutionalHeader} from '../src/prototipo/InstitutionalHeader';
+import {ReviewAdult} from '../src/formulario/ReviewAdult';
+import {ReviewNna} from '../src/formulario/ReviewNna';
+const root=createRoot(document.getElementById('root'));
+const identity={personaId:'presentador-adulto',estado:'REVISADO',autenticada:false,runInformado:false,camposFaltantes:['tipoDocumento'],camposObligatorios:[],valoresDeclarados:{primerNombre:'Persona sintética',primerApellido:'Ejemplo',nacionalidad:'Perú',tipoDocumento:'PASAPORTE',numeroDocumento:'DOCUMENTO-SINTETICO'},mensaje:'Declaración sintética'};
+const story='Este relato es completamente sintético y no se enviará.\n\n'+('Antecedentes extensos de prueba para comprobar la lectura, los saltos de línea y el desplazamiento dentro del resumen. '.repeat(16))+'\n\nÚltimo párrafo del relato sintético.';
+const file={id:'archivo-sintetico',nombre:'antecedente-de-prueba-con-un-nombre-extenso-que-debe-poder-leerse-completo.pdf',tamanio:2048,sha256:'a'.repeat(64),estado:'VALIDADO'};
+const review={presenter:identity,people:new Map(),files:[file],capture:{campos:{motivo:'vulneracion',relacion:'testigo','adult-preferred':'Nombre preferido sintético',email:'persona.sintetica@example.test',telefono:'+56912345678','adult-region':'13','adult-commune':'Santiago','hechos-region':'13','hechos-commune':'Santiago',riesgo:'no',relato:story,'afectados-modalidad':'grupal','grupo-nna-1-nombre':'Grupo sintético','grupo-nna-1-descripcion':'Antecedentes colectivos ficticios de un grupo sin individualizar a sus integrantes.'},personas:[],instituciones:[],adjuntos:[file.id]}};
+window.renderReview=(kind,theme)=>{
+ document.documentElement.dataset.theme=theme;
+ const props={busy:false,locked:false,error:'',onBack:()=>{},onCheck:()=>{},onSend:()=>{throw new Error('Visual fixture must never send');}};
+ root.render(React.createElement(React.Fragment,null,React.createElement(InstitutionalHeader,{theme,scale:100,onTheme:()=>{},onIncrease:()=>{},onDecrease:()=>{}}),React.createElement(kind==='nna'?ReviewNna:ReviewAdult,{...props,session:null,review:kind==='nna'?{identity:{...identity,personaId:'presentador-nna',valoresDeclarados:{primerNombre:'NNA sintético',primerApellido:'Ejemplo',edad:'12'}},attachments:[file],campos:{'nna-region':'13','nna-preferred':'Nombre preferido sintético','nna-primary-method':'unsafe','nna-contact-instructions':'No llamar: instrucción sintética.','nna-story':story}}:review})));
+};
+</script></body></html>

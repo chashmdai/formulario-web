@@ -433,7 +433,7 @@ Una modificación de opciones o eliminación de campos necesita revisar el contr
 
 ### Confirmación ciudadana y folio automático
 
-[ReceiptPanel](formulario-publico/front/src/ui/ReceiptPanel.tsx) consulta el estado existente por GET cada cuatro segundos mientras el registro institucional está pendiente. Las consultas son secuenciales, tienen un límite de espera de doce segundos y se detienen al confirmar el ACK o abandonar la pantalla. El folio COM y el comprobante institucional aparecen automáticamente; el comprobante público permanece descargable durante errores o demoras. Esta consulta no reenvía la Comunicación ni activa el consumidor institucional. Ver [comportamiento, pruebas y QA del 01/11/2026](docs/CONFIRMACION_AUTOMATICA_2026-11-01.md).
+[ReceiptPanel](formulario-publico/front/src/ui/ReceiptPanel.tsx) consulta el estado existente por GET cada cuatro segundos mientras el registro institucional está pendiente. Las consultas son secuenciales, tienen un límite de espera de doce segundos y se detienen al confirmar el ACK o abandonar la pantalla. El folio COM y el comprobante institucional aparecen automáticamente; el comprobante público permanece descargable durante errores o demoras. Esta consulta no reenvía la Comunicación ni activa el consumidor institucional. En estado confirmado se retira la actualización manual; los textos explican ambos comprobantes y la importancia de guardar el folio. El modal previo agrupa los antecedentes en secciones y presenta los relatos largos a ancho completo. Ver [ajustes de revisión, confirmación y CU para revisión](docs/AJUSTES_REVISION_CONFIRMACION_CU_2026-11-01.md). Ver [comportamiento, pruebas y QA del 01/11/2026](docs/CONFIRMACION_AUTOMATICA_2026-11-01.md).
 
 ### Motivos y preguntas condicionales
 

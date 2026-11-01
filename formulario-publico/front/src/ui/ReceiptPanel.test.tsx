@@ -32,6 +32,7 @@ describe('Confirmación ciudadana con actualización automática',()=>{
   expect(screen.queryByRole('button',{name:'Descargar comprobante institucional'})).toBeNull();
   rerender(<ReceiptPanel receipt={confirmed} busy={false} onCheck={check} onDownload={download}/>);
   expect(screen.getByRole('heading',{name:'Comunicación registrada'})).toBeTruthy();expect(screen.getByText('COM-000123')).toBeTruthy();
+  expect(screen.queryByRole('button',{name:'Actualizar estado'})).toBeNull();expect(screen.getByRole('heading',{name:'Guarda tus comprobantes'})).toBeTruthy();expect(screen.getByText(/Anota y guarda el folio/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button',{name:'Descargar comprobante institucional'}));
   expect(download).toHaveBeenCalledWith(confirmed.registro,'comprobante-institucional-'+pending.id+'.json');
   await act(()=>vi.advanceTimersByTimeAsync(90000));expect(check).not.toHaveBeenCalled();expect(document.querySelector('.receipt-waiting')).toBeNull();
@@ -41,6 +42,7 @@ describe('Confirmación ciudadana con actualización automática',()=>{
   render(<ReceiptPanel receipt={pending} busy={false} error="No pudimos actualizar el estado." onCheck={check} onDownload={download}/>);
   await act(()=>vi.advanceTimersByTimeAsync(60000));
   expect(screen.getByText(/El registro está tardando más/)).toBeTruthy();expect(screen.getByRole('alert').textContent).toContain('No pudimos actualizar');
+  fireEvent.click(screen.getByRole('button',{name:'Reintentar consulta'}));expect(check).toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button',{name:'Descargar comprobante de recepción'}));
   expect(download).toHaveBeenCalledWith(pending.custodia,'comprobante-custodia-'+pending.id+'.json');
   expect(screen.queryByRole('button',{name:/Enviar/})).toBeNull();

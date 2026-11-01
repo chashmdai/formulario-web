@@ -66,4 +66,12 @@ describe('Inicio institucional en migración', () => {
     expect(Object.keys(localStorage).sort()).toEqual(['siger:font-scale', 'siger:theme']);
     expect(localStorage.getItem('siger:font-scale')).toBe('1.3');
   });
+  it('el acceso CU disponible registra el aviso y dirige al inicio OAuth sin inventar autenticación',async()=>{
+    const navigate=vi.fn();const fetch=vi.spyOn(window,'fetch').mockImplementation(async(url)=>new Response(JSON.stringify(String(url)==='/api/session'?{authenticated:false,loginAvailable:true,environment:'QA'}:String(url)==='/api/csrf'?{token:'csrf-test',headerName:'X-CSRF-TOKEN'}:String(url)==='/api/formulario/capacidades'?{disponible:true,avisoAdulto:'ADULTO_LAB_1'}:{id:'recorrido'}),{status:200}));
+    render(<StartPage navigate={navigate}/>);await userEvent.click(screen.getByRole('button',{name:/Soy una persona adulta/}));await userEvent.click(screen.getByRole('link',{name:'Iniciar sesión con ClaveÚnica'}));
+    await userEvent.click(screen.getByRole('radio',{name:/^Acepto/}));await userEvent.click(screen.getByRole('button',{name:'Continuar'}));
+    expect(navigate).toHaveBeenCalledWith('/oauth2/authorization/claveunica');
+    const posted=fetch.mock.calls.find(([,init])=>init?.method==='POST')!;expect(JSON.parse(posted[1]!.body as string)).toEqual({tipo:'ADULTO_CU',avisoVersion:'ADULTO_LAB_1',aceptaCanalDigital:true});
+    expect(screen.queryByText('Este acceso está temporalmente cerrado. Inténtalo nuevamente más tarde.')).toBeNull();
+  });
 });

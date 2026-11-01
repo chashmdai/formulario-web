@@ -12,7 +12,9 @@
     "test": "vitest run",
     "lint": "eslint .",
     "preview": "vite preview --host localhost",
-    "test:receipt-browser": "node scripts/verify-receipt.mjs"
+    "test:receipt-browser": "node scripts/verify-receipt.mjs",
+    "test:review-browser": "node scripts/verify-review.mjs",
+    "test:spinner-browser": "node scripts/verify-spinner.mjs"
   },
   "dependencies": {
     "@fontsource/cabin": "5.3.0",
