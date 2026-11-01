@@ -3,7 +3,7 @@ from pathlib import Path
 import socket,struct,base64,io,json,tempfile,zipfile,os
 import sys
 assert '--autorizar-eicar' in sys.argv,'La prueba usa exclusivamente EICAR benigno y requiere el flag explícito.'
-r=Path(__file__).resolve().parents[2];socketpath=os.environ['MULTIMEDIA_AV_SOCKET'];fixture=Path(os.environ['MULTIMEDIA_SYNTHETIC_DIR']);results=[]
+r=Path(__file__).resolve().parents[2];evidence=Path(os.environ.get('MULTIMEDIA_EVIDENCE_DIR',r/'.local/evidencias'));evidence.mkdir(parents=True,exist_ok=True);socketpath=os.environ['MULTIMEDIA_AV_SOCKET'];fixture=Path(os.environ['MULTIMEDIA_SYNTHETIC_DIR']);results=[]
 def scan(file):
  with socket.socket(socket.AF_UNIX) as s:
   s.settimeout(90);s.connect(socketpath);s.sendall(b'zINSTREAM\0')
@@ -27,4 +27,4 @@ with tempfile.TemporaryDirectory(prefix='siger-av-prueba-') as private:
   z.writestr('control-final.com',eicar)
  with path.open('rb') as f:response=scan(f)
  assert 'eicar' in response.lower() and response.endswith(' FOUND');results.append({'caso':'EICAR al final de ZIP mayor de 12 MiB','tamanio':path.stat().st_size,'resultado':'DETECTADO'})
-(r/'.local/evidencias/multimedia-clamav-real.json').write_text(json.dumps(results,indent=2));print(json.dumps(results))
+(evidence/'multimedia-clamav-real.json').write_text(json.dumps(results,indent=2));print(json.dumps(results))

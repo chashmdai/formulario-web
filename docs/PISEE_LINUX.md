@@ -1,3 +1,5 @@
+> Referencia de laboratorio/histórica. Para instalación nueva en Ubuntu y nodo productivo futuro, consultar [traspaso H1](TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md) y [manual de integraciones](INTEGRACIONES_UBUNTU.md). No ejecutar estas recetas DEV sobre un ZIP productivo.
+
 > **Actualización 24/10/2026:** cliente/Nodo reutilizados desde el formulario integrado con disparador automático, allowlist privada y una consulta DEV real completa. El override de laboratorio publica solo `127.0.0.1:18084` para el JAR nativo; el compose base conserva su red sin puertos. No se modificaron credenciales, certificados ni endpoints externos. Estado actual y reversión: [RUN_SRCEI_AUTOMATICO_2026-10-24.md](RUN_SRCEI_AUTOMATICO_2026-10-24.md). La documentación siguiente conserva la validación inicial independiente del Nodo/cliente.
 
 # Nodo PISEE y cliente SRCeI en Linux

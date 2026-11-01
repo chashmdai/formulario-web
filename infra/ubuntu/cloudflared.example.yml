@@ -1,0 +1,11 @@
+# SOLO REFERENCIA: no crea túnel, DNS ni servicio. Valores institucionales pendientes.
+tunnel: IDENTIFICADOR_ASIGNADO_POR_TI
+credentials-file: /etc/cloudflared/PRIVADO.json
+ingress:
+  - hostname: formulario.defensorianinez.gob.cl
+    service: https://127.0.0.1:24443
+    originRequest:
+      originServerName: formulario.defensorianinez.gob.cl
+      httpHostHeader: formulario.defensorianinez.gob.cl
+      caPool: /etc/cloudflared/formulario-origin-ca.crt
+  - service: http_status:404

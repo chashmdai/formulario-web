@@ -1,3 +1,5 @@
+> Referencia de laboratorio/histórica. Para instalación nueva en Ubuntu y nodo productivo futuro, consultar [traspaso H1](TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md) y [manual de integraciones](INTEGRACIONES_UBUNTU.md). No ejecutar estas recetas DEV sobre un ZIP productivo.
+
 > **Lanzador Windows histórico.** No describe el arranque del laboratorio Linux/POSIX ni la activación V10. Consultar [README](../README.md), [operación](OPERACION_MULTIMEDIA.md) y [checkpoint vigente](CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md) antes de iniciar procesos. No ejecutar este lanzador sobre la infraestructura Linux existente.
 
 > Rutas actualizadas tras separar las aplicaciones. Esta guía inicia solo el Formulario Público. Consulta también MIGRACION_APLICACIONES.md.
@@ -15,7 +17,7 @@ Esperar el mensaje **FORMULARIO PÚBLICO LISTO**. Se abre automáticamente:
 
 [https://claveunica.formularioadulto.defensorianinez.gob.cl/](https://claveunica.formularioadulto.defensorianinez.gob.cl/)
 
-Ahí pulsar «Iniciar sesión» y usar el RUN oficial `44.444.444-4`, clave de prueba `testing`, únicamente en Gobierno Digital. Tras autenticarse aparecerán RUN, nombres y apellidos de Sandbox en campos de solo lectura.
+Ahí pulsar «Iniciar sesión» y utilizar únicamente la identidad Sandbox autorizada entregada por Gobierno Digital, custodiada fuera de Git. No usar datos personales de terceros ni credenciales productivas para estas pruebas. Tras autenticarse, la identidad de Sandbox se muestra en campos de solo lectura.
 
 No es necesario abrir Codex, ejecutar npm ni iniciar scripts auxiliares por separado. `formulario-publico/scripts/Formulario.ps1` es el script madre; `FORMULARIO.cmd` lo ejecuta con PowerShell instalado en Windows. Los procesos quedan en segundo plano al terminar el asistente y se detienen al apagar el equipo. Volver a ejecutar `FORMULARIO.cmd` en el siguiente arranque.
 

@@ -16,7 +16,7 @@ public class FormularioConfiguration {
     @Bean ValidacionFormulario validacionFormulario(TerritorioFormulario territorio){return new ValidacionFormulario(territorio);}
     @Bean AdjuntosFormulario adjuntosFormulario(BaseJdbc db,RecorridosJdbc recorridos,Environment env,org.springframework.beans.factory.ObjectProvider<cl.nexbyte.siger.multimedia.AlmacenPrivado> store){
         int port=env.getProperty("formulario.adjuntos.clamav-port",Integer.class,0);
-        AdjuntosFormulario.Escaner scanner=port==0?bytes->{throw new java.io.IOException("Inspección no configurada");}:new EscanerClamAv(port);
+        AdjuntosFormulario.Escaner scanner=port==0?bytes->{throw new java.io.IOException("Inspección no configurada");}:new EscanerClamAv(env.getProperty("formulario.adjuntos.clamav-host","127.0.0.1"),port);
         return new AdjuntosFormulario(db,recorridos,scanner,store.getIfAvailable()).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
     }
     @Bean RecepcionFormularioJdbc recepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario files,JsonMapper mapper,ValidacionFormulario validation,Environment env)throws java.io.IOException {

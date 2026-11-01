@@ -1,0 +1,35 @@
+{
+    admin off
+    auto_https off
+}
+(backend) {
+    reverse_proxy https://app:8443 {
+        header_up Host {$FORM_HOSTNAME}
+        header_up X-Forwarded-Host {$FORM_HOSTNAME}
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Port 443
+        transport http {
+            tls_server_name app
+            tls_trust_pool file /run/pki/ca.crt
+        }
+    }
+}
+:8443 {
+    tls /run/pki/server.crt /run/pki/server.key
+    @bloque {
+        method PUT
+        path /api/formulario/recorridos/*/cargas/*/bloques/*
+    }
+    handle @bloque {
+        request_body {
+            max_size 8MiB
+        }
+        import backend
+    }
+    handle {
+        request_body {
+            max_size 26MiB
+        }
+        import backend
+    }
+}

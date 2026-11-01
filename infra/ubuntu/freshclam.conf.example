@@ -1,0 +1,9 @@
+# Montar solo en ejecución de actualización, sin acceso a documentos ciudadanos.
+DatabaseDirectory /var/lib/clamav
+DatabaseMirror database.clamav.net
+DNSDatabaseInfo current.cvd.clamav.net
+ScriptedUpdates yes
+ConnectTimeout 10
+ReceiveTimeout 60
+LogTime yes
+LogFileMaxSize 5M

@@ -8,19 +8,23 @@
 
 [![CI Linux y Windows](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml)
 
+**Traspaso vigente · GATE H1 (01/11/2026):** [comenzar aquí](docs/TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md) · [instalación Ubuntu/Docker](docs/INSTALACION_UBUNTU_DOCKER.md) · [ClaveÚnica, PISEE y SIGER](docs/INTEGRACIONES_UBUNTU.md) · [verificaciones H1](docs/VERIFICACION_GATE_H1_2026-11-01.md).
+
+El candidato incluye Compose integrado con MySQL 8.4, HTTPS hasta Spring, almacenamiento privado, ClamAV e inspector. DDN-UBUNTU ya contiene un laboratorio que se preserva; la instalación nueva se hará por GATES. La futura VM Windows de SIGER todavía no tiene datos definitivos. Publicar este repositorio no instala ni habilita ciudadanía en Ubuntu.
+
 Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexbyte SpA. Permite a personas adultas, niñas, niños y adolescentes presentar una Comunicación, aportar antecedentes y obtener su comprobante.
 
 **El Formulario es un receptor transitorio. SIGER institucional es el registro y la custodia definitiva.** Este repositorio recibe, valida, conserva temporalmente y entrega información íntegra; después puede retirar sus copias públicas cuando se acreditan las garantías necesarias. No es una segunda base institucional permanente.
 
 **[Retención 72 h · V12](docs/RETENCION_ACK_72H_2026-10-26.md)** · **[Cierre de ingeniería](docs/CIERRE_INGENIERIA_FORMULARIO_PUBLICO_2026-10-25.md)** · **[Agente Windows nativo · laboratorio](agente-custodia/README.md)** · **[Cierre técnico y observabilidad](docs/CIERRE_TECNICO_V10_2026-10-25.md)** · **[Arquitectura vigente](docs/ARQUITECTURA_RECEPTOR_TRANSITORIO.md)** · **[Checkpoint técnico y pruebas](docs/CHECKPOINT_RECEPTOR_TRANSITORIO_2026-10-25.md)** · **[Publicación y continuidad](docs/CONSOLIDACION_MAIN_2026-10-25.md)** · **[Contratos](contratos/README.md)** · **[Operación multimedia](docs/OPERACION_MULTIMEDIA.md)**
 
-> **Actualización · 26/10/2026.** V12 implementa una [alternativa de 72 h por ACK](docs/RETENCION_ACK_72H_2026-10-26.md), deshabilitada por defecto, sin exigir respaldo individual. La política independiente sigue siendo predeterminada. Código local, sin despliegue, retiradas ni push.
+> **Actualización · 26/10/2026.** V12 implementa una [alternativa de 72 h por ACK](docs/RETENCION_ACK_72H_2026-10-26.md), deshabilitada por defecto, sin exigir respaldo individual. La política independiente sigue siendo predeterminada. Código publicado posteriormente; esta referencia describe la aprobación original, no el estado actual de despliegue. Retiradas deshabilitadas.
 
 > **Referencia histórica · 25/10/2026.** Este cierre reúne el baseline funcional, multimedia, receptor transitorio V10/V11 y agente Windows 1.1. Las verificaciones del cierre están en el [registro de ingeniería](docs/CIERRE_INGENIERIA_FORMULARIO_PUBLICO_2026-10-25.md). **Actualización 28/10:** los laboratorios ya se migraron a V12, con mantenimiento y retirada deshabilitados. Ver [actualización local](docs/ACTUALIZACION_LAB_MAIN_2026-10-28.md) y [CU productiva y PISEE configurable](docs/CLAVEUNICA_PRODUCCION_PISEE_2026-10-28.md). La estimación operativa del **96 %** no es cobertura de pruebas, certificación, aceptación definitiva ni autorización productiva. El baseline sigue siendo evolutivo.
 
 **Dominio local vigente · corregido el 31/10/2026:** [https://formulario.defensorianinez.gob.cl/?vista=inicio](https://formulario.defensorianinez.gob.cl/?vista=inicio). Resolución local Windows/WSL y TLS de laboratorio; el DNS público no se ha creado. ClaveÚnica necesita registrar las nuevas URI en Gobierno Digital. Ver [cambio de dominio, verificaciones y reversión](docs/DOMINIO_FORMULARIO_2026-10-31.md).
 
-**Validación institucional aprobada · 31/10/2026:** [observaciones implementadas y pruebas](docs/VALIDACION_INSTITUCIONAL_2026-10-31.md). Incluye identificación extranjera declarada sin RUN, grupos de NNA, preferencias adultas, territorio/fechas, contactos y advertencias sin borradores. Cambios de código en rama de revisión, sin despliegue ni habilitación ciudadana.
+**Validación institucional aprobada · 31/10/2026:** [observaciones implementadas y pruebas](docs/VALIDACION_INSTITUCIONAL_2026-10-31.md). Incluye identificación extranjera declarada sin RUN, grupos de NNA, preferencias adultas, territorio/fechas, contactos y advertencias sin borradores. Cambios incorporados posteriormente en main y en la QA WSL para revisión; sin habilitación ciudadana ni instalación en DDN-UBUNTU por este cierre.
 
 ## Índice
 

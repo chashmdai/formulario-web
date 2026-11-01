@@ -1,0 +1,179 @@
+# GATE H1: proyecto NUEVO y cerrado. No sustituye los Compose de laboratorio.
+name: ${COMPOSE_PROJECT_NAME:-ddn-formulario-candidato}
+x-app: &app
+  image: ${FORM_IMAGE:?Imagen inmutable por SHA de fuente o digest}
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+    args:
+      SOURCE_REVISION: ${FORM_SOURCE_REVISION:?SHA completo de fuente}
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 1536m
+  cpus: 2
+  pids_limit: 160
+  init: true
+  tmpfs: ["/tmp:size=384m,uid=1000,gid=1000,mode=0700"]
+  logging: &logs {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+services:
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-root-password
+    secrets: [mysql-root-password]
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ${FORM_PRIVATE_DIR:?Directorio nuevo privado}/mysql-init:/docker-entrypoint-initdb.d:ro
+      - ${FORM_PRIVATE_DIR}/pki/mysql:/run/pki:ro
+      - ${FORM_PRIVATE_DIR}/mysql/root.cnf:/run/secrets/root.cnf:ro
+      - ${FORM_PRIVATE_DIR}/mysql/health.cnf:/run/secrets/health.cnf:ro
+      - ./mysql.cnf:/etc/mysql/conf.d/formulario.cnf:ro
+    networks: [datos]
+    mem_limit: 1536m
+    cpus: 1.5
+    pids_limit: 120
+    healthcheck:
+      test: ["CMD", "mysql", "--defaults-extra-file=/run/secrets/health.cnf", "--execute", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 60s
+    logging: *logs
+  migrar:
+    <<: *app
+    profiles: [migracion]
+    restart: "no"
+    command: ["--migrate"]
+    environment:
+      MIGRATION_DB_URL: jdbc:mysql://mysql:3306/formulario_publico?sslMode=VERIFY_IDENTITY&connectTimeout=5000&socketTimeout=30000
+      MIGRATION_DB_USER: formulario_migrador
+      MIGRATION_DB_PASSWORD_FILE: /run/secrets/migration-password
+      JAVA_TOOL_OPTIONS: -Xmx384m -Djavax.net.ssl.trustStore=/run/pki/java-truststore -Djavax.net.ssl.trustStorePassword=changeit
+    secrets: [migration-password]
+    volumes:
+      - ${FORM_PRIVATE_DIR}/pki/app/java-truststore:/run/pki/java-truststore:ro
+    networks: [datos]
+    depends_on:
+      mysql: {condition: service_healthy}
+  app:
+    <<: *app
+    restart: unless-stopped
+    environment:
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/run/config/application.properties
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      JAVA_TOOL_OPTIONS: -Xmx768m -XX:+ExitOnOutOfMemoryError -Djavax.net.ssl.trustStore=/run/pki/java-truststore -Djavax.net.ssl.trustStorePassword=changeit
+    secrets:
+      - source: app-password
+        target: publico.db.password
+      - source: cu-client-id
+        target: siger.claveunica.client-id
+      - source: cu-client-secret
+        target: siger.claveunica.client-secret
+      - source: keystore-password
+        target: server.ssl.key-store-password
+      - source: operations-token
+        target: operacion.token
+      - source: integration-token
+        target: publico.integracion.token
+    volumes:
+      - ${FORM_PRIVATE_DIR}/config/application.properties:/run/config/application.properties:ro
+      - ${FORM_PRIVATE_DIR}/keys:/run/keys:ro
+      - ${FORM_PRIVATE_DIR}/pki/app:/run/pki:ro
+      - ${FORM_PRIVATE_DIR}/store:/var/lib/formulario
+      - ${FORM_PRIVATE_DIR}/ipc/inspector:/ipc/inspector
+      - ${FORM_PRIVATE_DIR}/ipc/antivirus:/ipc/antivirus
+      - ./clamd.conf:/run/config/clamd.conf:ro
+    networks: [datos, inspeccion, salida]
+    depends_on:
+      mysql: {condition: service_healthy}
+      antivirus: {condition: service_healthy}
+      inspector: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--cacert", "/run/pki/ca.crt", "https://localhost:8443/api/session"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+  proxy:
+    image: ${PROXY_IMAGE:?Imagen Caddy sin file capabilities}
+    build: {context: ../sandbox, dockerfile: Dockerfile}
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      FORM_HOSTNAME: ${FORM_HOSTNAME:-formulario.defensorianinez.gob.cl}
+    ports: ["127.0.0.1:${FORM_HTTPS_PORT:-24443}:8443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${FORM_PRIVATE_DIR}/pki/proxy:/run/pki:ro
+    tmpfs: ["/config:uid=1000,gid=1000,mode=0700", "/data:uid=1000,gid=1000,mode=0700", "/tmp:uid=1000,gid=1000,mode=0700"]
+    networks: [salida]
+    mem_limit: 128m
+    pids_limit: 64
+    depends_on:
+      app: {condition: service_healthy}
+    logging: *logs
+  inspector:
+    image: ${INSPECTOR_IMAGE:?Imagen inspector versionada}
+    build: {context: ../media, dockerfile: Dockerfile}
+    restart: unless-stopped
+    user: "1000:1000"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1
+    pids_limit: 32
+    tmpfs: ["/scratch:size=192m,uid=1000,gid=1000,mode=0700", "/tmp:size=8m,mode=1777"]
+    volumes: ["${FORM_PRIVATE_DIR}/ipc/inspector:/ipc"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(socket.AF_UNIX); s.settimeout(3); s.connect('/ipc/inspector.sock'); s.sendall(bytes.fromhex('7b2273616c7564223a747275657d0a')); assert b'LANDLOCK3_SECCOMP' in s.recv(512)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    logging: *logs
+  antivirus:
+    image: ${ANTIVIRUS_IMAGE:?Imagen antivirus versionada}
+    build: {context: ../media, dockerfile: Dockerfile.clamav}
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1536m
+    cpus: 1
+    pids_limit: 32
+    tmpfs: ["/scratch:size=320m,uid=1000,gid=1000,mode=0700", "/tmp:size=8m,mode=1777"]
+    volumes:
+      - ${FORM_PRIVATE_DIR}/ipc/antivirus:/ipc
+      - ${FORM_PRIVATE_DIR}/clamav:/var/lib/clamav:ro
+      - ./clamd.conf:/etc/clamd-media.conf:ro
+    networks: [inspeccion]
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/3310; echo nPING >&3; read -r -t 3 pong <&3; test \"$$pong\" = PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    logging: *logs
+networks:
+  datos: {internal: true}
+  inspeccion: {internal: true}
+  salida: {}
+volumes:
+  mysql-data: {}
+secrets:
+  mysql-root-password: {file: "${FORM_PRIVATE_DIR}/secrets/mysql-root-password"}
+  app-password: {file: "${FORM_PRIVATE_DIR}/secrets/app-password"}
+  migration-password: {file: "${FORM_PRIVATE_DIR}/secrets/migration-password"}
+  cu-client-id: {file: "${FORM_PRIVATE_DIR}/secrets/cu-client-id"}
+  cu-client-secret: {file: "${FORM_PRIVATE_DIR}/secrets/cu-client-secret"}
+  keystore-password: {file: "${FORM_PRIVATE_DIR}/secrets/keystore-password"}
+  operations-token: {file: "${FORM_PRIVATE_DIR}/secrets/operations-token"}
+  integration-token: {file: "${FORM_PRIVATE_DIR}/secrets/integration-token"}

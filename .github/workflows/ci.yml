@@ -37,6 +37,7 @@ jobs:
           python3 scripts/qa/test_media_archive.py
           python3 scripts/qa/test_media_storage_report.py
           python3 scripts/qa/test_runtime_jar.py
+          python3 scripts/qa/test_ubuntu_prepare.py
 
   agente-windows:
     runs-on: windows-2022
@@ -72,3 +73,17 @@ jobs:
             & "$env:JAVA_HOME/bin/java.exe" --enable-native-access=ALL-UNNAMED -cp "$jar;$h2;$classes" cl.nexbyte.siger.custodia.PruebaAgenteNativo --pruebas C:\agente\testdata $version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+
+  empaquetado-docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar Compose sin crear servicios
+        run: docker compose --env-file infra/ubuntu/.env.example -f infra/ubuntu/compose.yml config --quiet
+      - name: Verificar configuración de proxy con la imagen sin file capabilities
+        run: |
+          docker build -t formulario-proxy:ci infra/sandbox
+          docker run --rm --network none -e FORM_HOSTNAME=formulario.defensorianinez.gob.cl -v "$PWD/infra/ubuntu/Caddyfile:/etc/caddy/Caddyfile:ro" --entrypoint caddy formulario-proxy:ci adapt --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+      - name: Construir React y backend; comprobar catálogos dentro del JAR
+        run: docker build --build-arg SOURCE_REVISION="${{ github.sha }}" -t formulario-h1:ci .

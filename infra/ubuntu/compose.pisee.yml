@@ -1,0 +1,20 @@
+# Activar únicamente en el GATE PISEE tras inventariar el ZIP productivo real.
+services:
+  pisee:
+    image: ${PISEE_IMAGE:?Imagen construida y versionada del wrapper Linux}
+    build: {context: ../pisee, dockerfile: Dockerfile}
+    profiles: [pisee]
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    pids_limit: 64
+    tmpfs: ["/tmp:size=64m,uid=1000,gid=1000,mode=0700"]
+    volumes:
+      - ${PISEE_PRIVATE_DIR:?Instalación productiva privada revisada}/runtime:/opt/pisee:ro
+      - ${PISEE_PRIVATE_DIR}/state:/var/lib/pisee
+    working_dir: /var/lib/pisee
+    networks: [salida]
+    logging: {driver: json-file, options: {max-size: 5m, max-file: "3"}}

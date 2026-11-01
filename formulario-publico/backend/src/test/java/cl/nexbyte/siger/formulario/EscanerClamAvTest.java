@@ -16,9 +16,15 @@ class EscanerClamAvTest {
                 var bytes=new ByteArrayOutputStream();int size;while((size=input.readInt())!=0){assertTrue(size>0&&size<=8192);bytes.write(input.readNBytes(size));}
                 assertEquals("Contenido sintético",bytes.toString(StandardCharsets.UTF_8));socket.getOutputStream().write(result.getBytes(StandardCharsets.UTF_8));return true;
             }});
-            try{return new EscanerClamAv(server.getLocalPort()).limpio("Contenido sintético".getBytes(StandardCharsets.UTF_8));}
+            try{return new EscanerClamAv("localhost",server.getLocalPort()).limpio("Contenido sintético".getBytes(StandardCharsets.UTF_8));}
             finally{assertTrue(future.get(5,TimeUnit.SECONDS));}
         }
+    }
+    @Test void destinoDebeSerHostnamePrivadoSinRutaNiPuerto(){
+        for(String host:new String[]{"https://antivirus","antivirus:3310","../antivirus","antivirus\n",""})
+            assertThrows(IllegalArgumentException.class,()->new EscanerClamAv(host,3310));
+        assertDoesNotThrow(()->new EscanerClamAv("antivirus",3310));
+        assertDoesNotThrow(()->new EscanerClamAv(3310));
     }
     @Test void inspeccionLimpiaSoloAceptaConfirmacionCompleta()throws Exception{assertTrue(consulta("stream: OK\0"));}
     @Test void deteccionRechazaArchivo()throws Exception{assertFalse(consulta("stream: amenaza-sintetica FOUND\0"));}
