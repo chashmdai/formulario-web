@@ -17,7 +17,12 @@ function state(value: SubmissionState): SubmissionState {
     || (value.estado === 'REGISTRADA_SIGER' && !value.registro?.registro?.folio) || (value.estado === 'PENDIENTE_REGISTRO_SIGER' && value.registro !== null)) throw new ApiError(502);
   return value;
 }
-export async function getSubmission(id: string): Promise<SubmissionState> {return state(await json<SubmissionState>(`${root}/comunicaciones/${encodeURIComponent(id)}`));}
+export async function getSubmission(id: string): Promise<SubmissionState> {
+  const controller=new AbortController();
+  const timeout=window.setTimeout(()=>controller.abort(),12000);
+  try {return state(await json<SubmissionState>(`${root}/comunicaciones/${encodeURIComponent(id)}`,{signal:controller.signal}));}
+  finally {window.clearTimeout(timeout);}
+}
 export async function getJourneySubmission(id: string): Promise<SubmissionState> {return state(await json<SubmissionState>(`${journeyPath(id)}/comunicacion`));}
 export const getReceptionCapabilities = () => json<{nna: boolean; adultos: boolean; multimedia?: boolean}>(`${root}/recepcion/capacidades`);
 export const listAttachments = (journey:string) => json<Attachment[]>(`${journeyPath(journey)}/adjuntos`);

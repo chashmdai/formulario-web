@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import NnaPage from './NnaPage';
@@ -43,7 +43,7 @@ beforeEach(()=>{
     throw new Error(`Solicitud inesperada en prueba: ${path}`);
   });
 });
-afterEach(()=>{vi.restoreAllMocks();localStorage.clear();});
+afterEach(()=>{if(vi.isFakeTimers()){vi.clearAllTimers();vi.useRealTimers();}vi.restoreAllMocks();localStorage.clear();});
 async function fill(){
   await userEvent.type(await screen.findByRole('textbox',{name:/^Primer nombre/}),'NOMBRE');
   await userEvent.type(screen.getByRole('textbox',{name:/^Primer apellido/}),'APELLIDO');
@@ -89,5 +89,15 @@ describe('Página NNA con API completa controlada',()=>{
     available=false;render(<NnaPage />);await fill();expect(screen.getByText(/La recepción está temporalmente cerrada/)).toBeTruthy();const dialog=await review();
     await userEvent.click(within(dialog).getByRole('button',{name:'Enviar comunicación'}));expect(await within(dialog).findByRole('alert')).toBeTruthy();expect(sends).toHaveLength(0);
     await userEvent.click(within(dialog).getByRole('button',{name:'Volver al formulario'}));expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  it('actualiza automáticamente el folio NNA con el mismo GET sin nuevo POST',async()=>{
+    vi.useFakeTimers();created=true;
+    received={id:'33333333-3333-4333-8333-333333333333',estado:'PENDIENTE_REGISTRO_SIGER',custodia:proof,registro:null};
+    await act(async()=>{render(<StrictMode><NnaPage /></StrictMode>);});
+    expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();
+    received={...received,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'COM-000124'},comprobante:proof}};
+    await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByText('COM-000124')).toBeTruthy();
+    expect(screen.getByRole('button',{name:'Descargar comprobante institucional'})).toBeTruthy();expect(sends).toHaveLength(0);
+    const calls=vi.mocked(fetch).mock.calls.length;await act(()=>vi.advanceTimersByTimeAsync(20000));expect(fetch).toHaveBeenCalledTimes(calls);
   });
 });

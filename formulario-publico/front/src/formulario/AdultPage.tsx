@@ -78,7 +78,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
     catch(e){setError(e instanceof ApiError&&e.status===401?'Tu sesión terminó. No podemos confirmar la recepción desde esta sesión.':'No pudimos confirmar la recepción. Comprueba el estado o reintenta el mismo envío para evitar duplicados.');}
     finally{sending.current=false;setBusy(false);}
   }
-  async function check(){const id=receipt?.id||attempt.current?.key;if(!id||sending.current)return;sending.current=true;setBusy(true);setError('');try{setReceipt(await getSubmission(id));setReview(null);}catch{setError('No pudimos recuperar una recepción confirmada. Puedes reintentar el mismo envío.');}finally{sending.current=false;setBusy(false);}}
+  async function check(){const id=receipt?.id||attempt.current?.key;if(!id||sending.current)return;sending.current=true;setBusy(true);try{setReceipt(await getSubmission(id));setReview(null);setError('');}catch{setError(receipt?'No pudimos actualizar el estado. Volveremos a intentarlo automáticamente. Puedes guardar tu comprobante de recepción; no necesitas enviar nuevamente tu comunicación.':'No pudimos recuperar una recepción confirmada. Puedes reintentar el mismo envío.');}finally{sending.current=false;setBusy(false);}}
   function download(value:unknown,name:string){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url);}
   const authenticated=journey?.tipo!=='ADULTO_CU'||session?.authenticated;
   return <>
@@ -95,7 +95,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
             {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
             <AdultFlow mediaEnabled={mediaEnabled} key={journey.id} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(capture,presenter,people,attached)=>{setError('');setReview({capture,presenter,people,files:attached});}} />
           </>}
-          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={()=>{void check();}} />}
+          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={check} />}
         </main></div></div>
 
     {privacy&&<PrivacyDialog busy={busy} error={error} onClose={()=>window.location.assign('/?vista=inicio')} onAccept={()=>{void accept();}} />}

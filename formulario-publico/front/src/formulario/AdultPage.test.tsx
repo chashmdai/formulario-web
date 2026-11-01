@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import AdultPage from './AdultPage';
@@ -37,7 +37,7 @@ beforeEach(()=>{
     throw new Error(`Ruta inesperada de prueba: ${path}`);
   });
 });
-afterEach(()=>{vi.restoreAllMocks();window.history.replaceState({},'','/');localStorage.clear();});
+afterEach(()=>{if(vi.isFakeTimers()){vi.clearAllTimers();vi.useRealTimers();}vi.restoreAllMocks();window.history.replaceState({},'','/');localStorage.clear();});
 async function fill(){
   if(!exists){const privacy=await screen.findByRole('dialog');await userEvent.click(within(privacy).getByRole('radio',{name:/^Acepto/}));await userEvent.click(within(privacy).getByRole('button',{name:'Continuar'}));}
   if(cu){await screen.findByDisplayValue('NOMBRE');await waitFor(()=>expect((byId('adult-run') as HTMLInputElement).disabled).toBe(false));}else{
@@ -77,4 +77,21 @@ describe('Cierre de adulto con API controlada',()=>{
     expect(posts).toHaveLength(0);
   });
 
+  it('actualiza automáticamente el ACK restaurado sin repetir el envío y se recupera de un error GET',async()=>{
+    vi.useFakeTimers();exists=true;
+    received={id:'33333333-3333-4333-8333-333333333333',estado:'PENDIENTE_REGISTRO_SIGER',custodia:proof,registro:null};
+    await act(async()=>{render(<StrictMode><AdultPage /></StrictMode>);});
+    expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();
+    const original=vi.mocked(fetch).getMockImplementation()!;let checks=0;
+    vi.mocked(fetch).mockImplementation(async(input,init)=>{
+      if(String(input).startsWith('/api/formulario/comunicaciones/')){checks++;if(checks===1)return response({},503);}
+      return original(input,init);
+    });
+    await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByRole('alert').textContent).toContain('No pudimos actualizar el estado');
+    expect(screen.getByRole('button',{name:'Descargar comprobante de recepción'})).toBeTruthy();expect(posts).toHaveLength(0);
+    received={...received,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'COM-000123'},comprobante:proof}};
+    await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByText('COM-000123')).toBeTruthy();
+    expect(screen.getByRole('button',{name:'Descargar comprobante institucional'})).toBeTruthy();expect(screen.queryByRole('alert')).toBeNull();
+    await act(()=>vi.advanceTimersByTimeAsync(20000));expect(checks).toBe(2);expect(posts).toHaveLength(0);
+  });
 });

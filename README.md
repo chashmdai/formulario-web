@@ -431,6 +431,10 @@ Cambiar un texto visible no autoriza renombrar la clave persistida del campo.
 Las reglas filtran las respuestas de ramas inactivas antes de preparar la captura; el backend vuelve a validar y decide qué identidad/procedencia incorporar.
 Una modificación de opciones o eliminación de campos necesita revisar el contrato y los consumidores, aunque la disposición visual siga siendo evolutiva.
 
+### Confirmación ciudadana y folio automático
+
+[ReceiptPanel](formulario-publico/front/src/ui/ReceiptPanel.tsx) consulta el estado existente por GET cada cuatro segundos mientras el registro institucional está pendiente. Las consultas son secuenciales, tienen un límite de espera de doce segundos y se detienen al confirmar el ACK o abandonar la pantalla. El folio COM y el comprobante institucional aparecen automáticamente; el comprobante público permanece descargable durante errores o demoras. Esta consulta no reenvía la Comunicación ni activa el consumidor institucional. Ver [comportamiento, pruebas y QA del 01/11/2026](docs/CONFIRMACION_AUTOMATICA_2026-11-01.md).
+
 ### Motivos y preguntas condicionales
 
 El motivo adulto puede ser consulta, vulneración de derechos o promoción/difusión.

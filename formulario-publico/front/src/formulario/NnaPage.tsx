@@ -59,8 +59,8 @@ export default function NnaPage() {
     finally{sending.current=false;setBusy(false);}
   }
   async function check() {
-    const id=receipt?.id||attempt.current?.key;if(!id||sending.current)return;sending.current=true;setBusy(true);setError('');
-    try{setReceipt(await getSubmission(id));setReview(null);}catch{setError('No pudimos recuperar una recepción confirmada. Puedes reintentar el mismo envío.');}
+    const id=receipt?.id||attempt.current?.key;if(!id||sending.current)return;sending.current=true;setBusy(true);
+    try{setReceipt(await getSubmission(id));setReview(null);setError('');}catch{setError(receipt?'No pudimos actualizar el estado. Volveremos a intentarlo automáticamente. Puedes guardar tu comprobante de recepción; no necesitas enviar nuevamente tu comunicación.':'No pudimos recuperar una recepción confirmada. Puedes reintentar el mismo envío.');}
     finally{sending.current=false;setBusy(false);}
   }
   return <>
@@ -79,7 +79,7 @@ export default function NnaPage() {
             {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
             <NnaFlow mediaEnabled={mediaEnabled} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(campos,identity,attachments)=>{setError('');setReview({campos,identity,attachments});}} />
           </div>}
-          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={()=>{void check();}} />}
+          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={check} />}
         </main>
       </div>
     </div>
