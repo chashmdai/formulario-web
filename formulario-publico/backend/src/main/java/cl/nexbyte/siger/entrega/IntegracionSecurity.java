@@ -33,6 +33,7 @@ public class IntegracionSecurity {
                         SecurityContextHolder.clearContext(); // Nunca heredar una sesión ciudadana.
                         boolean local = demo && java.util.Set.of("127.0.0.1", "::1", "0:0:0:0:0:0:0:1").contains(request.getRemoteAddr());
                         if (!request.isSecure() && !local) { response.setStatus(403); return; }
+                        if (!env.getProperty("publico.integracion.habilitada", Boolean.class, true)) { response.setStatus(503); return; }
                         var auth = request.getHeader("Authorization");
                         if (token.length() >= 32 && auth != null && auth.length() < 512
                                 && MessageDigest.isEqual(("Bearer " + token).getBytes(StandardCharsets.UTF_8), auth.getBytes(StandardCharsets.UTF_8))) {

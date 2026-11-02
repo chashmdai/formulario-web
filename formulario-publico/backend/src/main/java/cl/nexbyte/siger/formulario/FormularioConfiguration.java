@@ -23,7 +23,7 @@ public class FormularioConfiguration {
         return new RecepcionFormularioJdbc(db,recorridos,files,mapper,validation,env.getRequiredProperty("publico.comprobante.key-id"),
             cl.nexbyte.siger.robustez.ComprobanteDigital.privatePem(Files.readString(Path.of(env.getRequiredProperty("publico.comprobante.private-key")))),
             cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.trusted-keys"))),
-            cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.institutional-trusted-keys"))),
+            cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.institutionalKeys(mapper,env),
             Clock.systemUTC(),env.getProperty("formulario.recepcion.habilitada",Boolean.class,false)&&env.getProperty("publico.recepcion.aviso-validado",Boolean.class,false),env.getProperty("formulario.adultos.habilitado",Boolean.class,false)).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
     }
     @Bean RecorridosJdbc recorridosJdbc(BaseJdbc db,JsonMapper mapper,ClientePisee client,Environment env) throws java.io.IOException {

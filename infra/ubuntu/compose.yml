@@ -63,15 +63,11 @@ services:
     restart: unless-stopped
     environment:
       SPRING_CONFIG_ADDITIONAL_LOCATION: file:/run/config/application.properties
-      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/,optional:configtree:/run/cu/
       JAVA_TOOL_OPTIONS: -Xmx768m -XX:+ExitOnOutOfMemoryError -Djavax.net.ssl.trustStore=/run/pki/java-truststore -Djavax.net.ssl.trustStorePassword=changeit
     secrets:
       - source: app-password
         target: publico.db.password
-      - source: cu-client-id
-        target: siger.claveunica.client-id
-      - source: cu-client-secret
-        target: siger.claveunica.client-secret
       - source: keystore-password
         target: server.ssl.key-store-password
       - source: operations-token
@@ -79,6 +75,7 @@ services:
       - source: integration-token
         target: publico.integracion.token
     volumes:
+      - ${FORM_PRIVATE_DIR}/cu:/run/cu:ro
       - ${FORM_PRIVATE_DIR}/config/application.properties:/run/config/application.properties:ro
       - ${FORM_PRIVATE_DIR}/keys:/run/keys:ro
       - ${FORM_PRIVATE_DIR}/pki/app:/run/pki:ro
@@ -172,8 +169,6 @@ secrets:
   mysql-root-password: {file: "${FORM_PRIVATE_DIR}/secrets/mysql-root-password"}
   app-password: {file: "${FORM_PRIVATE_DIR}/secrets/app-password"}
   migration-password: {file: "${FORM_PRIVATE_DIR}/secrets/migration-password"}
-  cu-client-id: {file: "${FORM_PRIVATE_DIR}/secrets/cu-client-id"}
-  cu-client-secret: {file: "${FORM_PRIVATE_DIR}/secrets/cu-client-secret"}
   keystore-password: {file: "${FORM_PRIVATE_DIR}/secrets/keystore-password"}
   operations-token: {file: "${FORM_PRIVATE_DIR}/secrets/operations-token"}
   integration-token: {file: "${FORM_PRIVATE_DIR}/secrets/integration-token"}

@@ -1,5 +1,8 @@
 # Integraciones del Formulario en Ubuntu
 
+**Actualización 02/11/2026:** [modo de instalación cerrado sin CU ni confianza ACK](ARRANQUE_CERRADO_UBUNTU_2026-11-02.md). Los requisitos originales siguen vigentes al habilitar cada integración.
+
+
 Complementa [instalación](INSTALACION_UBUNTU_DOCKER.md) y [traspaso/GATES](TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md). Configuración privada por ambiente. H1 no conecta proveedores ni infraestructura institucional.
 
 ## 1. HTTPS de origen y Cloudflare

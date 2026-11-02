@@ -49,3 +49,6 @@ docs/evidencias/
 **/__pycache__/
 *.py[cod]
 
+
+# Configuración institucional sin secretos, requerida por Compose.
+!infra/ubuntu/mysql.cnf

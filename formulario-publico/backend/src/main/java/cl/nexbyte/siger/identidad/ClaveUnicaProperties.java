@@ -10,6 +10,7 @@ import org.springframework.core.env.Environment;
 public class ClaveUnicaProperties {
     public enum Stage { SANDBOX, QA, PRODUCTION }
     public enum IdTokenAlgorithm { RS256, HS256 }
+    private boolean habilitada = true;
     private Stage environment = Stage.SANDBOX;
     private String clientId;
     private String clientSecret;
@@ -23,12 +24,13 @@ public class ClaveUnicaProperties {
 
     @PostConstruct
     void validate() {
-        if (clientId == null || clientId.isBlank() || clientSecret == null || clientSecret.isBlank()) {
+        if (habilitada && (clientId == null || clientId.isBlank() || clientSecret == null || clientSecret.isBlank())) {
             throw new IllegalStateException("Configurar CU_CLIENT_ID y CU_CLIENT_SECRET del ambiente seleccionado fuera del repositorio.");
         }
-        if (idTokenAlgorithm == IdTokenAlgorithm.HS256 && clientSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32) {
+        if (habilitada && idTokenAlgorithm == IdTokenAlgorithm.HS256 && clientSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32) {
             throw new IllegalStateException("HS256 requiere secreto de al menos 256 bits.");
         }
+        if (!habilitada && callbackApproved) throw new IllegalStateException("ClaveÚnica deshabilitada requiere callback-approved=false.");
         validateUri(redirectUri, "/redirect");
         validateUri(logoutUri, "/logout");
         validateUri(publicOrigin, "");
@@ -44,7 +46,7 @@ public class ClaveUnicaProperties {
             if (!springEnvironment.getProperty("server.servlet.session.cookie.secure", Boolean.class, true)) {
                 throw new IllegalStateException("Producción requiere cookie Secure.");
             }
-            if (!callbackApproved) throw new IllegalStateException("Producción requiere callback habilitado institucionalmente.");
+            if (habilitada && !callbackApproved) throw new IllegalStateException("Producción requiere callback habilitado institucionalmente.");
         }
     }
 
@@ -58,6 +60,8 @@ public class ClaveUnicaProperties {
         }
     }
 
+    public boolean isHabilitada() { return habilitada; }
+    public void setHabilitada(boolean habilitada) { this.habilitada = habilitada; }
     public Stage getEnvironment() { return environment; }
     public void setEnvironment(Stage environment) { this.environment = environment; }
     public String getClientId() { return clientId; }

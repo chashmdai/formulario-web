@@ -14,6 +14,13 @@ final class CallbackAvailabilityFilter extends OncePerRequestFilter {
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String path = request.getRequestURI().substring(request.getContextPath().length());
+        if (!properties.isHabilitada() && (path.startsWith("/oauth2/") || path.equals("/redirect"))) {
+            response.setStatus(503);
+            response.setHeader("Cache-Control", "no-store");
+            response.setContentType("application/problem+json");
+            response.getWriter().write("{\"title\":\"ClaveUnica no configurada\",\"status\":503}");
+            return;
+        }
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof IdentidadVerificada) {
             if (path.equals("/redirect")) {

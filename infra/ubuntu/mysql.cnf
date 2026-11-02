@@ -1,0 +1,13 @@
+[mysqld]
+mysqlx=OFF
+skip_name_resolve=ON
+require_secure_transport=ON
+ssl_ca=/run/pki/ca.crt
+ssl_cert=/run/pki/server.crt
+ssl_key=/run/pki/server.key
+tls_version=TLSv1.2,TLSv1.3
+innodb_buffer_pool_size=256M
+max_connections=40
+binlog_expire_logs_seconds=259200
+max_binlog_size=67108864
+binlog_row_image=MINIMAL

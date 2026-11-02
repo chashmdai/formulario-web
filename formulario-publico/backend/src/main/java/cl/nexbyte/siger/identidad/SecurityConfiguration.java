@@ -39,6 +39,7 @@ public class SecurityConfiguration {
 
     @Bean
     ClientRegistrationRepository registrations(ClaveUnicaProperties p) {
+        if (!p.isHabilitada()) return id -> null;
         var registration = ClientRegistration.withRegistrationId("claveunica")
                 .clientName("Defensoría de la Niñez").clientId(p.getClientId()).clientSecret(p.getClientSecret())
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
@@ -90,8 +91,6 @@ public class SecurityConfiguration {
             RestClientAuthorizationCodeTokenResponseClient tokenClient, ClaveUnicaOidcUserService userService,
             ClaveUnicaProperties properties,Environment environment) throws Exception {
         var contextRepository = new HttpSessionSecurityContextRepository();
-        var resolver = new DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization");
-        resolver.setAuthorizationRequestCustomizer(builder -> builder.scopes(new java.util.LinkedHashSet<>(java.util.List.of("openid", "run", "name"))));
         if (properties.getEnvironment() == ClaveUnicaProperties.Stage.PRODUCTION) {
             http.redirectToHttps(org.springframework.security.config.Customizer.withDefaults());
         }
@@ -112,8 +111,11 @@ public class SecurityConfiguration {
                     response.setCharacterEncoding("UTF-8");
                     response.setContentType("application/problem+json");
                     response.getWriter().write("{\"title\":\"Sesión requerida o expirada\",\"status\":401}");
-                }))
-                .oauth2Login(oauth -> oauth.clientRegistrationRepository(registrations)
+                }));
+        if (properties.isHabilitada()) {
+            var resolver = new DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization");
+            resolver.setAuthorizationRequestCustomizer(builder -> builder.scopes(new java.util.LinkedHashSet<>(java.util.List.of("openid", "run", "name"))));
+            http.oauth2Login(oauth -> oauth.clientRegistrationRepository(registrations)
                         .authorizationEndpoint(authorization -> authorization.authorizationRequestResolver(resolver))
                         .authorizedClientRepository(new DiscardingAuthorizedClientRepository())
                         .redirectionEndpoint(callback -> callback.baseUri("/redirect"))
@@ -152,6 +154,12 @@ public class SecurityConfiguration {
                         .deleteCookies(environment.getProperty("server.servlet.session.cookie.name","SIGERSESSION"))
                         .logoutSuccessHandler((request, response, authentication) -> response.sendRedirect(ProviderLogout.url(properties))))
                 .addFilterBefore(new CallbackAvailabilityFilter(properties), OAuth2AuthorizationRequestRedirectFilter.class);
+        } else {
+            http.addFilterBefore(new CallbackAvailabilityFilter(properties), org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
+                .logout(logout -> logout.logoutUrl("/auth/logout").invalidateHttpSession(true).clearAuthentication(true)
+                    .deleteCookies(environment.getProperty("server.servlet.session.cookie.name", "SIGERSESSION"))
+                    .logoutSuccessHandler((request, response, authentication) -> response.sendRedirect(properties.getPublicOrigin() + "/?session=closed")));
+        }
         return http.build(); // CSRF remains enabled, including logout and authenticated POSTs.
     }
 }

@@ -27,6 +27,28 @@ def new_destination(path):
 def write(path,value,uid=1000,mode=0o400):
     path.write_bytes(value if isinstance(value,bytes) else value.encode())
     os.chown(path,uid,uid);os.chmod(path,mode)
+def installation_inputs(args):
+    if args.sin_claveunica:
+        if args.cu_client_id or args.cu_secret: raise ValueError("Modo CU cerrado incompatible con credenciales")
+        credentials=[]
+    else:
+        if not args.cu_client_id or not args.cu_secret: raise ValueError("Entregar ambos archivos CU o seleccionar --sin-claveunica")
+        credentials=[private_source(p).read_text().strip() for p in [args.cu_client_id,args.cu_secret]]
+        if any(not v or '\n' in v or '\r' in v for v in credentials) or len(credentials[1].encode())<32:
+            raise ValueError("Credenciales CU de archivo inválidas; HS256 requiere al menos 32 bytes")
+    if args.sin_confianza_ack:
+        if args.institutional_trust: raise ValueError("Modo ACK cerrado incompatible con confianza suministrada")
+        trust=None
+    else:
+        if not args.institutional_trust: raise ValueError("Entregar confianza ACK o seleccionar --sin-confianza-ack")
+        trust=json.loads(private_source(args.institutional_trust).read_text())
+        if not isinstance(trust,dict) or not 1<=len(trust)<=20: raise ValueError("Confianza ACK requerida del responsable SIGER")
+        for key,pem in trust.items():
+            if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',key) or not isinstance(pem,str) or 'PRIVATE' in pem:
+                raise ValueError("Mapa público ACK inválido")
+            check=subprocess.run(['openssl','pkey','-pubin','-text','-noout'],input=pem.encode(),capture_output=True)
+            if check.returncode or b'ED25519' not in check.stdout: raise ValueError("Clave pública ACK Ed25519 requerida")
+    return credentials,trust
 def prepare(args):
     if os.geteuid()!=0: raise ValueError("Ejecutar con sudo para asignar propietarios de los bind mounts")
     if not re.fullmatch(r'[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?',args.hostname) or not args.hostname.endswith('.gob.cl'):
@@ -34,29 +56,19 @@ def prepare(args):
     if not re.fullmatch(r'[a-z][a-z0-9-]{2,40}',args.project) or not 1024<=args.port<=65535:
         raise ValueError("Proyecto o puerto inválido")
     if not re.fullmatch(r'[a-f0-9]{40}',args.commit): raise ValueError("Indicar SHA completo de fuente, nunca latest")
-    sources=[private_source(p) for p in [args.cu_client_id,args.cu_secret,args.institutional_trust]]
-    credentials=[p.read_text().strip() for p in sources[:2]]
-    if any(not v or '\n' in v or '\r' in v for v in credentials) or len(credentials[1].encode())<32:
-        raise ValueError("Credenciales CU de archivo inválidas; HS256 requiere al menos 32 bytes")
-    trust=json.loads(sources[2].read_text())
-    if not isinstance(trust,dict) or not 1<=len(trust)<=20: raise ValueError("Confianza ACK requerida del responsable SIGER")
-    for key,pem in trust.items():
-        if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',key) or not isinstance(pem,str) or 'PRIVATE' in pem:
-            raise ValueError("Mapa público ACK inválido")
-        check=subprocess.run(['openssl','pkey','-pubin','-text','-noout'],input=pem.encode(),capture_output=True)
-        if check.returncode or b'ED25519' not in check.stdout: raise ValueError("Clave pública ACK Ed25519 requerida")
+    credentials,trust=installation_inputs(args)
     target=new_destination(args.destination)
     for tool in ['docker','openssl']:
         if not shutil.which(tool): raise ValueError("Dependencia ausente: "+tool)
     run('docker','image','inspect',RUNTIME) # obtener imagen oficial antes, sin descargas ocultas
     os.umask(0o077);target.mkdir(mode=0o700)
-    for folder in ['config','secrets','keys','store','ipc/inspector','ipc/antivirus','clamav','mysql','mysql-init','pki/authority','pki/app','pki/mysql','pki/proxy']:
+    for folder in ['config','secrets','cu','keys','store','ipc/inspector','ipc/antivirus','clamav','mysql','mysql-init','pki/authority','pki/app','pki/mysql','pki/proxy']:
         p=target/folder;p.mkdir(mode=0o700,parents=True,exist_ok=True);os.chown(p,1000,1000)
     for base in ['ipc','pki']:os.chown(target/base,1000,1000)
     tokens={name:secrets.token_hex(32) for name in ['mysql-root-password','app-password','migration-password','keystore-password','operations-token','integration-token']}
     for name,value in tokens.items():write(target/'secrets'/name,value,uid=0 if name=='mysql-root-password' else 1000)
-    for name,value in zip(['cu-client-id','cu-client-secret'],credentials):write(target/'secrets'/name,value)
-    write(target/'keys/institutional-trust.json',json.dumps(trust,indent=2))
+    for name,value in zip(['siger.claveunica.client-id','siger.claveunica.client-secret'],credentials):write(target/'cu'/name,value)
+    if trust is not None: write(target/'keys/institutional-trust.json',json.dumps(trust,indent=2))
     write(target/'keys/abuso.key',secrets.token_bytes(48))
     key=target/'keys/receipt-key.pem'
     run('openssl','genpkey','-algorithm','ED25519','-out',str(key))
@@ -82,6 +94,9 @@ def prepare(args):
     run('docker','run','--rm','--network','none','--user','1000:1000','--entrypoint','sh','--mount','type=bind,src='+str(app)+',dst=/out',RUNTIME,'-ec',
         'cp "$JAVA_HOME/lib/security/cacerts" /out/java-truststore; keytool -importcert -noprompt -alias formulario-origin -file /out/ca.crt -keystore /out/java-truststore -storepass changeit; chmod 400 /out/java-truststore')
     config=(REPO/'infra/ubuntu/application.properties.example').read_text().replace('formulario.defensorianinez.gob.cl',args.hostname)
+    if args.sin_claveunica:
+        config=config.replace('siger.claveunica.habilitada=true','siger.claveunica.habilitada=false').replace('siger.claveunica.callback-approved=true','siger.claveunica.callback-approved=false')
+    if args.sin_confianza_ack: config=config.replace('publico.integracion.habilitada=true','publico.integracion.habilitada=false')
     write(target/'config/application.properties',config)
     # Hex aleatorio: sin caracteres especiales SQL, ni contraseñas en argumentos.
     ddl="CREATE DATABASE formulario_publico CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;\n"
@@ -97,7 +112,9 @@ def prepare(args):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('destination');p.add_argument('--commit',required=True)
-    p.add_argument('--cu-client-id',required=True);p.add_argument('--cu-secret',required=True);p.add_argument('--institutional-trust',required=True)
+    p.add_argument('--cu-client-id');p.add_argument('--cu-secret');p.add_argument('--institutional-trust')
+    p.add_argument('--sin-claveunica',action='store_true',help='Sin registro OAuth ni credenciales; login y callback responden 503')
+    p.add_argument('--sin-confianza-ack',action='store_true',help='Sin claves ACK; integración, recepción y PULL cerrados')
     p.add_argument('--hostname',default='formulario.defensorianinez.gob.cl');p.add_argument('--project',default='ddn-formulario-candidato');p.add_argument('--port',type=int,default=24443)
     try:prepare(p.parse_args())
     except (OSError,ValueError,RuntimeError) as e:print('Preparación detenida:',str(e),file=sys.stderr);return 1

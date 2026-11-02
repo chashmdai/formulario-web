@@ -19,7 +19,7 @@ public class SessionController {
     SessionView session(Authentication auth) {
         var identity = auth != null && auth.getPrincipal() instanceof IdentidadVerificada i ? i : null;
         var scope=identity!=null&&auth.getDetails() instanceof EvidenciaAutenticacion proof?proof.id().toString():null;
-        return new SessionView(identity != null, identity, properties.getEnvironment().name(), properties.isCallbackApproved(),scope);
+        return new SessionView(identity != null, identity, properties.getEnvironment().name(), properties.isHabilitada() && properties.isCallbackApproved(),scope);
     }
     public record CsrfView(String token, String parameterName, String headerName) { }
     @GetMapping("/api/csrf")
@@ -36,6 +36,6 @@ public class SessionController {
     ResponseEntity<Void> expired(Authentication auth) {
         // Browser can clear CU after local expiration; an active session requires CSRF-protected POST logout.
         if (auth != null && auth.getPrincipal() instanceof IdentidadVerificada) return ResponseEntity.status(409).build();
-        return ResponseEntity.status(303).header(HttpHeaders.LOCATION, ProviderLogout.url(properties)).build();
+        return ResponseEntity.status(303).header(HttpHeaders.LOCATION, properties.isHabilitada() ? ProviderLogout.url(properties) : properties.getPublicOrigin() + "/?session=closed").build();
     }
 }

@@ -48,4 +48,16 @@ class EnvironmentConfigurationTest {
             configured("SANDBOX").withPropertyValues(invalid).run(context -> assertThat(context).hasFailed());
         }
     }
+    @Test void enabledModeStillRejectsAbsentCredentials() {
+        for(String key:new String[]{"client-id","client-secret"})
+            configured("PRODUCTION").withPropertyValues("siger.claveunica.habilitada=true","siger.claveunica."+key+"=")
+                .run(context->assertThat(context).hasFailed());
+    }
+    @Test void disabledModeRequiresExplicitlyClosedCallbackAndSecureProduction() {
+        configured("PRODUCTION").withPropertyValues("siger.claveunica.habilitada=false","siger.claveunica.client-id=",
+            "siger.claveunica.client-secret=","siger.claveunica.callback-approved=false").run(context->assertThat(context).hasNotFailed());
+        for(String invalid:new String[]{"siger.claveunica.callback-approved=true","server.servlet.session.cookie.secure=false"})
+            configured("PRODUCTION").withPropertyValues("siger.claveunica.habilitada=false","siger.claveunica.client-id=",
+                "siger.claveunica.client-secret=","siger.claveunica.callback-approved=false",invalid).run(context->assertThat(context).hasFailed());
+    }
 }

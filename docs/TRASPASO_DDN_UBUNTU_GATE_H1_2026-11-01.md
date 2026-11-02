@@ -1,5 +1,8 @@
 # Traspaso del Formulario Público a DDN-UBUNTU — GATE H1
 
+**Actualización 02/11/2026:** [modo de instalación cerrado sin CU ni confianza ACK](ARRANQUE_CERRADO_UBUNTU_2026-11-02.md). Los requisitos originales siguen vigentes al habilitar cada integración.
+
+
 **Fecha: 01/11/2026. Estado: candidato preparado en Git; no instalado en DDN-UBUNTU por esta unidad.** Esta es la entrada para una sesión nueva sin acceso al historial del chat. Leer después el [manual de instalación](INSTALACION_UBUNTU_DOCKER.md), las [integraciones](INTEGRACIONES_UBUNTU.md) y la [evidencia H1](VERIFICACION_GATE_H1_2026-11-01.md).
 
 ## Responsabilidad y alcance

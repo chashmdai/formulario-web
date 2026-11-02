@@ -1,5 +1,8 @@
 # Instalación y operación Docker en Ubuntu
 
+**Actualización 02/11/2026:** [modo de instalación cerrado sin CU ni confianza ACK](ARRANQUE_CERRADO_UBUNTU_2026-11-02.md). Los requisitos originales siguen vigentes al habilitar cada integración.
+
+
 **Procedimiento para GATES futuros; H1 solo lo prepara.** Destino nuevo, aislado de GATE4A. Leer [traspaso/topología](TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md). No ejecutar todos los pasos indiscriminadamente ni hacer `down -v`. Sin publicación de80/443, MySQL o Spring en host.
 
 ## 1. Inventario y dependencias
