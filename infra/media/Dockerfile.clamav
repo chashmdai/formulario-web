@@ -1,5 +1,5 @@
 FROM ubuntu:24.04
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates clamav-daemon && rm -rf /var/lib/apt/lists/*
-COPY clamd.conf /etc/clamd-media.conf
+COPY --chmod=0444 clamd.conf /etc/clamd-media.conf
 USER 1000:1000
 ENTRYPOINT ["/usr/sbin/clamd","--config-file=/etc/clamd-media.conf"]
