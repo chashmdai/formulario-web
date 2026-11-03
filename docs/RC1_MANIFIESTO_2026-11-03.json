@@ -1,0 +1,108 @@
+{
+  "release": "RC1",
+  "date": "2026-11-03",
+  "sourceCommit": "dd6cfb8e245f801486bbbf5a1ccfba9543c4d3cf",
+  "architecture": "linux/amd64",
+  "jar": {
+    "filename": "formulario-rc1.jar",
+    "sha256": "96339d11efe0c9761d44ce9b36c1e687fc6849ca6bce329a403ab82676bdda30"
+  },
+  "images": {
+    "app": {
+      "image": "sha256:f7e4c3751238fb9a380dbeba432a8e95b4fea081caefd5bf71fca1ffd7240516",
+      "registryDigests": [
+        "ddn-formulario@sha256:f7e4c3751238fb9a380dbeba432a8e95b4fea081caefd5bf71fca1ffd7240516"
+      ]
+    },
+    "proxy": {
+      "image": "sha256:8e16dea11ee81feddab2622ee05907b96dcd452de111acc3394f859719552207",
+      "registryDigests": [
+        "ddn-caddy@sha256:8e16dea11ee81feddab2622ee05907b96dcd452de111acc3394f859719552207"
+      ]
+    },
+    "pisee": {
+      "image": "sha256:e0245efc9e74b0a3995f0d944e43a008b895deab8c18e715b8c0a11f70fbf842",
+      "registryDigests": [
+        "ddn-pisee-release@sha256:e0245efc9e74b0a3995f0d944e43a008b895deab8c18e715b8c0a11f70fbf842"
+      ]
+    },
+    "mysql": {
+      "image": "sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364",
+      "registryDigests": [
+        "mysql@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364"
+      ]
+    },
+    "antivirus": {
+      "image": "sha256:2513c005f21f3602f0172372ef8ea23f0e55cf6207c9c3785b72f2803f5994cb",
+      "registryDigests": [
+        "ddn-clamav@sha256:2513c005f21f3602f0172372ef8ea23f0e55cf6207c9c3785b72f2803f5994cb"
+      ]
+    },
+    "inspector": {
+      "image": "sha256:3a24d996d75003959df9b7f7733472cf9b4ef9b1fd1edfa87246613098f8a305",
+      "registryDigests": [
+        "ddn-inspector@sha256:3a24d996d75003959df9b7f7733472cf9b4ef9b1fd1edfa87246613098f8a305"
+      ]
+    }
+  },
+  "versions": {
+    "app": "openjdk 25.0.5 2026-10-20 LTS",
+    "proxy": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+    "pisee": "xmlsec1 1.3.9 (openssl)",
+    "mysql": "/usr/sbin/mysqld  Ver 8.4.11 for Linux on x86_64 (MySQL Community Server - GPL)",
+    "antivirus": "ClamAV 1.5.4/28173/Tue Nov  3 06:27:52 2026",
+    "inspector": "Python 3.12.3"
+  },
+  "frontend": {
+    "@fontsource/cabin": "5.3.0",
+    "@fontsource/roboto": "5.3.0",
+    "@noble/hashes": "2.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "tests": {
+    "react": 219,
+    "backendH2": 398,
+    "backendMysql": 398,
+    "backendSkippedEach": 2,
+    "python": 29,
+    "pythonSkipped": 1,
+    "backendSkippedReasons": [
+      "MEDIA_REAL_CHECK opt-in: transporte Java multimedia real",
+      "recuperacion.real opt-in: caída física de proceso MySQL"
+    ]
+  },
+  "publicDeploymentModified": false,
+  "productionGo": false,
+  "imageArchive": {
+    "filename": "rc1-images.tar",
+    "sha256": "84723b4cde58900777df07e23e7eecda054c30a716833dfcf1820039737f39df",
+    "loadVerified": true
+  },
+  "operation": {
+    "staticIpRecreationPassed": true,
+    "syntheticEncryptedRestorePassed": true,
+    "syntheticMysqlRestartPassed": true,
+    "externalNodeStateRestored": true,
+    "realSrcEIRepeated": false,
+    "privateVisualDesktopMobilePassed": true,
+    "publicChecks": 30,
+    "protectedFilesIdentical": 597,
+    "protectedContainersIdentical": 23
+  },
+  "buildTools": {
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.2",
+    "eslint": "10.12.0",
+    "jsdom": "30.1.2",
+    "playwright": "1.64.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.4"
+  }
+}

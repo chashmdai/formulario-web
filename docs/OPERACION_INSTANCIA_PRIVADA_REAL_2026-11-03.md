@@ -1,5 +1,7 @@
 # Instancia privada con nodo real — 2026-11-03
 
+Actualización de vigencia: este documento describe el arranque inicial. La operación actual RC1, la red fija y los resultados posteriores están en [RC1_CIERRE_2026-11-03.md](RC1_CIERRE_2026-11-03.md). No usar el overlay lab antiguo para operar el candidato RC1.
+
 Instancia nueva `ddn-funcional-real`, raíz privada `/home/admin-ti/operacion-formulario/funcional-real-20261103`, sin reutilizar base/custodia de campañas anteriores. Rama release, referencia 392992f; imagen final inmutable del informe anterior. Seis servicios levantados: MySQL persistente nuevo, aplicación React/Spring, Caddy, ClamAV, Inspector y nodo real. Único puerto publicado: loopback 28443. Overlay exclusivamente `compose.pisee-production-lab.yml`; ningún stub conectado.
 
 URL: https://formulario-real-privado.defensorianinez.gob.cl:28443/?vista=inicio
