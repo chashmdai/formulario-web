@@ -7,7 +7,8 @@ import static org.assertj.core.api.Assertions.*;
 
 class ArranqueSinConfianzaTest {
     @Test void disabledIntegrationHasNoTrustedAckKeys() throws Exception {
-        var env=new MockEnvironment().withProperty("publico.integracion.habilitada","false");
+        var env=new MockEnvironment().withProperty("publico.integracion.habilitada","false")
+            .withProperty("publico.integracion.preparada","true");
         assertThat(JdbcRecepcionConfiguration.institutionalKeys(new JsonMapper(),env)).isEmpty();
     }
     @Test void enabledIntegrationStillRequiresAuthenticTrust() {
