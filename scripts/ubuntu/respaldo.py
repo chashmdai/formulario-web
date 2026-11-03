@@ -70,6 +70,8 @@ def backup(a):
                 elif src.is_file(): shutil.copy2(src, root / name)
             # Copia criptografía/config/estado institucional; no datos de campañas ajenas.
             shutil.copytree(private(a.pisee_private_dir), root / 'pisee', symlinks=True)
+            state = private(a.pisee_state_dir)
+            shutil.copytree(state, root / 'pisee' / 'state', dirs_exist_ok=True, symlinks=True)
             node_config = private(a.pisee_node_config)
             shutil.copy2(node_config, root / 'pisee' / 'config-produccion.json')
             sql = root / 'database.sql'
@@ -130,7 +132,7 @@ def main():
     os.umask(0o077)
     p = argparse.ArgumentParser(description=__doc__); sub = p.add_subparsers(dest='command', required=True)
     b=sub.add_parser('backup')
-    for name in ['private-dir','project','output','key-file','pisee-private-dir','pisee-node-config']:
+    for name in ['private-dir','project','output','key-file','pisee-private-dir','pisee-node-config','pisee-state-dir']:
         b.add_argument('--'+name,required=True)
     b.add_argument('--maintenance',action='store_true')
     r=sub.add_parser('restore')

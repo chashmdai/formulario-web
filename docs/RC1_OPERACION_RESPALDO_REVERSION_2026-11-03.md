@@ -18,10 +18,11 @@ Los seis servicios persistentes tienen `unless-stopped`, límites y healthchecks
 sudo python3 scripts/ubuntu/respaldo.py backup \
   --private-dir DIRECTORIO_PRIVADO --project PROYECTO \
   --pisee-private-dir DIRECTORIO_NODO --pisee-node-config CONFIG_NODO \
+  --pisee-state-dir ESTADO_PERSISTENTE_NODO \
   --key-file ARCHIVO_CLAVE_RESPALDO --output SALIDA_NUEVA.gpg --maintenance
 ```
 
-La ventana de mantenimiento detiene solo app/nodo/proxy del proyecto elegido para una instantánea consistente entre SQL, documentos y estado del nodo. MySQL permanece operativo para el dump transaccional; los escritores previamente activos se reanudan incluso al fallar. Los proyectos históricos conocidos están protegidos explícitamente. Antes de usarlo TI debe verificar que PISEE_STATE_DIR está dentro del directorio respaldado del nodo; si el estado está fuera, incluirlo en la custodia del nodo o preparar una copia consistente adicional durante la misma ventana. No hacer un backup de archivos con escritores activos.
+La ventana de mantenimiento detiene solo app/nodo/proxy del proyecto elegido para una instantánea consistente entre SQL, documentos y estado del nodo. MySQL permanece operativo para el dump transaccional; los escritores previamente activos se reanudan incluso al fallar. Los proyectos históricos conocidos están protegidos explícitamente. El argumento de estado debe coincidir con PISEE_STATE_DIR; se incluye incluso cuando está fuera del runtime. No hacer un backup de archivos con escritores activos.
 
 Incluye SQL de formulario_publico, documentos/custodia, claves y confianza históricas, config, secretos, PKI, CA, truststores, inicialización MySQL, definiciones AV y runtime/config/estado PISEE. No incluye logs ni IPC efímeros. Las imágenes se conservan separadamente por digest y archivo SHA-256. No se guardan datos de otras campañas. Guardar dos copias cifradas fuera del host, verificar descifrado periódico y documentar custodios, RPO/RTO y rotación. RC1 acredita restauración local sintética, no pérdida física del centro de datos ni SLA.
 
