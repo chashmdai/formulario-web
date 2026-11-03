@@ -1,0 +1,25 @@
+{
+  "archivosInstitucionalesIdenticos": 597,
+  "archivosCambiados": 0,
+  "contenedoresOriginalesIdenticos": 15,
+  "contenedoresOriginalesCambiados": [],
+  "contenedoresNuevosDetenidos": 8,
+  "qaLocalesHistoricasSinReinicio": true,
+  "puertosPISEEHostAusentes": true,
+  "puertosLaboratorioHostAusentes": true,
+  "certificacionAntes": 30,
+  "certificacionDespues": 30,
+  "publicoChromium": {
+    "http": 200,
+    "htmlSha256": "7e8ea5e9fb24c5ee8152a0d716afaebe9a02b44c66914029c34ffd99f942e545",
+    "title": "Certificación ClaveÚnica | Defensoría de la Niñez",
+    "certificationMode": true,
+    "authenticated": false,
+    "identityAbsent": true,
+    "environment": "PRODUCTION"
+  },
+  "alcance": "Configuración/artefactos/procesos de despliegue y contenedores QA Ubuntu; no lectura de datos personales ni auditoría física Windows.",
+  "windowsWSL": "NO_ACCEDIDO; comparación nueva pendiente del operador Windows",
+  "snapshotAntesSha256": "47a434f9115b01e84d1cb75ca4d03cb66f92350ec3a727dcb988fb005b92f356",
+  "snapshotDespuesSha256": "0c40958f381ab2d8592df0b72760cc19843685965a04a462bfde375955f19b92"
+}
