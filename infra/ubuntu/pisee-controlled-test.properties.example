@@ -1,0 +1,9 @@
+# CARRIL A. Usar exclusivamente compose.srcei-stub-lab.yml y una base nueva.
+# approved/enabled false hasta autorizar la campaña sintética; NO usar con el nodo real.
+PISEE_SRCEI_ENABLED=false
+PISEE_ENVIRONMENT=CONTROLLED_TEST
+PISEE_CONTROLLED_TEST_AUTHORIZED=false
+PISEE_BASE_URL=http://pisee:8084
+PISEE_ALLOWED_RUNS_PATH=/run/pisee-campaign/allowed-runs.json
+formulario.srcei.envio-sintetico-autorizado=false
+formulario.srcei.envio-autorizado=false
