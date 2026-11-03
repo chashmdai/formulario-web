@@ -109,4 +109,12 @@ class ConfiguracionAmbientesIntegracionTest {
         ClientePisee client=ReflectionTestUtils.invokeMethod(new PiseeConfiguration(),"clientePisee",e);
         assertEquals(ResultadoSrcei.Estado.NO_HABILITADO,client.consultar(new RunConsulta("12345678","5")).estado());client.close();
     }
+    @Test void apagarPiseeNoHabilitaSalidaDeDatosRealesPersistidos()throws Exception{
+        var e=env("PRODUCTION","PRODUCTION");e.setProperty("PISEE_SRCEI_ENABLED","false");
+        assertFalse(FormularioConfiguration.datosRegistralesPermitidos(e));
+        e.setProperty("PISEE_ENVIRONMENT","CONTROLLED_TEST");e.setProperty("PISEE_CONTROLLED_TEST_AUTHORIZED","true");
+        assertFalse(FormularioConfiguration.datosRegistralesPermitidos(e));
+        e.setProperty("formulario.srcei.envio-sintetico-autorizado","true");assertTrue(FormularioConfiguration.datosRegistralesPermitidos(e));
+        e.setProperty("PISEE_ENVIRONMENT","PRODUCTION");assertFalse(FormularioConfiguration.datosRegistralesPermitidos(e));
+    }
 }

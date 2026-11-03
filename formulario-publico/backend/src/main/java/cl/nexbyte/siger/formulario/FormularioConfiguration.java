@@ -25,10 +25,15 @@ public class FormularioConfiguration {
             cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.trusted-keys"))),
             cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.institutionalKeys(mapper,env),
             Clock.systemUTC(),env.getProperty("formulario.recepcion.habilitada",Boolean.class,false)&&env.getProperty("publico.recepcion.aviso-validado",Boolean.class,false),env.getProperty("formulario.adultos.habilitado",Boolean.class,false))
-            .permiteDatosRegistrales(!env.getProperty("PISEE_SRCEI_ENABLED",Boolean.class,false)
-                || !"PRODUCTION".equals(env.getProperty("PISEE_ENVIRONMENT"))
-                || env.getProperty("formulario.srcei.envio-autorizado",Boolean.class,false))
+            .permiteDatosRegistrales(datosRegistralesPermitidos(env))
             .admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
+    }
+    public static boolean datosRegistralesPermitidos(Environment env) {
+        // Apagar el cliente no autoriza enviar antecedentes reales ya guardados en el recorrido.
+        return env.getProperty("formulario.srcei.envio-autorizado",Boolean.class,false)
+            || ("CONTROLLED_TEST".equals(env.getProperty("PISEE_ENVIRONMENT"))
+                && env.getProperty("PISEE_CONTROLLED_TEST_AUTHORIZED",Boolean.class,false)
+                && env.getProperty("formulario.srcei.envio-sintetico-autorizado",Boolean.class,false));
     }
     @Bean RecorridosJdbc recorridosJdbc(BaseJdbc db,JsonMapper mapper,ClientePisee client,Environment env) throws java.io.IOException {
         var keyPath=Path.of(env.getRequiredProperty("formulario.abuso-key-path"));
