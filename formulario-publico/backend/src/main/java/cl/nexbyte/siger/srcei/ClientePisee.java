@@ -13,6 +13,8 @@ import static cl.nexbyte.siger.srcei.ResultadoSrcei.Estado.*;
 
 /** Cliente de servidor, sin proxy público, redirects, reintentos ni logs de cuerpos. */
 public final class ClientePisee implements AutoCloseable {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(ClientePisee.class);
+    private final java.util.concurrent.ConcurrentMap<ResultadoSrcei.Estado,java.util.concurrent.atomic.LongAdder> counters = new java.util.concurrent.ConcurrentHashMap<>();
     private final HttpClient client;
     private final URI endpoint;
     private final String localAuthorization;
@@ -32,10 +34,20 @@ public final class ClientePisee implements AutoCloseable {
         if (localAuthorization != null && (localAuthorization.length() > 256 || localAuthorization.chars().anyMatch(Character::isISOControl)))
             throw new IllegalArgumentException("Credencial PISEE inválida");
         this.localAuthorization = localAuthorization;
-        endpoint = base.resolve("/srcei/informacionPersonalBasico");
+        endpoint = base.resolve(XmlSrcei.RUTA);
         client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
     }
     public ResultadoSrcei consultar(RunConsulta run) {
+        var result = ejecutar(run);
+        counters.computeIfAbsent(result.estado(), ignored -> new java.util.concurrent.atomic.LongAdder()).increment();
+        LOG.info("PISEE_RESULT estado={} motivo={}", result.estado(), result.motivo());
+        return result;
+    }
+    public Map<ResultadoSrcei.Estado,Long> contadores() {
+        var snapshot = new EnumMap<ResultadoSrcei.Estado,Long>(ResultadoSrcei.Estado.class);
+        counters.forEach((state,count)->snapshot.put(state,count.sum())); return Map.copyOf(snapshot);
+    }
+    private ResultadoSrcei ejecutar(RunConsulta run) {
         Objects.requireNonNull(run);
         Instant at = clock.instant(); UUID id = UUID.randomUUID();
         if (!enabled) return ResultadoSrcei.fallo(NO_HABILITADO, at, id);
@@ -57,7 +69,10 @@ public final class ClientePisee implements AutoCloseable {
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
-            return ResultadoSrcei.fallo(cause instanceof BodyTooLarge ? RESPUESTA_EXCESIVA : cause instanceof HttpTimeoutException ? TIMEOUT : RED, at, id);
+            boolean tls = false;
+            for (Throwable t = cause; t != null; t = t.getCause()) if (t instanceof javax.net.ssl.SSLException) tls = true;
+            return ResultadoSrcei.fallo(cause instanceof BodyTooLarge ? RESPUESTA_EXCESIVA : cause instanceof HttpTimeoutException ? TIMEOUT : RED,
+                at, id, tls ? ResultadoSrcei.Motivo.TLS : ResultadoSrcei.Motivo.ESTADO);
         } finally {
             if (future != null && !future.isDone()) future.cancel(true);
             permits.release();

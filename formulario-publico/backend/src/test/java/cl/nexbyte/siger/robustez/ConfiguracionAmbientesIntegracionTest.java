@@ -40,6 +40,16 @@ class ConfiguracionAmbientesIntegracionTest {
             .withProperty("PISEE_BASE_URL","http://127.0.0.1:1").withProperty("PISEE_ALLOWED_RUNS_PATH",allowed.toString())
             .withProperty("formulario.abuso-key-path",key.toString())
             .withProperty("formulario.aviso-adulto","ADULTO_TEST").withProperty("formulario.aviso-nna","NNA_TEST");
+        if(node.equals("PRODUCTION")) {
+            Path cert=Path.of(getClass().getResource("/srcei/synthetic-test.cer").toURI());
+            java.security.cert.X509Certificate x509;
+            try(var in=Files.newInputStream(cert)){x509=(java.security.cert.X509Certificate)java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(in);}
+            String fingerprint=HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(x509.getEncoded()));
+            e.withProperty("PISEE_PRODUCTION_AUTHORIZED","true").withProperty("PISEE_LEGAL_BASIS_APPROVED","true")
+                .withProperty("PISEE_PURPOSE","REGISTRO DE USUARIOS").withProperty("PISEE_X509_CERTIFICATE_PATH",cert.toString())
+                .withProperty("PISEE_X509_SHA256",fingerprint);
+            Files.writeString(allowed,"[{\"numero\":\"12345678\",\"dv\":\"5\"}]");
+        }
         e.setActiveProfiles("jdbc-reception","production");return e;
     }
     RecorridosJdbc journeys(MockEnvironment e,ClientePisee client){
@@ -69,10 +79,12 @@ class ConfiguracionAmbientesIntegracionTest {
         verify(c,times(1)).consultar(any());
     }
     @ParameterizedTest @EnumSource(Tipo.class)
-    void nodoProductivoAutorizaSoloPresentadorSinDependerDeAllowlistDev(Tipo type)throws Exception{
-        var e=env("PRODUCTION","PRODUCTION");e.setProperty("PISEE_ALLOWED_RUNS_PATH",directory.resolve("no-debe-leerse").toString());
+    void nodoProductivoAutorizaSoloPresentadorDeCampanaAprobada(Tipo type)throws Exception{
+        var e=env("PRODUCTION","PRODUCTION");
         var c=fake();var v=identify(journeys(e,c),type,type==Tipo.NNA?"presentador-nna":"presentador-adulto",Rol.PRESENTADOR);
         assertEquals(type==Tipo.ADULTO_CU,v.autenticada());verify(c,times(1)).consultar(any());
+        e.setProperty("PISEE_ALLOWED_RUNS_PATH",directory.resolve("ausente").toString());
+        assertThrows(IllegalStateException.class,()->journeys(e,c));
     }
     @ParameterizedTest @EnumSource(value=Rol.class,names={"AFECTADO_NNA","ADULTO_RELACIONADO","PERSONA_SENALADA"})
     void nodoProductivoNoHabilitaBusquedasDeTerceros(Rol role)throws Exception{

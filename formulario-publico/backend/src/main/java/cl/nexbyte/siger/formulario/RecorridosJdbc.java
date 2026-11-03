@@ -199,12 +199,15 @@ public final class RecorridosJdbc {
         });
     }
     public Vista declarar(UUID journey,String person,Map<String,String> values,String session) {
+        return declarar(journey,person,values,session,false);
+    }
+    public Vista declarar(UUID journey,String person,Map<String,String> values,String session,boolean corregirRegistrales) {
         capacidad();return db.transaction(()->{
             var row=fila(journey,session,true);editable(row);
             var busy=db.sql.queryForList("SELECT query_state FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
             if(busy.isEmpty())throw new FalloTecnico(404);
             if(!"REVISADO".equals(busy.getFirst().get("query_state")))throw new FalloTecnico(409);
-            var declared=IdentificacionCiudadana.declarar(interna(journey,person),values,clock);
+            var declared=IdentificacionCiudadana.declarar(interna(journey,person),values,clock,corregirRegistrales);
             db.sql.update("UPDATE citizen_person SET body=? WHERE journey_id=? AND person_id=?",mapper.writeValueAsString(declared),journey.toString(),person);
             return vista(declared);
         });

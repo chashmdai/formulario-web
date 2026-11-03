@@ -166,6 +166,31 @@ class RecorridosJdbcTest {
         service.declarar(id,"presentador-adulto",Map.of("sexo","F"),session);var p=service.personasInternas(id,session).getFirst();
         assertEquals(Fuente.DECLARACION_CIUDADANA,p.atributos().get("sexo").fuente());assertEquals("Z",p.discrepancias().get("sexo").codigo());
     }
+    @Test void correccionExplicitaConservaDiscrepanciasYNoReconsultaNiAutentica(){
+        var id=iniciar(Tipo.ADULTO_DECLARADO).id();identificar(id);
+        var original=service.personasInternas(id,session).getFirst();
+        assertThrows(IllegalArgumentException.class,()->service.declarar(id,"presentador-adulto",Map.of("primerNombre","DECLARADO"),session));
+        service.declarar(id,"presentador-adulto",Map.of("primerNombre","DECLARADO","primerApellido","DISTINTO"),session,true);
+        var corrected=service.personasInternas(id,session).getFirst();
+        assertFalse(corrected.autenticada());assertEquals(1,queries.get());
+        assertEquals(Fuente.DECLARACION_CIUDADANA,corrected.atributos().get("primerNombre").fuente());
+        assertEquals(original.atributos().get("nombres"),corrected.discrepancias().get("nombres"));
+        assertEquals("DECLARADO",service.persona(id,"presentador-adulto",session).valoresDeclarados().get("primerNombre"));
+        assertFalse(mapper.writeValueAsString(service.persona(id,"presentador-adulto",session)).contains(original.atributos().get("nombres").valor()));
+    }
+    @Test void diezElementosDelAdaptadorNoAutorizanPersistirAtributosAjenosALaFinalidad()throws Exception{
+        String xml;
+        try(var in=getClass().getResourceAsStream("/srcei/completo-sintetico.xml")){xml=new String(in.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
+        final String fixture=xml.replace("<r:numero>1</r:numero>","<r:numero>12345678</r:numero>").replace("<r:dv>9</r:dv>","<r:dv>5</r:dv>");
+        provider=r->cl.nexbyte.siger.srcei.XmlSrcei.respuesta(fixture.getBytes(java.nio.charset.StandardCharsets.UTF_8),r,clock.instant(),UUID.randomUUID());
+        var id=iniciar(Tipo.ADULTO_DECLARADO).id();identificar(id);
+        var p=service.personasInternas(id,session).getFirst();
+        assertEquals(ResultadoSrcei.Estado.COMPLETO,p.estadoConsulta());assertFalse(p.autenticada());
+        assertFalse(p.atributos().containsKey("profesion"));assertFalse(p.atributos().containsKey("circunscripcionNacimiento"));
+        assertFalse(mapper.writeValueAsString(p).contains("PROFESION SINTETICA"));
+        assertEquals(Fuente.DECLARACION_CIUDADANA,p.atributos().get("runNumero").fuente());
+        assertEquals(Fuente.SRCEI,p.atributos().get("nombres").fuente());
+    }
     @Test void consultaConcurrenteNoRepiteProveedorNiSostieneBloqueoSql() throws Exception {
         var entered=new CountDownLatch(1);var release=new CountDownLatch(1);
         provider=r->{entered.countDown();try{if(!release.await(3,TimeUnit.SECONDS))throw new IllegalStateException();}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException();}return resultado(ResultadoSrcei.Estado.COMPLETO);};

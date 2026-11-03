@@ -16,6 +16,8 @@ public final class RecepcionFormularioJdbc {
     private final JsonMapper mapper;private final ValidacionFormulario validation;private final ControlesOperacion controles;
     private final String keyId;private final PrivateKey key;private final Map<String,PublicKey> trust,institutional;
     private java.util.function.BooleanSupplier admision=()->true;
+    private boolean datosRegistralesPermitidos=true;
+    public RecepcionFormularioJdbc permiteDatosRegistrales(boolean allowed){datosRegistralesPermitidos=allowed;return this;}
     public RecepcionFormularioJdbc admision(java.util.function.BooleanSupplier guard){this.admision=Objects.requireNonNull(guard);return this;}
     private final Clock clock;private final boolean enabled,adultos;
     public RecepcionFormularioJdbc(BaseJdbc db,RecorridosJdbc recorridos,AdjuntosFormulario adjuntos,JsonMapper mapper,ValidacionFormulario validation,
@@ -46,7 +48,11 @@ public final class RecepcionFormularioJdbc {
             if(route.tipo()!=Tipo.NNA&&!adultos)throw new FalloTecnico(503);
             var selected=new HashSet<String>();selected.add(route.tipo()==Tipo.NNA?"presentador-nna":"presentador-adulto");canonical.personas().forEach(p->selected.add(p.personaId()));
             var receivedAt=clock.instant();
-            var people=recorridos.personasInternas(journey,session,selected);validation.validar(route.tipo(),canonical,people,receivedAt);
+            var people=recorridos.personasInternas(journey,session,selected);
+            if (!datosRegistralesPermitidos && people.stream().anyMatch(p ->
+                java.util.stream.Stream.concat(p.atributos().values().stream(),p.discrepancias().values().stream())
+                    .anyMatch(v -> v.fuente()==Fuente.SRCEI))) throw new FalloTecnico(403);
+            validation.validar(route.tipo(),canonical,people,receivedAt);
             var files=adjuntos.internos(journey);
             if(!new HashSet<>(canonical.adjuntos()).equals(new HashSet<>(files.stream().map(AdjuntosFormulario.Descriptor::id).toList())))throw new IllegalArgumentException("Adjuntos no corresponden al recorrido");
             if(!files.equals(verifiedFiles))throw new FalloTecnico(409);

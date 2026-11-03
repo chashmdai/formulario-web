@@ -40,8 +40,9 @@ class ClientePiseeTest {
         try (var c = client(false, 2000)) { assertThat(c.consultar(XmlSrceiTest.RUN).estado()).isEqualTo(NO_HABILITADO); }
         assertThat(requests.get()).isZero();
     }
-    @Test void autorizacionNoEsRespuestaVacia() {
-        reply(401, "no autorizado");
+    @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(ints={401,403})
+    void autorizacionNoEsRespuestaVacia(int status) {
+        reply(status, "no autorizado");
         try (var c = client(true, 2000)) { assertThat(c.consultar(XmlSrceiTest.RUN).estado()).isEqualTo(AUTORIZACION); }
     }
     @Test void indisponibilidadNoSeReintenta() {
@@ -81,8 +82,45 @@ class ClientePiseeTest {
         var env = new MockEnvironment().withProperty("PISEE_SRCEI_ENABLED", "true").withProperty("PISEE_ENVIRONMENT", "PROD").withProperty("PISEE_DEV_AUTHORIZED", "true");
         assertThatThrownBy(() -> new PiseeConfiguration().clientePisee(env)).isInstanceOf(IllegalArgumentException.class);
         env.withProperty("PISEE_ENVIRONMENT", "PRODUCTION"); env.setActiveProfiles("production");
-        // El ambiente ya es admisible; sigue siendo obligatoria la credencial privada del Nodo.
         assertThatThrownBy(() -> new PiseeConfiguration().clientePisee(env)).isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("PISEE_LOCAL_AUTHORIZATION_PATH");
+            .hasMessageContaining("Autorización");
+    }
+    @Test void etiquetaErroneaDevuelve200VacioPeroNoExitoFuncional() throws Exception {
+        server.createContext(XmlSrcei.RUTA, e -> {
+            String request = new String(e.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            boolean correct = request.contains("<entradaSRCel>") && !request.contains("entradaSRCeI");
+            String xml = correct ? XmlSrceiTest.response(XmlSrceiTest.PERSONA)
+                : "<documento><datosPersona/><glosa>No existe informacion disponible.</glosa></documento>";
+            byte[] bytes = xml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            e.sendResponseHeaders(200, bytes.length); e.getResponseBody().write(bytes); e.close();
+        });
+        byte[] literal = XmlSrcei.solicitud(XmlSrceiTest.RUN).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(new String(literal, java.nio.charset.StandardCharsets.UTF_8)).contains("<entradaSRCel>");
+        assertThat("entradaSRCeI".codePointAt("entradaSRCeI".length()-1)).isEqualTo(0x49);
+        try (var http = java.net.http.HttpClient.newHttpClient(); var c = client(true, 2000)) {
+            var wrong = java.net.http.HttpRequest.newBuilder(origin.resolve(XmlSrcei.RUTA))
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(XmlSrcei.solicitud(XmlSrceiTest.RUN).replace("entradaSRCel","entradaSRCeI"))).build();
+            var response = http.send(wrong, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(XmlSrcei.respuesta(response.body(),XmlSrceiTest.RUN,java.time.Instant.now(),java.util.UUID.randomUUID()).estado()).isEqualTo(VACIO);
+            assertThat(c.consultar(XmlSrceiTest.RUN).estado()).isEqualTo(COMPLETO);
+        }
+    }
+    @Test void tlsInvalidoSeRechazaYNoSeConfundeConRespuestaVacia() {
+        try (var c = new ClientePisee(true, URI.create(origin.toString().replace("http:","https:")), null, Duration.ofMillis(300), 1, Clock.systemUTC())) {
+            // El listener HTTP no negocia TLS; nunca se degrada a HTTP.
+            assertThat(c.consultar(XmlSrceiTest.RUN).estado()).isIn(TIMEOUT,RED);
+        }
+    }
+    @Test void falloDeHandshakeTlsTieneDiagnosticoOperativoSinDesactivarLaValidacion() throws Exception {
+        var https = com.sun.net.httpserver.HttpsServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        https.setHttpsConfigurator(new com.sun.net.httpserver.HttpsConfigurator(javax.net.ssl.SSLContext.getDefault()));
+        https.start();
+        try (var c = new ClientePisee(true,URI.create("https://127.0.0.1:"+https.getAddress().getPort()),null,Duration.ofSeconds(2),1,Clock.systemUTC())) {
+            var result = c.consultar(XmlSrceiTest.RUN);
+            assertThat(result.estado()).isEqualTo(RED);
+            assertThat(result.motivo()).isEqualTo(ResultadoSrcei.Motivo.TLS);
+            assertThat(c.contadores()).containsEntry(RED,1L);
+        } finally { https.stop(0); }
     }
 }

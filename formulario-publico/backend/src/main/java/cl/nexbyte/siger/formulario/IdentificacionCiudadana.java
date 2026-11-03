@@ -61,6 +61,9 @@ public final class IdentificacionCiudadana {
         return true;
     }
     private static final Set<String> NOMBRES = Set.of("primerNombre", "segundoNombre", "primerApellido", "segundoApellido");
+    // La respuesta completa se normaliza en memoria. No custodiar profesión, defunción ni circunscripción sin finalidad.
+    private static final Set<String> REGISTRALES_PERMITIDOS = Set.of("runNumero", "runDv", "nombres", "primerApellido", "segundoApellido",
+        "fechaNacimiento", "sexo", "nacionalidad", "estadoCivil");
 
     public static Persona crear(String id, Rol rol, RunConsulta run, AutenticacionCiudadana autenticacion, ResultadoSrcei resultado, Clock clock) {
         var cu=autenticacion==null?null:autenticacion.identidad();
@@ -87,6 +90,7 @@ public final class IdentificacionCiudadana {
         }
         var discrepancies = new HashMap<String,Valor>();
         if(resultado!=null) resultado.atributos().forEach((key,value)->{
+            if(!REGISTRALES_PERMITIDOS.contains(key))return;
             var incoming=new Valor(value.valor(),value.codigo(),Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",value.observadoEn(),value.evidencia());
             if(attrs.containsKey(key)) {
                 if(!Objects.equals(attrs.get(key).valor(),incoming.valor())) discrepancies.put(key,incoming);
@@ -121,13 +125,22 @@ public final class IdentificacionCiudadana {
                 extranjera(p)?"Estos antecedentes son declarados y no autentican ni verifican tu identidad.":"Completa los datos solicitados. La revisión del RUN no acredita tu identidad.");
     }
     public static Persona declarar(Persona p,Map<String,String> values,Clock clock) {
+        return declarar(p,values,clock,false);
+    }
+    public static Persona declarar(Persona p,Map<String,String> values,Clock clock,boolean corregirRegistrales) {
         if(values==null||values.size()>CAMPOS.size()||!CAMPOS.containsAll(values.keySet())) throw new IllegalArgumentException("Campos de identificación inválidos");
         var allowed=vista(p).camposFaltantes(); var attrs=new HashMap<>(p.atributos());var discrepancies=new HashMap<>(p.discrepancias());
+        if(corregirRegistrales) {
+            if(p.autenticada()||p.rol()!=Rol.PRESENTADOR||!p.id().equals("presentador-adulto"))throw new IllegalArgumentException("Corrección declarada exclusiva del presentador sin CU");
+            allowed=new HashSet<>(allowed);allowed.addAll(CAMPOS_BASE);allowed.add("nacionalidad");allowed.remove("edad");
+        }
         if(!allowed.containsAll(values.keySet())) throw new IllegalArgumentException("No sustituir antecedentes de otra fuente");
         for(var entry:values.entrySet()) {
             String key=entry.getKey(),value=entry.getValue()==null?"":entry.getValue().strip();
             if(value.isEmpty()) { if(attrs.get(key)!=null && attrs.get(key).fuente()==Fuente.DECLARACION_CIUDADANA) attrs.remove(key); continue; }
             validar(key,value,clock);
+            if(corregirRegistrales && Set.of("primerNombre","segundoNombre").contains(key) && attrs.containsKey("nombres")
+                && attrs.get("nombres").fuente()==Fuente.SRCEI) discrepancies.put("nombres",attrs.remove("nombres"));
             if(attrs.containsKey(key)&&attrs.get(key).fuente()==Fuente.SRCEI)discrepancies.put(key,attrs.get(key));
             put(attrs,key,value,null,Fuente.DECLARACION_CIUDADANA,clock.instant(),UUID.randomUUID());
         }

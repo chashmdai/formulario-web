@@ -24,30 +24,17 @@ public class FormularioConfiguration {
             cl.nexbyte.siger.robustez.ComprobanteDigital.privatePem(Files.readString(Path.of(env.getRequiredProperty("publico.comprobante.private-key")))),
             cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.trusted-keys"))),
             cl.nexbyte.siger.robustez.JdbcRecepcionConfiguration.institutionalKeys(mapper,env),
-            Clock.systemUTC(),env.getProperty("formulario.recepcion.habilitada",Boolean.class,false)&&env.getProperty("publico.recepcion.aviso-validado",Boolean.class,false),env.getProperty("formulario.adultos.habilitado",Boolean.class,false)).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
+            Clock.systemUTC(),env.getProperty("formulario.recepcion.habilitada",Boolean.class,false)&&env.getProperty("publico.recepcion.aviso-validado",Boolean.class,false),env.getProperty("formulario.adultos.habilitado",Boolean.class,false))
+            .permiteDatosRegistrales(!env.getProperty("PISEE_SRCEI_ENABLED",Boolean.class,false)
+                || !"PRODUCTION".equals(env.getProperty("PISEE_ENVIRONMENT"))
+                || env.getProperty("formulario.srcei.envio-autorizado",Boolean.class,false))
+            .admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
     }
     @Bean RecorridosJdbc recorridosJdbc(BaseJdbc db,JsonMapper mapper,ClientePisee client,Environment env) throws java.io.IOException {
         var keyPath=Path.of(env.getRequiredProperty("formulario.abuso-key-path"));
         if(Files.size(keyPath)<32||Files.size(keyPath)>128)throw new IllegalArgumentException("Clave antiabuso inválida");
-        var allowed=new HashSet<RunConsulta>();
-        String file=env.getProperty("PISEE_ALLOWED_RUNS_PATH");
-        // La autorización DEV sigue acotada. En PRODUCTION autoriza el Nodo institucional;
-        // RecorridosJdbc conserva finalidad PRESENTADOR, privacidad, módulo 11 y cuotas.
-        boolean production=env.getProperty("PISEE_SRCEI_ENABLED",Boolean.class,false)
-            && "PRODUCTION".equals(env.getProperty("PISEE_ENVIRONMENT"));
-        if(file!=null&&!production) {
-            var path=Path.of(file);
-            if(Files.size(path)>4096)throw new IllegalArgumentException("Autorizaciones DEV excesivas");
-            var node=mapper.readTree(Files.readString(path));
-            var entries=node.isArray()?node:mapper.createArrayNode().add(node);
-            if(entries.size()>10)throw new IllegalArgumentException("Lista DEV acotada requerida");
-            for(var entry:entries) {
-                if(!entry.isObject()||entry.size()!=2||!entry.has("numero")||!entry.has("dv"))throw new IllegalArgumentException("Formato de autorizaciones DEV inválido");
-                allowed.add(new RunConsulta(entry.path("numero").asString(),entry.path("dv").asString()));
-            }
-        }
-        var permits=Set.copyOf(allowed);
-        return new RecorridosJdbc(db,mapper,client::consultar,run->production||permits.contains(run),Clock.systemUTC(),Files.readAllBytes(keyPath),
+        var permits=PoliticaPisee.autorizados(env,mapper);
+        return new RecorridosJdbc(db,mapper,client::consultar,permits,Clock.systemUTC(),Files.readAllBytes(keyPath),
             env.getRequiredProperty("formulario.aviso-adulto"),env.getRequiredProperty("formulario.aviso-nna")).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
     }
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<r:documento xmlns:r="http://valida.aem.gob.cl">
+  <r:datosPersona>
+    <r:run><r:numero>1</r:numero><r:dv>9</r:dv></r:run>
+    <r:nombre><r:nombres>ADULTO SINTETICO</r:nombres><r:apellidoPaterno>PRUEBA</r:apellidoPaterno><r:apellidoMaterno>LABORATORIO</r:apellidoMaterno></r:nombre>
+    <r:fechaNacimiento><r:fechaValida>2000-02-29</r:fechaValida></r:fechaNacimiento>
+    <r:fechaDefuncion><r:fechaTruncada>0000-00-00</r:fechaTruncada></r:fechaDefuncion>
+    <r:estadoCivil>S</r:estadoCivil>
+    <r:sexo>I</r:sexo>
+    <r:nacionalidad>C</r:nacionalidad>
+    <r:circunscripcionNacimiento>OFICINA SINTETICA</r:circunscripcionNacimiento>
+    <r:profesion>PROFESION SINTETICA NO PERSISTIBLE</r:profesion>
+    <r:fechaDeMuertePresunta><r:fechaValida>0000-00-00</r:fechaValida></r:fechaDeMuertePresunta>
+  </r:datosPersona>
+</r:documento>

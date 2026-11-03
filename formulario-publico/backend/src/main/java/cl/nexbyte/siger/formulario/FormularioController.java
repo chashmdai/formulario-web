@@ -19,7 +19,7 @@ public class FormularioController {
     public record Capacidades(boolean disponible,String avisoAdulto,String avisoNna){}
     public record Inicio(Tipo tipo,boolean aceptaCanalDigital,String avisoVersion){}
     public record Identificacion(Rol rol,String runNumero,String runDv){@Override public String toString(){return "IdentificacionFormulario[protegida]";}}
-    public record Declaracion(Map<String,String> atributos){@Override public String toString(){return "DeclaracionFormulario[protegida]";}}
+    public record Declaracion(Map<String,String> atributos,Boolean corregirRegistrales){@Override public String toString(){return "DeclaracionFormulario[protegida]";}}
     private RecorridosJdbc enabled(HttpServletRequest request) {
         var s=service.getIfAvailable();if(s==null)throw new FalloTecnico(503);
         if(!request.isSecure())throw new FalloTecnico(403);return s;
@@ -54,7 +54,7 @@ public class FormularioController {
         return respuesta(enabled(request).identificarExtranjera(id,SesionIngreso.actual(request),request.getRemoteAddr()));
     }
     @PostMapping("/recorridos/{id}/personas/{persona}/declaracion") ResponseEntity<Vista> declarar(@PathVariable UUID id,@PathVariable String persona,@RequestBody Declaracion body,HttpServletRequest request) {
-        return respuesta(enabled(request).declarar(id,persona,body.atributos(),SesionIngreso.actual(request)));
+        return respuesta(enabled(request).declarar(id,persona,body.atributos(),SesionIngreso.actual(request),Boolean.TRUE.equals(body.corregirRegistrales())));
     }
     @DeleteMapping("/recorridos/{id}/personas/{persona}/identificacion") ResponseEntity<Void> reiniciarPersona(@PathVariable UUID id,@PathVariable String persona,HttpServletRequest request) {
         enabled(request).reiniciarPersona(id,persona,SesionIngreso.actual(request));

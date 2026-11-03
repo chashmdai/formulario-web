@@ -5,7 +5,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /** Modelo interno: nunca usar como DTO ciudadano ni registrar su contenido. */
-public record ResultadoSrcei(Estado estado, Map<String, Atributo> atributos, Instant consultadoEn, UUID evidencia) {
+public record ResultadoSrcei(Estado estado, Map<String, Atributo> atributos, Instant consultadoEn, UUID evidencia, Motivo motivo) {
+    /** Diagnóstico operativo interno; no amplía el enum del documento firmado 1.0/1.1. */
+    public enum Motivo { ESTADO, SIN_INFORMACION, TLS, FIRMA_DESCIFRADO }
+    public ResultadoSrcei(Estado estado, Map<String,Atributo> atributos, Instant at, UUID id) {
+        this(estado, atributos, at, id, Motivo.ESTADO);
+    }
     public enum Estado { NO_HABILITADO, COMPLETO, PARCIAL, VACIO, NEGATIVA, RED, TIMEOUT, AUTORIZACION,
         INDISPONIBLE, XML_INVALIDO, RESPUESTA_EXCESIVA, SATURADO, RUN_DISCREPANTE }
     public record Atributo(String valor, String codigo, String fuente, String nivel, Instant observadoEn, UUID evidencia) {
@@ -18,5 +23,6 @@ public record ResultadoSrcei(Estado estado, Map<String, Atributo> atributos, Ins
     }
     public ResultadoSrcei { atributos = Map.copyOf(atributos); }
     public static ResultadoSrcei fallo(Estado estado, Instant at, UUID id) { return new ResultadoSrcei(estado, Map.of(), at, id); }
+    public static ResultadoSrcei fallo(Estado estado, Instant at, UUID id, Motivo motivo) { return new ResultadoSrcei(estado, Map.of(), at, id, motivo); }
     @Override public String toString() { return "ResultadoSrcei[estado=" + estado + ", cantidad=" + atributos.size() + "]"; }
 }

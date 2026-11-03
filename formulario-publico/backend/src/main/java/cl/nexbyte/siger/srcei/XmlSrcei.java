@@ -15,7 +15,9 @@ import org.xml.sax.helpers.DefaultHandler;
 import static cl.nexbyte.siger.srcei.ResultadoSrcei.Estado.*;
 
 public final class XmlSrcei {
-    public static final String ENTRADA = "entradaSRCel"; // U+006C final, comprobado en DEV Linux.
+    public static final String ENTRADA = "entradaSRCel"; // U+006C final, DEV y producción Linux 03/11/2026.
+    public static final String RUTA = "/srcei/informacionPersonalBasico";
+    public static final String SERVICIO = "InformacionPersonalBasicoDDN";
     public static final int MAX_BYTES = 131072;
     private static final Set<String> OBLIGATORIOS = Set.of("nombres", "primerApellido", "fechaNacimiento", "sexo", "nacionalidad");
     private static final Map<String,String> SEXO = Map.of("F","Femenino","M","Masculino","I","Indeterminado");
@@ -50,6 +52,15 @@ public final class XmlSrcei {
             builder.setEntityResolver((publicId, systemId) -> { throw new SAXException("Entidad no permitida"); });
             Element root = builder.parse(new ByteArrayInputStream(xml)).getDocumentElement();
             checkTree(root, 0, new int[]{0});
+            // Un Fault SOAP no se interpreta como datosPersona vacío. Nunca registrar su texto.
+            if ("Envelope".equals(root.getLocalName())) {
+                Element body = child(root, "Body");
+                if (body != null && child(body, "Fault") != null) {
+                    String fault = child(body, "Fault").getTextContent().toLowerCase(Locale.ROOT);
+                    boolean signature = java.util.stream.Stream.of("xmlsec", "firma", "signature", "descifr", "decrypt").anyMatch(fault::contains);
+                    return ResultadoSrcei.fallo(NEGATIVA, at, evidence, signature ? ResultadoSrcei.Motivo.FIRMA_DESCIFRADO : ResultadoSrcei.Motivo.ESTADO);
+                }
+            }
             if (!"documento".equals(root.getLocalName())) throw new IllegalArgumentException();
             Element persona = child(root, "datosPersona");
             String glosa = text(root, "glosa");
@@ -86,13 +97,17 @@ public final class XmlSrcei {
             coded(attrs, persona, "estadoCivil", CIVIL, at, evidence);
             coded(attrs, persona, "nacionalidad", NACIONALIDAD, at, evidence);
             add(attrs, "profesion", text(persona, "profesion"), null, at, evidence);
-            add(attrs, "circunscripcionNacimiento", text(persona, "circunscripcionNacimiento"), null, at, evidence);
+            Element circunscripcion = child(persona, "circunscripcionNacimiento");
+            if (circunscripcion != null) territorial(attrs, circunscripcion, "circunscripcionNacimiento", at, evidence);
             var meaningful = new HashSet<>(attrs.keySet()); meaningful.removeAll(Set.of("runNumero", "runDv"));
             boolean complete = attrs.keySet().containsAll(OBLIGATORIOS)
                 && !"Desconocido".equals(attrs.get("sexo").valor()) && !"Desconocido".equals(attrs.get("nacionalidad").valor());
             var state = meaningful.isEmpty() ? VACIO : complete ? COMPLETO : PARCIAL;
-            if (state == VACIO && glosa != null && !glosa.toLowerCase(Locale.ROOT).contains("no existe información")) state = NEGATIVA;
-            return new ResultadoSrcei(state, attrs, at, evidence);
+            boolean noInformation = glosa != null && java.text.Normalizer.normalize(glosa, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT).contains("no existe informacion");
+            if (state == VACIO && glosa != null && !noInformation) state = NEGATIVA;
+            return new ResultadoSrcei(state, attrs, at, evidence,
+                state == VACIO && noInformation ? ResultadoSrcei.Motivo.SIN_INFORMACION : ResultadoSrcei.Motivo.ESTADO);
         } catch (Exception invalid) {
             return ResultadoSrcei.fallo(XML_INVALIDO, at, evidence);
         }
@@ -117,7 +132,21 @@ public final class XmlSrcei {
         for (Node n = e.getFirstChild(); n != null; n = n.getNextSibling()) if (n instanceof Element) throw new IllegalArgumentException();
         String value = e.getTextContent();
         if (value.length() > 500 || value.codePoints().anyMatch(Character::isISOControl)) throw new IllegalArgumentException();
-        return value.isBlank() || "(NO INFORMADO)".equals(value.strip()) ? null : value;
+        return value.isBlank() || Set.of("(NO INFORMADO)", "0000-00-00").contains(value.strip()) ? null : value;
+    }
+    /** Conserva etiquetas y valores de subelementos; ningún código territorial se infiere como domicilio. */
+    private static void territorial(Map<String, ResultadoSrcei.Atributo> attrs, Element node, String path, Instant at, UUID evidence) {
+        var seen = new HashSet<String>(); boolean leaf = true;
+        for (Node n = node.getFirstChild(); n != null; n = n.getNextSibling()) if (n instanceof Element e) {
+            leaf = false;
+            if (!seen.add(e.getLocalName()) || !e.getLocalName().matches("[A-Za-z][A-Za-z0-9_]{0,63}")) throw new IllegalArgumentException();
+            territorial(attrs, e, path + "." + e.getLocalName(), at, evidence);
+        }
+        if (leaf) {
+            String value = node.getTextContent();
+            if (value.length() > 500 || value.codePoints().anyMatch(Character::isISOControl)) throw new IllegalArgumentException();
+            if (!value.isBlank() && !"(NO INFORMADO)".equals(value.strip())) add(attrs, path, value, null, at, evidence);
+        }
     }
     private static void add(Map<String, ResultadoSrcei.Atributo> attrs, String key, String value, String code, Instant at, UUID evidence) {
         if (value != null) attrs.put(key, new ResultadoSrcei.Atributo(value, code, "SRCEI", "CONTRASTADO_EN_FUENTE", at, evidence));

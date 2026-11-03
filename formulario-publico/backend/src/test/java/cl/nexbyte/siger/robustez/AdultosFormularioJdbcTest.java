@@ -134,6 +134,13 @@ class AdultosFormularioJdbcTest {
         provider=run->{var ref=UUID.randomUUID();return new ResultadoSrcei(ResultadoSrcei.Estado.PARCIAL,Map.of("nombres",new ResultadoSrcei.Atributo("NOMBRE REGISTRAL PRIVADO",null,"SRCEI","CONTRASTADO_EN_FUENTE",clock.instant(),ref)),clock.instant(),ref);};iniciar(Tipo.ADULTO_DECLARADO);var state=send(general());assertFalse(mapper.writeValueAsString(state).contains("REGISTRAL"));
         var p=service.reclamar(1).getFirst().entrega().comunicacion().personas().getFirst();assertEquals(Fuente.SRCEI,p.atributos().get("nombres").fuente());assertEquals(Fuente.DECLARACION_CIUDADANA,p.atributos().get("primerApellido").fuente());assertFalse(p.autenticada());
     }
+    @Test void carrilRealNoPermiteCrearComunicacionRegistralSinAutorizacionDeEnvio(){
+        provider=run->{var ref=UUID.randomUUID();return new ResultadoSrcei(ResultadoSrcei.Estado.PARCIAL,Map.of("nombres",new ResultadoSrcei.Atributo("SINTETICO",null,"SRCEI","CONTRASTADO_EN_FUENTE",clock.instant(),ref)),clock.instant(),ref);};
+        iniciar(Tipo.ADULTO_DECLARADO);service.permiteDatosRegistrales(false);
+        assertEquals(403,assertThrows(FalloTecnico.class,()->send(general())).status);
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
+        assertEquals("BORRADOR",journeys.consultar(journey,session).estado());
+    }
     @Test void recepcionAdultaPermaneceCerradaSinBanderaExplicita()throws Exception{
         iniciar(Tipo.ADULTO_DECLARADO);service=crear(false);assertFalse(service.adultosDisponibles());assertTrue(service.disponible());assertEquals(503,assertThrows(FalloTecnico.class,()->send(general())).status);assertEquals("BORRADOR",journeys.consultar(journey,session).estado());
     }

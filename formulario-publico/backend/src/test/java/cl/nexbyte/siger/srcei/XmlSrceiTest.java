@@ -51,7 +51,39 @@ class XmlSrceiTest {
         assertThat(result.estado()).isEqualTo(PARCIAL); assertThat(result.atributos()).doesNotContainKey("fechaNacimiento");
         result = parse(response(PERSONA.replace("2000-02-29", "0000-00-00")));
         assertThat(result.atributos()).doesNotContainKey("fechaNacimiento");
-        assertThat(result.atributos().get("fechaDefuncionTruncada").codigo()).isEqualTo("TRUNCADA");
+        assertThat(result.atributos()).doesNotContainKeys("fechaDefuncion", "fechaDefuncionTruncada");
+        assertThat(parse(response("<fechaDefuncion><fechaTruncada>2000-00-00</fechaTruncada></fechaDefuncion>"))
+            .atributos().get("fechaDefuncionTruncada").codigo()).isEqualTo("TRUNCADA");
+    }
+    @Test void diezElementosSinteticosConPrefijosVariablesYSubelementosSeMapeanSinInferirDomicilio() throws Exception {
+        String fields = PERSONA + "<circunscripcionNacimiento><codigo>001</codigo><nombre>Oficina sintética</nombre></circunscripcionNacimiento>"
+            + "<fechaDeMuertePresunta><fechaValida>0000-00-00</fechaValida></fechaDeMuertePresunta>";
+        String xml = response(fields);
+        var factory = javax.xml.parsers.DocumentBuilderFactory.newInstance(); factory.setNamespaceAware(true);
+        var root = factory.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
+        long count = java.util.stream.IntStream.range(0, root.getElementsByTagNameNS("*", "datosPersona").item(0).getChildNodes().getLength())
+            .filter(i -> root.getElementsByTagNameNS("*", "datosPersona").item(0).getChildNodes().item(i) instanceof org.w3c.dom.Element).count();
+        assertThat(count).isEqualTo(10);
+        for (String prefix : java.util.List.of("a", "registro", "ns77")) {
+            String prefixed = xml.replace("xmlns=", "xmlns:" + prefix + "=")
+                .replaceAll("<(?!/)([A-Za-z][A-Za-z0-9]*)(?=[ >])", "<" + prefix + ":$1")
+                .replaceAll("</([A-Za-z][A-Za-z0-9]*)>", "</" + prefix + ":$1>");
+            var result = parse(prefixed);
+            assertThat(result.estado()).isEqualTo(COMPLETO);
+            assertThat(result.atributos().get("circunscripcionNacimiento.codigo").valor()).isEqualTo("001");
+            assertThat(result.atributos()).doesNotContainKeys("region", "comuna", "fechaDeMuertePresunta", "fechaDefuncionTruncada");
+        }
+    }
+    @Test void xmlVacioYNegativaDeNegocioYFalloCriptograficoTienenDiagnosticosDiferentes() {
+        assertThat(parse(response("")).motivo()).isEqualTo(ResultadoSrcei.Motivo.ESTADO);
+        for (String text : java.util.List.of("No existe información disponible.", "No existe informacion disponible.")) {
+            var result = parse("<documento><glosa>" + text + "</glosa><datosPersona/></documento>");
+            assertThat(result.estado()).isEqualTo(VACIO);
+            assertThat(result.motivo()).isEqualTo(ResultadoSrcei.Motivo.SIN_INFORMACION);
+        }
+        var fault = parse("<s:Envelope xmlns:s='http://schemas.xmlsoap.org/soap/envelope/'><s:Body><s:Fault><faultstring>Error xmlsec descifrado</faultstring></s:Fault></s:Body></s:Envelope>");
+        assertThat(fault.estado()).isEqualTo(NEGATIVA);
+        assertThat(fault.motivo()).isEqualTo(ResultadoSrcei.Motivo.FIRMA_DESCIFRADO);
     }
     @Test void codigosDesconocidosSeConservanComoDesconocidosYUNoInforma() {
         var result = parse(response(PERSONA.replace("<sexo>I", "<sexo>Z")));
