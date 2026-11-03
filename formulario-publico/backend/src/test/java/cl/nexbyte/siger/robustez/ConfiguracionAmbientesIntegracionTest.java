@@ -41,7 +41,7 @@ class ConfiguracionAmbientesIntegracionTest {
             .withProperty("formulario.abuso-key-path",key.toString())
             .withProperty("formulario.aviso-adulto","ADULTO_TEST").withProperty("formulario.aviso-nna","NNA_TEST");
         if(node.equals("PRODUCTION")) {
-            Path cert=Path.of(getClass().getResource("/srcei/synthetic-test.cer").toURI());
+            Path cert=CertificadoPrueba.crear(directory);
             java.security.cert.X509Certificate x509;
             try(var in=Files.newInputStream(cert)){x509=(java.security.cert.X509Certificate)java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(in);}
             String fingerprint=HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(x509.getEncoded()));
