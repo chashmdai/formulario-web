@@ -21,6 +21,15 @@ function type(number='12345678',dv='5'){
 }
 const advance=async(ms=650)=>{await act(async()=>{await vi.advanceTimersByTimeAsync(ms);});};
 describe('RUN automático sin consultas en cada pulsación',()=>{
+ it('permite una corrección declarada explícita sin revelar ni sobreescribir silenciosamente antecedentes',async()=>{
+  vi.mocked(identifyPerson).mockResolvedValue({...empty(),camposFaltantes:[],camposObligatorios:[]});
+  const {identityRef}=await mount();vi.useFakeTimers();type();await advance();
+  fireEvent.click(screen.getByRole('button',{name:'Aportar datos distintos o faltantes'}));
+  fireEvent.change(screen.getByRole('textbox',{name:/^Primer nombre/}),{target:{value:'DECLARADO'}});
+  await act(async()=>{await identityRef.current!.save();});
+  expect(declarePerson).toHaveBeenLastCalledWith(journey.id,'presentador-adulto',{primerNombre:'DECLARADO'},true);
+  expect(identifyPerson).toHaveBeenCalledTimes(1);
+ });
  it('espera RUN/DV válido y 650 ms estables; deduplica botón, renders y guardado',async()=>{
   const {identityRef}=await mount();vi.useFakeTimers();type('12345678','0');await advance(2000);expect(identifyPerson).not.toHaveBeenCalled();
   type();await advance(400);type('11111111','1');await advance(649);expect(identifyPerson).not.toHaveBeenCalled();await advance(1);

@@ -39,6 +39,18 @@ describe('Cliente de identificación real', () => {
     await expect(resetPerson('r', 'presentador-adulto')).resolves.toBeUndefined();
     expect(fetch.mock.calls[1][1]?.method).toBe('DELETE');
   });
+  it('permite cancelar la consulta HTTP sin interpretar el aborto como respuesta registral', async () => {
+    let started!:()=>void;
+    const ready = new Promise<void>(resolve=>{started=resolve;});
+    vi.spyOn(window,'fetch').mockImplementation(async (input,options)=>{
+      if(String(input)==='/api/csrf') return response({token:'csrf-sintetico',headerName:'X-CSRF-TOKEN'});
+      started();
+      return new Promise<Response>((_resolve,reject)=>options?.signal?.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError'))));
+    });
+    const request=identifyPerson('cancelable','presentador-adulto','PRESENTADOR','1','9');
+    await ready; const assertion=expect(request).rejects.toMatchObject({name:'AbortError'});
+    request.cancel?.();await assertion;
+  });
   it('valida módulo 11 sin confundir formato con identidad', () => {
     expect(validRun('12345678', '5')).toBe(true);expect(validRun('12345678', '0')).toBe(false);
     expect(validRun('', '')).toBe(false);expect(validRun('12.345.678', '5')).toBe(false);

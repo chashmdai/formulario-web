@@ -15,9 +15,11 @@ const root = '/api/formulario';
 const path = (journey: string, person: string) => `${root}/recorridos/${encodeURIComponent(journey)}/personas/${encodeURIComponent(person)}`;
 export const getJourneyCapabilities = () => json<JourneyCapabilities>(`${root}/capacidades`);
 export const getCurrentJourney = () => json<Journey>(`${root}/actual`);
-async function mutation<T>(url: string, method: 'POST' | 'DELETE', body?: unknown): Promise<T> {
+async function mutation<T>(url: string, method: 'POST' | 'DELETE', body?: unknown, signal?: AbortSignal): Promise<T> {
   const csrf = await getCsrf();
+  signal?.throwIfAborted();
   const response = await fetch(url, {method, credentials: 'same-origin', cache: 'no-store',
+    ...(signal ? {signal} : {}),
     headers: {'Content-Type': 'application/json', [csrf.headerName]: csrf.token},
     ...(body === undefined ? {} : {body: JSON.stringify(body)}),
   });
@@ -45,12 +47,15 @@ function publicView(value: unknown): IdentityView {
 export async function getPerson(journey: string, person: string): Promise<IdentityView> {
   return publicView(await json<unknown>(path(journey, person)));
 }
-const identifying = new Map<string, Promise<IdentityView>>();
-export function identifyPerson(journey: string, person: string, rol: PersonRole, runNumero?: string, runDv?: string): Promise<IdentityView> {
+export type IdentificationRequest = Promise<IdentityView> & {cancel?: () => void};
+const identifying = new Map<string, IdentificationRequest>();
+export function identifyPerson(journey: string, person: string, rol: PersonRole, runNumero?: string, runDv?: string): IdentificationRequest {
   const key = JSON.stringify([journey, person, rol, runNumero, runDv]);
   const existing = identifying.get(key);
   if (existing) return existing;
-  const pending = mutation<unknown>(`${path(journey, person)}/identificacion`, 'POST', {rol, runNumero, runDv}).then(publicView);
+  const controller = new AbortController();
+  const pending = Object.assign(mutation<unknown>(`${path(journey, person)}/identificacion`, 'POST', {rol, runNumero, runDv}, controller.signal).then(publicView),
+    {cancel: () => controller.abort()});
   identifying.set(key, pending);
   void pending.then(() => identifying.delete(key), () => identifying.delete(key));
   return pending;
@@ -58,6 +63,6 @@ export function identifyPerson(journey: string, person: string, rol: PersonRole,
 export async function identifyForeignPerson(journey: string): Promise<IdentityView> {
   return publicView(await mutation<unknown>(root + '/recorridos/' + encodeURIComponent(journey) + '/identificacion-extranjera', 'POST'));
 }
-export async function declarePerson(journey: string, person: string, atributos: Declarations): Promise<IdentityView> {
-  return publicView(await mutation<unknown>(`${path(journey, person)}/declaracion`, 'POST', {atributos}));
+export async function declarePerson(journey: string, person: string, atributos: Declarations, corregirRegistrales = false): Promise<IdentityView> {
+  return publicView(await mutation<unknown>(`${path(journey, person)}/declaracion`, 'POST', {atributos, ...(corregirRegistrales ? {corregirRegistrales:true} : {})}));
 }

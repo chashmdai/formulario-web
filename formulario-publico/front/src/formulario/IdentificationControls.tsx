@@ -6,7 +6,7 @@ import type { ChangeEvent, ReactNode, Ref } from 'react';
 import type { Session } from '../api';
 import { ApiError } from '../api';
 import { declarePerson, getPerson, identifyPerson, identifyForeignPerson, resetPerson } from './api';
-import type { Declarations, IdentityField, IdentityView, Journey } from './api';
+import type { Declarations, IdentificationRequest, IdentityField, IdentityView, Journey } from './api';
 import { formatRunNumber, pastedRun, runNumber, validRun } from './run';
 
 export interface IdentificationHandle { save: () => Promise<IdentityView | null> }
@@ -43,14 +43,16 @@ export function IdentificationControls({journey, session, nna = false, children,
   const [phase, setPhase] = useState<'INICIAL' | 'CONSULTANDO' | 'REVISADO' | 'ERROR'>(cu || nna ? 'CONSULTANDO' : 'INICIAL');
   const [failure, setFailure] = useState('');
   const [restored, setRestored] = useState(false);
+  const [manualCorrection, setManualCorrection] = useState(false);
   const lookup = useRef<Promise<IdentityView | null> | null>(null);
+  const networkRequest = useRef<IdentificationRequest | null>(null);
   const backendExists = useRef(false);
   const generation = useRef(0);
   const resetNeeded = useRef(false);
   const resetPending = useRef<Promise<void> | null>(null);
   const onResolvedRef = useRef(onResolved);
   useEffect(() => { onResolvedRef.current = onResolved; }, [onResolved]);
-  useEffect(() => () => { generation.current++; }, []);
+  useEffect(() => () => { generation.current++; networkRequest.current?.cancel?.(); }, []);
   const busy = phase === 'CONSULTANDO';
 
   function received(next: IdentityView) {
@@ -75,8 +77,10 @@ export function IdentificationControls({journey, session, nna = false, children,
     finally { resetPending.current = null; }
   }
   function invalidate() {
+    networkRequest.current?.cancel?.(); networkRequest.current = null;
     if (view || backendExists.current) resetNeeded.current = true;
     generation.current++; setView(null); setValues({}); setErrors({}); setFailure(''); setPhase('INICIAL');
+    setManualCorrection(false);
     onResolvedRef.current?.(null);
     // Una sola invalidación por identidad existente, incluso si se siguen escribiendo dígitos.
     if (resetNeeded.current) void ensureReset().catch(() => { /* Se conserva el pendiente y se reintenta antes de consultar. */ });
@@ -96,7 +100,9 @@ export function IdentificationControls({journey, session, nna = false, children,
         await ensureReset();
         if (token !== generation.current) return null;
         backendExists.current = true;
-        const next = foreign ? await identifyForeignPerson(journey.id) : await identifyPerson(journey.id, person, 'PRESENTADOR', cu || !withRun ? undefined : runNumber(numero), cu || !withRun ? undefined : dv.toUpperCase());
+        const request = foreign ? identifyForeignPerson(journey.id) : identifyPerson(journey.id, person, 'PRESENTADOR', cu || !withRun ? undefined : runNumber(numero), cu || !withRun ? undefined : dv.toUpperCase());
+        networkRequest.current = request;
+        const next = await request;
         if (token !== generation.current) return null;
         received(next); return next;
       } catch (error) { if (token === generation.current) fail(error); return null; }
@@ -187,8 +193,8 @@ export function IdentificationControls({journey, session, nna = false, children,
     const token = ++generation.current;
     setPhase('CONSULTANDO');
     try {
-      const allowed = Object.fromEntries(current.camposFaltantes.filter(k => input[k] !== undefined).map(k => [k, input[k]])) as Declarations;
-      const next = await declarePerson(journey.id, person, allowed);
+      const allowed = Object.fromEntries((manualCorrection ? metadata.map(m=>m.key) : current.camposFaltantes).filter(k => input[k] !== undefined).map(k => [k, input[k]])) as Declarations;
+      const next = manualCorrection ? await declarePerson(journey.id, person, allowed, true) : await declarePerson(journey.id, person, allowed);
       if (token !== generation.current) return null;
       received(next); return next;
     } catch (error) { if (token === generation.current) fail(error); return null; }
@@ -211,7 +217,8 @@ export function IdentificationControls({journey, session, nna = false, children,
   } : {};
   const sourceFor = (key: IdentityField) => identity && verifiedNames[key] !== undefined ? 'ClaveÚnica' : 'Declarado';
   const fields = metadata.filter(m => (nna ? !['fechaNacimiento', 'sexo'].includes(m.key) : m.key !== 'edad')
-    && ((identity && verifiedNames[m.key] !== undefined) || view?.camposFaltantes.includes(m.key)));
+    && ((identity && verifiedNames[m.key] !== undefined) || view?.camposFaltantes.includes(m.key)
+      || (manualCorrection && !['tipoDocumento','numeroDocumento'].includes(m.key))));
   const displayedNumber = identity ? formatRunNumber(identity.runNumero || identity.run.split('-')[0]) : numero;
   const displayedDv = identity ? identity.runDv || identity.run.split('-')[1] : dv;
   const preservedRun = !cu && !!view?.runInformado && !numero && !dv;
@@ -256,6 +263,11 @@ export function IdentificationControls({journey, session, nna = false, children,
       </div>}
     </div>
     {(nna || cu || foreign || preservedRun) && statusMarkup}
+    {!nna && !cu && !foreign && view?.estado === 'REVISADO' && <div className="field-help">
+      <p>Los antecedentes obtenidos del Registro Civil se conservan con su origen y no acreditan tu identidad. Aquí solo se muestran los datos que tú declaras.</p>
+      {!manualCorrection && <button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>setManualCorrection(true)}>Aportar datos distintos o faltantes</button>}
+      {manualCorrection && <p role="status">Escribe solo los datos que quieras aportar o corregir. Se conservarán tu declaración y las diferencias con los antecedentes registrales.</p>}
+    </div>}
     {phase === 'ERROR' && <button className="btn btn-secondary" type="button" onClick={() => void (view?.estado === 'CONSULTANDO' ? refresh() : review())}>Volver a intentar</button>}
     <div className={nna ? 'form-grid nna-basics' : 'identity-input-grid'} id={nna ? undefined : 'adult-personal-fields'} hidden={!fields.length && !children && !identity}>
       {fields.map(m => {
