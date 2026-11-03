@@ -26,6 +26,8 @@ publico.comprobante.private-key=/run/keys/receipt-key.pem
 publico.comprobante.trusted-keys=/run/keys/receipt-trust.json
 publico.comprobante.institutional-trusted-keys=/run/keys/institutional-trust.json
 publico.integracion.habilitada=true
+# Autentica rutas aun con integración cerrada, sin permitir reservas/recepción/ACK.
+publico.integracion.preparada=true
 siger.claveunica.habilitada=true
 siger.claveunica.environment=PRODUCTION
 siger.claveunica.public-origin=https://formulario.defensorianinez.gob.cl
@@ -34,7 +36,7 @@ siger.claveunica.logout-uri=https://formulario.defensorianinez.gob.cl/logout
 siger.claveunica.id-token-algorithm=HS256
 siger.claveunica.callback-approved=true
 PISEE_SRCEI_ENABLED=false
-# Microsoft Graph no está incorporado en este despliegue.
+# Correo y notificaciones corresponden a SIGER; no son requisitos del Formulario.
 formulario.adjuntos.clamav-host=antivirus
 formulario.adjuntos.clamav-port=3310
 # Perfil inspeccionado preparado: NO habilita recepción ciudadana.

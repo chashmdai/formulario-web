@@ -11,7 +11,7 @@ Nexbyte SpA / Defensoría de la Niñez. DDN-UBUNTU, America/Santiago. **Candidat
 | Almacenamiento, COMMIT/ACK y visualización de esta campaña en SIGER Windows | PENDIENTE; sin acceso Windows ni ventana coordinada |
 | Habilitación pública del Formulario completo | **NO-GO**, no ejecutada |
 
-El manual recibido acredita SRCeI real desde el nodo; esta sesión no convierte esa evidencia en una validación nueva del adaptador Java ni en un E2E Windows. Las pruebas con stub no acreditan tratamiento productivo de identidades. CU final, SIGER definitivo, Graph/correo, respaldo independiente, seguridad/retención y autorización institucional siguen siendo gates separados.
+El manual recibido acredita SRCeI real desde el nodo; esta sesión no convierte esa evidencia en una validación nueva del adaptador Java ni en un E2E Windows. Las pruebas con stub no acreditan tratamiento productivo de identidades. CU final, SIGER definitivo, respaldo independiente, seguridad/retención y autorización institucional siguen siendo gates separados. Por definición de alcance posterior del 03/11, Graph/correo corresponden exclusivamente a SIGER y no constituyen requisito del Formulario.
 
 ## Fuentes inspeccionadas
 

@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import socket
+import shutil
 
 ROOT=Path(__file__).resolve().parents[2]
 def module(name):
@@ -11,6 +13,15 @@ def module(name):
     m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 
 class Rc1OperationsTest(unittest.TestCase):
+    def test_backup_excluye_socket_efimero_sin_perder_estado_durable(self):
+        m=module('respaldo.py')
+        with tempfile.TemporaryDirectory() as t:
+            source=Path(t)/'state';source.mkdir();(source/'durable').write_bytes(b'SYNTHETIC_STATE')
+            with socket.socket(socket.AF_UNIX) as sock:
+                sock.bind(str(source/'ephemeral.sock'))
+                shutil.copytree(source,Path(t)/'backup',ignore=m.ephemeral_sockets)
+            self.assertEqual((Path(t)/'backup/durable').read_bytes(),b'SYNTHETIC_STATE')
+            self.assertFalse((Path(t)/'backup/ephemeral.sock').exists())
     def test_config_ip_exacta_no_modifica_credenciales_originales(self):
         m=module('preparar-config-pisee.py')
         with tempfile.TemporaryDirectory() as t:

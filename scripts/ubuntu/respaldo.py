@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -31,8 +32,8 @@ def key(path):
         raise ValueError('Clave externa privada de al menos 32 bytes requerida')
     return p
 
-def containers(project):
-    if project in {'ddn-formulario-institucional', 'ddn-release-pisee-lab-a', 'ddn-release-pisee-lab-b'}:
+def containers(project, certification=False):
+    if project in {'ddn-formulario-institucional', 'ddn-release-pisee-lab-a', 'ddn-release-pisee-lab-b'} and not (certification and project=='ddn-formulario-institucional'):
         raise ValueError('Proyecto protegido')
     ids = run(['docker', 'ps', '-aq', '--filter', 'label=com.docker.compose.project=' + project]).decode().split()
     if not ids:
@@ -49,13 +50,32 @@ def inventory(root):
                 result[str(p.relative_to(root))] = hashlib.file_digest(f, 'sha256').hexdigest()
     return result
 
+def ephemeral_sockets(directory, names):
+    # IPC del nodo se recrea al arrancar; jamás copiarlo como estado durable.
+    return [name for name in names if stat.S_ISSOCK((Path(directory)/name).lstat().st_mode)]
+
 def backup(a):
     origin, output, password = private(a.private_dir), private(a.output), key(a.key_file)
+    if origin in password.parents:
+        raise ValueError('Clave de respaldo debe custodiarse fuera del origen respaldado')
     if output.exists() or origin == output or origin in output.parents:
         raise ValueError('Salida nueva fuera del origen requerida')
-    cs = containers(a.project)
+    cs = containers(a.project, a.certification_readonly)
     mysql = next(c for c in cs if c['Config']['Labels'].get('com.docker.compose.service') == 'mysql')
     writers = [c['Id'] for c in cs if c['Config']['Labels'].get('com.docker.compose.service') in {'app', 'pisee', 'proxy'} and c['State']['Running']]
+    if a.certification_readonly:
+        props=dict(l.split('=',1) for l in (origin/'config/application.properties').read_text().splitlines() if '=' in l and not l.startswith('#'))
+        if props.get('siger.certificacion-claveunica')!='true' or a.maintenance:
+            raise ValueError('Respaldo de certificación solo de lectura y sin mantenimiento')
+        for flag in ['publico.recepcion.habilitada','publico.nna.habilitado','formulario.adultos.habilitado',
+                     'formulario.recepcion.habilitada','ciclo-vida.online-habilitado','ciclo-vida.eliminacion.habilitada','PISEE_SRCEI_ENABLED']:
+            if props.get(flag,'false')!='false':raise ValueError('Origen no es certificación cerrada')
+        control=run(['docker','exec',mysql['Id'],'mysql','--defaults-extra-file=/run/secrets/root.cnf','--batch','--skip-column-names',
+                     'formulario_publico','-e','SELECT accept_new,pull_enabled FROM operation_control']).decode().strip()
+        if control!='0\t0':raise ValueError('Certificación exige controles cerrados')
+        writers=[]  # Nunca detener, reiniciar ni escribir en certificación.
+    elif not all([a.pisee_private_dir,a.pisee_node_config,a.pisee_state_dir]):
+        raise ValueError('Respaldo completo requiere runtime/config/estado del nodo')
     if writers and not a.maintenance:
         raise ValueError('Respaldo consistente requiere ventana --maintenance')
     try:
@@ -64,16 +84,18 @@ def backup(a):
         with tempfile.TemporaryDirectory(prefix='ddn-backup-', dir=output.parent) as folder:
             gpg = Path(folder) / 'gpg'; gpg.mkdir(mode=0o700)
             root = Path(folder) / 'payload'; root.mkdir(mode=0o700)
-            for name in ['config', 'secrets', 'cu', 'keys', 'pki', 'store', 'mysql', 'mysql-init', 'compose.env', 'clamav']:
+            for name in ['config', 'secrets', 'cu', 'keys', 'pki', 'store', 'mysql', 'mysql-init', 'compose.env', 'clamav',
+                         'release','software','installation.json','compose.origin-ca.yml','authorization','transition','intercambio-publico']:
                 src = origin / name
                 if src.is_dir(): shutil.copytree(src, root / name, symlinks=True)
                 elif src.is_file(): shutil.copy2(src, root / name)
             # Copia criptografía/config/estado institucional; no datos de campañas ajenas.
-            shutil.copytree(private(a.pisee_private_dir), root / 'pisee', symlinks=True)
-            state = private(a.pisee_state_dir)
-            shutil.copytree(state, root / 'pisee' / 'state', dirs_exist_ok=True, symlinks=True)
-            node_config = private(a.pisee_node_config)
-            shutil.copy2(node_config, root / 'pisee' / 'config-produccion.json')
+            if not a.certification_readonly:
+                shutil.copytree(private(a.pisee_private_dir), root / 'pisee', symlinks=True, ignore=ephemeral_sockets)
+                state = private(a.pisee_state_dir)
+                shutil.copytree(state, root / 'pisee' / 'state', dirs_exist_ok=True, symlinks=True, ignore=ephemeral_sockets)
+                node_config = private(a.pisee_node_config)
+                shutil.copy2(node_config, root / 'pisee' / 'config-produccion.json')
             sql = root / 'database.sql'
             with sql.open('wb') as f:
                 p = subprocess.run(['docker','exec',mysql['Id'],'mysqldump','--defaults-extra-file=/run/secrets/root.cnf',
@@ -92,7 +114,8 @@ def backup(a):
             output.with_suffix(output.suffix + '.sha256').write_text(digest + '\n')
     finally:
         if writers: run(['docker','start',*reversed(writers)])
-    print('Respaldo cifrado completo; escritores reanudados; conservar clave en custodia separada')
+    print('Certificación respaldada en solo lectura; servicios sin cambios' if a.certification_readonly
+          else 'Respaldo cifrado completo; escritores reanudados; conservar clave en custodia separada')
 
 def restore(a):
     target, source, password = private(a.destination), private(a.archive), key(a.key_file)
@@ -107,11 +130,16 @@ def restore(a):
              '--output',str(archive),'--decrypt',str(source)])
         root = Path(folder) / 'payload'; root.mkdir(mode=0o700)
         with tarfile.open(archive) as tar:
+            modes={}
             for entry in tar.getmembers():
                 p = Path(entry.name)
                 if p.is_absolute() or '..' in p.parts or not (entry.isfile() or entry.isdir()):
                     raise ValueError('Miembro de respaldo no permitido')
+                modes[entry.name]=entry.mode & 0o777 & ~0o022
             tar.extractall(root, filter='data')
+        # filter=data ignora uid y puede añadir escritura al propietario. Recuperar
+        # modos seguros originales, incluida ejecución del Nodo, sin bits especiales.
+        for name,mode in modes.items():(root/name).chmod(mode)
         manifest = json.loads((root / 'backup-manifest.json').read_text())
         if inventory(root) != manifest['files']: raise ValueError('Contenido restaurado no coincide')
         # Preserva propietarios del runtime; filter=data elimina uid arbitrarios del TAR.
@@ -119,11 +147,11 @@ def restore(a):
             for name in ['config','secrets','cu','keys','pki','store','clamav','pisee']:
                 for p in [root / name, *(root / name).rglob('*')]:
                     if p.exists(): os.chown(p, 1000, 1000)
-            for name in ['pki/mysql','mysql','pki/authority']:
+            for name in ['pki/mysql','mysql','mysql-init','pki/authority']:
                 uid = 999 if name != 'pki/authority' else 0
                 for p in [root / name, *(root / name).rglob('*')]:
                     if p.exists(): os.chown(p, uid, uid)
-            for name in ['secrets/mysql-root-password','mysql/root.cnf','compose.env']:
+            for name in ['secrets/mysql-root-password','compose.env']:
                 if (root / name).exists(): os.chown(root / name, 0, 0)
         shutil.move(root, target)
     print('Restauración descifrada e íntegra en destino nuevo; NO se inició aplicación ni se importó SQL')
@@ -132,8 +160,10 @@ def main():
     os.umask(0o077)
     p = argparse.ArgumentParser(description=__doc__); sub = p.add_subparsers(dest='command', required=True)
     b=sub.add_parser('backup')
-    for name in ['private-dir','project','output','key-file','pisee-private-dir','pisee-node-config','pisee-state-dir']:
+    for name in ['private-dir','project','output','key-file']:
         b.add_argument('--'+name,required=True)
+    for name in ['pisee-private-dir','pisee-node-config','pisee-state-dir']:b.add_argument('--'+name)
+    b.add_argument('--certification-readonly',action='store_true',help='Solo origen CU cerrado; no detiene escritores ni cambia servicios')
     b.add_argument('--maintenance',action='store_true')
     r=sub.add_parser('restore')
     for name in ['destination','archive','key-file']: r.add_argument('--'+name,required=True)
