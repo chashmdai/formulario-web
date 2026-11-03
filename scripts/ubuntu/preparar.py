@@ -57,6 +57,17 @@ def prepare(args):
         raise ValueError("Proyecto o puerto inválido")
     if not re.fullmatch(r'[a-f0-9]{40}',args.commit): raise ValueError("Indicar SHA completo de fuente, nunca latest")
     credentials,trust=installation_inputs(args)
+    receipt_material=None
+    if args.produccion:
+        if not args.receipt_private_key or not args.receipt_trust or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',args.receipt_key_id or ''):
+            raise ValueError('Producción requiere identidad de firma propia aprobada: clave, confianza e identificador externos')
+        receipt_material=private_source(args.receipt_private_key).read_bytes()
+        receipt_trust=json.loads(private_source(args.receipt_trust).read_text())
+        public=run('openssl','pkey','-in',str(private_source(args.receipt_private_key)),'-passin','pass:','-pubout').decode()
+        if not isinstance(receipt_trust,dict) or not 1<=len(receipt_trust)<=20 or receipt_trust.get(args.receipt_key_id)!=public:
+            raise ValueError('La confianza de firma debe contener la clave pública correspondiente')
+        check=subprocess.run(['openssl','pkey','-pubin','-text','-noout'],input=public.encode(),capture_output=True)
+        if check.returncode or b'ED25519' not in check.stdout: raise ValueError('Firma de comprobante exige Ed25519')
     target=new_destination(args.destination)
     for tool in ['docker','openssl']:
         if not shutil.which(tool): raise ValueError("Dependencia ausente: "+tool)
@@ -71,10 +82,11 @@ def prepare(args):
     if trust is not None: write(target/'keys/institutional-trust.json',json.dumps(trust,indent=2))
     write(target/'keys/abuso.key',secrets.token_bytes(48))
     key=target/'keys/receipt-key.pem'
-    run('openssl','genpkey','-algorithm','ED25519','-out',str(key))
+    if receipt_material is None: run('openssl','genpkey','-algorithm','ED25519','-out',str(key))
+    else: key.write_bytes(receipt_material)
     os.chown(key,1000,1000);os.chmod(key,0o400)
     pub=run('openssl','pkey','-in',str(key),'-pubout').decode()
-    write(target/'keys/receipt-trust.json',json.dumps({'publico-candidato':pub},indent=2))
+    write(target/'keys/receipt-trust.json',json.dumps(receipt_trust if receipt_material is not None else {'publico-candidato':pub},indent=2))
     authority=target/'pki/authority'
     run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-sha256','-days','397','-subj','/CN=Formulario Origin CA privada','-keyout',str(authority/'ca.key'),'-out',str(authority/'ca.crt'),'-addext','basicConstraints=critical,CA:TRUE','-addext','keyUsage=critical,keyCertSign,cRLSign')
     os.chown(authority,0,0);os.chmod(authority/'ca.key',0o400)
@@ -94,6 +106,7 @@ def prepare(args):
     run('docker','run','--rm','--network','none','--user','1000:1000','--entrypoint','sh','--mount','type=bind,src='+str(app)+',dst=/out',RUNTIME,'-ec',
         'cp "$JAVA_HOME/lib/security/cacerts" /out/java-truststore; keytool -importcert -noprompt -alias formulario-origin -file /out/ca.crt -keystore /out/java-truststore -storepass changeit; chmod 400 /out/java-truststore')
     config=(REPO/'infra/ubuntu/application.properties.example').read_text().replace('formulario.defensorianinez.gob.cl',args.hostname)
+    if args.produccion: config=config.replace('publico.comprobante.key-id=publico-candidato','publico.comprobante.key-id='+args.receipt_key_id)
     if args.sin_claveunica:
         config=config.replace('siger.claveunica.habilitada=true','siger.claveunica.habilitada=false').replace('siger.claveunica.callback-approved=true','siger.claveunica.callback-approved=false')
     if args.sin_confianza_ack: config=config.replace('publico.integracion.habilitada=true','publico.integracion.habilitada=false')
@@ -115,6 +128,8 @@ def main():
     p.add_argument('--cu-client-id');p.add_argument('--cu-secret');p.add_argument('--institutional-trust')
     p.add_argument('--sin-claveunica',action='store_true',help='Sin registro OAuth ni credenciales; login y callback responden 503')
     p.add_argument('--sin-confianza-ack',action='store_true',help='Sin claves ACK; integración, recepción y PULL cerrados')
+    p.add_argument('--produccion',action='store_true',help='Exige identidad de firma externa aprobada; no genera una identidad de laboratorio')
+    p.add_argument('--receipt-private-key');p.add_argument('--receipt-trust');p.add_argument('--receipt-key-id')
     p.add_argument('--hostname',default='formulario.defensorianinez.gob.cl');p.add_argument('--project',default='ddn-formulario-candidato');p.add_argument('--port',type=int,default=24443)
     try:prepare(p.parse_args())
     except (OSError,ValueError,RuntimeError) as e:print('Preparación detenida:',str(e),file=sys.stderr);return 1

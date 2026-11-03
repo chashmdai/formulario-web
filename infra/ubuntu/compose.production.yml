@@ -1,0 +1,65 @@
+# Overlay RC1 revisado sobre compose.yml. NO usar el overlay lab en producción.
+# No publica PISEE, MySQL ni herramientas. Solo Caddy en loopback.
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:?Digest MySQL aprobado}
+  migrar:
+    build: !reset null
+  app:
+    build: !reset null
+    networks:
+      datos: {}
+      inspeccion: {}
+      salida: {}
+      pisee_privada: {ipv4_address: "${PISEE_BACKEND_IPV4:?IP fija exclusiva backend}"}
+    volumes:
+      - ${PISEE_PRIVATE_DIR:?Runtime institucional privado}/runtime/certsX509-institucional/public.pem:/run/pisee/public.pem:ro
+    depends_on:
+      pisee: {condition: service_healthy}
+  proxy:
+    build: !reset null
+    extra_hosts: ["${FORM_HOSTNAME}:127.0.0.1"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/pki/ca.crt --output /dev/null https://$$FORM_HOSTNAME:8443/api/session"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+  antivirus:
+    build: !reset null
+  inspector:
+    build: !reset null
+  pisee:
+    image: ${PISEE_IMAGE:?Digest Nodo Linux xmlsec aprobado}
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    tmpfs: ["/tmp:size=32m,uid=1000,gid=1000,mode=0700"]
+    volumes:
+      - ${PISEE_PRIVATE_DIR}/runtime:/opt/pisee:ro
+      - ${PISEE_NODE_CONFIG:?Config privada con IP exacta}:/var/lib/pisee/config.json:ro
+      - ${PISEE_PRIVATE_DIR}/runtime/assets:/var/lib/pisee/assets:ro
+      - ${PISEE_PRIVATE_DIR}/runtime/conversiones:/var/lib/pisee/conversiones:ro
+      - ${PISEE_STATE_DIR:?Estado propio persistente del nodo}:/var/lib/pisee
+    networks:
+      pisee_privada: {ipv4_address: "${PISEE_NODE_IPV4:?IP fija exclusiva nodo}"}
+      pisee_salida: {}
+    healthcheck:
+      # Readiness local, sin provocar consultas gubernamentales periódicas.
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/8084"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # El runtime institucional usa /dev/null para los logs con posibles cuerpos.
+    logging: {driver: none}
+networks:
+  pisee_privada:
+    internal: true
+    ipam:
+      config: [{subnet: "${PISEE_SUBNET:?Subred exclusiva sin colisiones}"}]
+  pisee_salida: {}
