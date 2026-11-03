@@ -46,6 +46,14 @@ class PoliticaPiseeTest {
         var fingerprint=java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(cert)));
         env.withProperty("PISEE_X509_CERTIFICATE_PATH",cert.toString()).withProperty("PISEE_X509_SHA256",fingerprint);
         assertThat(PoliticaPisee.validar(env)).isEqualTo("PRODUCTION");
+        env.withProperty("PISEE_ALLOWED_RUNS_PATH",dir.resolve("no-existe").toString());
+        var production=PoliticaPisee.autorizados(env,new JsonMapper());
+        assertThat(production.test(new RunConsulta("1","9"))).isTrue();
+        assertThat(production.test(new RunConsulta("2","7"))).isTrue();
+        assertThat(production.test(null)).isFalse();
+        env.withProperty("PISEE_RESTRICTED_CAMPAIGN","true");
+        assertThatThrownBy(()->PoliticaPisee.autorizados(env,new JsonMapper())).isInstanceOf(IllegalStateException.class);
+        env.withProperty("PISEE_RESTRICTED_CAMPAIGN","false");
         env.withProperty("PISEE_X509_SHA256","0".repeat(64));
         assertThatThrownBy(()->PoliticaPisee.validar(env)).isInstanceOf(IllegalStateException.class).hasMessageContaining("no coincide");
     }

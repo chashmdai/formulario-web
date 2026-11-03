@@ -8,9 +8,11 @@ PISEE_PURPOSE=REGISTRO DE USUARIOS
 PISEE_BASE_URL=http://pisee:8084
 PISEE_TIMEOUT_MS=15000
 PISEE_CONCURRENCY=2
-PISEE_ALLOWED_RUNS_PATH=/run/pisee-campaign/allowed-runs.json
+# Producción no depende de identidades precargadas. Solo la integración privada
+# puede optar por PISEE_RESTRICTED_CAMPAIGN=true y suministrar su archivo privado.
+PISEE_RESTRICTED_CAMPAIGN=false
 PISEE_X509_CERTIFICATE_PATH=/run/pisee/public.pem
-PISEE_X509_SHA256=3dc48ca30f6894d3321da10173af47960d5fe9afdbbd769696f1e6de678a64e0
+PISEE_X509_SHA256=REEMPLAZAR_CON_HUELLA_INSTITUCIONAL_VERIFICADA
 # No hay cabecera local inventada: el nodo institucional validado no la exige.
 # PISEE_LOCAL_AUTHORIZATION_PATH solo si el wrapper revisado la requiere realmente.
 # Un recorrido con datos registrales tampoco puede enviarse por apagar PISEE.

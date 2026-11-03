@@ -79,11 +79,13 @@ class ConfiguracionAmbientesIntegracionTest {
         verify(c,times(1)).consultar(any());
     }
     @ParameterizedTest @EnumSource(Tipo.class)
-    void nodoProductivoAutorizaSoloPresentadorDeCampanaAprobada(Tipo type)throws Exception{
+    void nodoProductivoAutorizaPresentadorSinDependenciaDeLista(Tipo type)throws Exception{
         var e=env("PRODUCTION","PRODUCTION");
         var c=fake();var v=identify(journeys(e,c),type,type==Tipo.NNA?"presentador-nna":"presentador-adulto",Rol.PRESENTADOR);
         assertEquals(type==Tipo.ADULTO_CU,v.autenticada());verify(c,times(1)).consultar(any());
         e.setProperty("PISEE_ALLOWED_RUNS_PATH",directory.resolve("ausente").toString());
+        assertNotNull(journeys(e,c));
+        e.setProperty("PISEE_RESTRICTED_CAMPAIGN","true");
         assertThrows(IllegalStateException.class,()->journeys(e,c));
     }
     @ParameterizedTest @EnumSource(value=Rol.class,names={"AFECTADO_NNA","ADULTO_RELACIONADO","PERSONA_SENALADA"})

@@ -38,14 +38,16 @@ public final class PoliticaPisee {
                 throw new IllegalStateException("Certificado institucional inválido");
             }
         }
-        // En los tres ambientes esta rama exige identidades expresamente autorizadas.
-        if (!Files.isRegularFile(Path.of(env.getRequiredProperty("PISEE_ALLOWED_RUNS_PATH"))))
+        // Producción institucional admite RUN variables. Una integración privada puede
+        // restringirse expresamente sin convertir la campaña en requisito productivo.
+        if (campana(stage, env) && !Files.isRegularFile(Path.of(env.getRequiredProperty("PISEE_ALLOWED_RUNS_PATH"))))
             throw new IllegalStateException("Campaña acotada PISEE requerida");
         return stage;
     }
     public static Predicate<RunConsulta> autorizados(Environment env, JsonMapper mapper) throws java.io.IOException {
         String stage = validar(env);
         if (stage.equals("DISABLED")) return run -> false;
+        if (!campana(stage, env)) return Objects::nonNull; // RunConsulta ya exige módulo 11.
         Path path = Path.of(env.getRequiredProperty("PISEE_ALLOWED_RUNS_PATH"));
         if (Files.size(path) > 4096) throw new IllegalArgumentException("Campaña PISEE excesiva");
         var node = mapper.readTree(Files.readString(path));
@@ -58,5 +60,8 @@ public final class PoliticaPisee {
             allowed.add(new RunConsulta(entry.path("numero").asString(), entry.path("dv").asString()));
         }
         return Set.copyOf(allowed)::contains;
+    }
+    private static boolean campana(String stage, Environment env) {
+        return !"PRODUCTION".equals(stage) || env.getProperty("PISEE_RESTRICTED_CAMPAIGN", Boolean.class, false);
     }
 }
