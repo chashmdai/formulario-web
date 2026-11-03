@@ -39,7 +39,8 @@ public class ClaveUnicaProperties {
         }
         if (environment == Stage.PRODUCTION) {
             for (URI uri : new URI[]{redirectUri, logoutUri, publicOrigin}) {
-                if (!"https".equals(uri.getScheme()) || !uri.getHost().endsWith(".gob.cl")) {
+                if (!"https".equals(uri.getScheme()) || !uri.getHost().endsWith(".gob.cl")
+                        || uri.getPort() != -1 || !uri.getAuthority().equals(publicOrigin.getAuthority())) {
                     throw new IllegalStateException("Producción requiere HTTPS y un dominio institucional autorizado.");
                 }
             }

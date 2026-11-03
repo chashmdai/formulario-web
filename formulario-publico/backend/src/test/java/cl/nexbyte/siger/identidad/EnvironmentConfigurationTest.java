@@ -36,6 +36,8 @@ class EnvironmentConfigurationTest {
     @Test void productionRejectsInsecureTransportCookieAndUnapprovedCallback() {
         for (String invalid : new String[]{"siger.claveunica.public-origin=http://localhost:5173",
                 "siger.claveunica.redirect-uri=https://example.com/redirect",
+                "siger.claveunica.redirect-uri=https://otro.ddn.gob.cl/redirect",
+                "siger.claveunica.redirect-uri=https://siger.ddn.gob.cl:24443/redirect",
                 "server.servlet.session.cookie.secure=false", "siger.claveunica.callback-approved=false"}) {
             configured("PRODUCTION").withPropertyValues(invalid).run(context -> assertThat(context).hasFailed());
         }

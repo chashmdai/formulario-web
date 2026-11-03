@@ -1,5 +1,5 @@
 export interface Identity { run: string; nombres: string; apellidos: string; nombresComponentes?: string[] | null; apellidosComponentes?: string[] | null; runNumero?: string | null; runDv?: string | null }
-export interface Session { authenticated: boolean; identity: Identity | null; environment: string; loginAvailable: boolean; ingresoScope?: string | null }
+export interface Session { authenticated: boolean; identity: Identity | null; environment: string; loginAvailable: boolean; ingresoScope?: string | null; certificationMode?: boolean }
 export interface Csrf { token: string; parameterName: string; headerName: string }
 export interface Preview { identidad: Identity; mensaje: string; almacenada: boolean }
 export interface Capabilities { recepcionDisponible: boolean; avisoVersion: string; aviso: string }

@@ -12,14 +12,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class SessionController {
     private final ClaveUnicaProperties properties;
-    public SessionController(ClaveUnicaProperties properties) { this.properties = properties; }
+    private final boolean certificationMode;
+    public SessionController(ClaveUnicaProperties properties, org.springframework.core.env.Environment environment) {
+        this.properties = properties;
+        this.certificationMode = environment.getProperty("siger.certificacion-claveunica", Boolean.class, false);
+    }
 
-    public record SessionView(boolean authenticated, IdentidadVerificada identity, String environment, boolean loginAvailable, String ingresoScope) { }
+    public record SessionView(boolean authenticated, IdentidadVerificada identity, String environment, boolean loginAvailable, String ingresoScope, boolean certificationMode) { }
     @GetMapping("/api/session")
     SessionView session(Authentication auth) {
         var identity = auth != null && auth.getPrincipal() instanceof IdentidadVerificada i ? i : null;
         var scope=identity!=null&&auth.getDetails() instanceof EvidenciaAutenticacion proof?proof.id().toString():null;
-        return new SessionView(identity != null, identity, properties.getEnvironment().name(), properties.isHabilitada() && properties.isCallbackApproved(),scope);
+        return new SessionView(identity != null, certificationMode ? null : identity, properties.getEnvironment().name(),
+                properties.isHabilitada() && properties.isCallbackApproved(), certificationMode ? null : scope, certificationMode);
     }
     public record CsrfView(String token, String parameterName, String headerName) { }
     @GetMapping("/api/csrf")

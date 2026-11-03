@@ -106,7 +106,7 @@ services:
       FORM_HOSTNAME: ${FORM_HOSTNAME:-formulario.defensorianinez.gob.cl}
     ports: ["127.0.0.1:${FORM_HTTPS_PORT:-24443}:8443"]
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${FORM_CADDYFILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro
       - ${FORM_PRIVATE_DIR}/pki/proxy:/run/pki:ro
     tmpfs: ["/config:uid=1000,gid=1000,mode=0700", "/data:uid=1000,gid=1000,mode=0700", "/tmp:uid=1000,gid=1000,mode=0700"]
     networks: [salida]

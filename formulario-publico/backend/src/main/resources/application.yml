@@ -36,6 +36,7 @@ logging:
     org.springframework.security: WARN
     org.springframework.web.client: WARN
 siger:
+  certificacion-claveunica: false
   claveunica:
     environment: ${CU_ENVIRONMENT:SANDBOX}
     client-id: ${CU_CLIENT_ID:}

@@ -1,0 +1,37 @@
+{
+    admin off
+    auto_https off
+}
+:8443 {
+    tls /run/pki/server.crt /run/pki/server.key
+    header {
+        -Server
+        Cache-Control "no-store"
+        X-Robots-Tag "noindex, nofollow, noarchive"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+    route {
+        @wrongHost not host {$FORM_HOSTNAME}
+        respond @wrongHost "Origen no autorizado" 421
+        @private path /operacion /operacion/* /integracion /integracion/* /admin /admin/* /actuator /actuator/*
+        respond @private "Servicio no disponible" 503
+        request_body {
+            max_size 32KiB
+        }
+        reverse_proxy https://app:8443 {
+            header_up Host {$FORM_HOSTNAME}
+            header_up -Forwarded
+            header_up X-Forwarded-Host {$FORM_HOSTNAME}
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Port 443
+            transport http {
+                tls_server_name app
+                tls_trust_pool file /run/pki/ca.crt
+            }
+        }
+    }
+}
