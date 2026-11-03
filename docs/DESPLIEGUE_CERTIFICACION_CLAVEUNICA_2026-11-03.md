@@ -9,6 +9,7 @@ Repositorio `chashmdai/formulario-web`, checkout `/home/admin-ti/formulario-ubun
 - `main`: fast-forward publicado desde `bfb950690e85381b69e6dcfac167f0a237c80071` hasta `7189a95cd449d1a5c6117116f1a360b4fb6b9f63`, sin force-push.
 - Rama publicada: `deploy/certificacion-claveunica-2026-11-03`.
 - Implementación: `edc90515cf1626ba42a2792dd3a660933900bd0a`.
+- Entrega del informe y verificador: `2fcc199625822c9fc3fd16b31dae66279d99c7c2`; revisiones documentales posteriores no alteran la imagen.
 - Fuente compilada/desplegada: `14b122cb41f48cca1118e55880381638583183ae`; corrige las aserciones de los nuevos tests de interfaz. Los commits posteriores de entrega/documentación no cambian el binario.
 - Imagen local: `ddn-formulario:certificacion-20261103-14b122cb41f4`.
 - ID local de imagen: `sha256:3e54e7de1c8b8ff15f3ff7331278ee80fa47d71b1a224e236d4533b67a78839c`. No se publicó en un registry externo.
@@ -72,6 +73,7 @@ Esto acredita únicamente el preflight. Falta comprobar el secreto mediante inte
 | Comprobación | Resultado |
 |---|---|
 | Docker multietapa: lint, React, build y JAR | correcto; 214 pruebas React |
+| `npm audit --omit=dev` | 0 vulnerabilidades reportadas para dependencias frontend de ejecución |
 | Backend H2/Maven | 379 pruebas: 377 correctas, 2 omisiones opt-in existentes, 0 fallos/errores |
 | Python con JDK 25 privado | 46 pruebas correctas, sin omisiones |
 | Verificador del despliegue | 30/30 comprobaciones finales correctas |
