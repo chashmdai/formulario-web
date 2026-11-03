@@ -112,8 +112,8 @@ public final class IdentificacionCiudadana {
         } else missing.remove("edad");
         if(p.rol()!=Rol.PRESENTADOR){missing.remove("fechaNacimiento");missing.remove("sexo");}
         p.atributos().forEach((key,value)->{if(util(value))missing.remove(key);});
-        if(p.atributos().containsKey("nombres")) missing.removeAll(Set.of("primerNombre","segundoNombre"));
-        if(p.atributos().containsKey("apellidos")) missing.removeAll(Set.of("primerApellido","segundoApellido"));
+        if(util(p.atributos().get("nombres"))) missing.removeAll(Set.of("primerNombre","segundoNombre"));
+        if(util(p.atributos().get("apellidos"))) missing.removeAll(Set.of("primerApellido","segundoApellido"));
         // La edad puede inferirse únicamente en servidor a partir de fecha completa, sin publicar la fecha.
         if(util(p.atributos().get("fechaNacimiento"))) missing.remove("edad");
         var declared=new HashMap<String,String>();

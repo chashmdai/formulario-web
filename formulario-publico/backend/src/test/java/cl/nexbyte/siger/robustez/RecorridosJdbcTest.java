@@ -83,6 +83,18 @@ class RecorridosJdbcTest {
         var p=service.personasInternas(id,session).getFirst();assertEquals(status,p.estadoConsulta());assertTrue(completa(p));
         assertFalse(p.autenticada());assertNotNull(p.consultaRef());
     }
+    @ParameterizedTest @EnumSource(value=ResultadoSrcei.Estado.class,names={"COMPLETO","PARCIAL","VACIO","AUTORIZACION","XML_INVALIDO","TIMEOUT"})
+    void proyeccionCerradaNoExponeValoresRegistrales(ResultadoSrcei.Estado status){
+        provider=r->resultado(status);var id=iniciar(Tipo.ADULTO_DECLARADO).id();
+        var view=identificar(id);var json=mapper.writeValueAsString(view);
+        var tree=mapper.readTree(json);var fields=new HashSet<String>();tree.properties().forEach(e->fields.add(e.getKey()));
+        assertEquals(Set.of("personaId","estado","autenticada","runInformado","camposFaltantes","camposObligatorios","valoresDeclarados","mensaje"),fields);
+        assertTrue(view.valoresDeclarados().isEmpty());assertFalse(view.autenticada());
+        for(var value:service.personasInternas(id,session).getFirst().atributos().values())
+            if(value.fuente()==Fuente.SRCEI)assertFalse(json.contains(value.valor()));
+        assertEquals(view,service.persona(id,"presentador-adulto",session));
+        assertEquals(404,assertThrows(FalloTecnico.class,()->service.persona(id,"presentador-adulto",other)).status);
+    }
     @Test void nnaSinRunNoConsultaYConservaMinimosSinAutenticacion(){
         var id=iniciar(Tipo.NNA).id();var view=service.identificar(id,"presentador-nna",Rol.PRESENTADOR,null,null,session,"127.0.0.1",null);
         assertEquals(0,queries.get());assertFalse(view.runInformado());assertFalse(view.autenticada());

@@ -264,7 +264,7 @@ export function IdentificationControls({journey, session, nna = false, children,
     </div>
     {(nna || cu || foreign || preservedRun) && statusMarkup}
     {!nna && !cu && !foreign && view?.estado === 'REVISADO' && <div className="field-help">
-      <p>Los antecedentes obtenidos del Registro Civil se conservan con su origen y no acreditan tu identidad. Aquí solo se muestran los datos que tú declaras.</p>
+      <p>La revisión del RUN no acredita tu identidad. Completa únicamente los campos solicitados. Aquí solo se muestran los datos que tú declaras.</p>
       {!manualCorrection && <button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>setManualCorrection(true)}>Aportar datos distintos o faltantes</button>}
       {manualCorrection && <p role="status">Escribe solo los datos que quieras aportar o corregir. Se conservarán tu declaración y las diferencias con los antecedentes registrales.</p>}
     </div>}

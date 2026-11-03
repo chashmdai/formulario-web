@@ -58,6 +58,25 @@ describe('Identificación ciudadana conectada al servidor', () => {
     await userEvent.type(surname, 'APELLIDO DECLARADO');await userEvent.click(screen.getByRole('button', {name: 'Guardar identificación'}));
     await waitFor(() => expect(declarePerson).toHaveBeenCalledWith(journey.id, 'presentador-adulto', {primerApellido: 'APELLIDO DECLARADO'}));
   });
+  it('la corrección abre campos vacíos y envía solo declaraciones sin reconsultar', async () => {
+    vi.mocked(identifyPerson).mockResolvedValue({...empty(), camposFaltantes: [], camposObligatorios: []});
+    mount();await run();await userEvent.click(screen.getByRole('button', {name: 'Revisar RUN'}));
+    await userEvent.click(await screen.findByRole('button', {name:'Aportar datos distintos o faltantes'}));
+    const name=screen.getByRole('textbox', {name:/^Primer nombre/}) as HTMLInputElement;
+    expect(name.value).toBe('');
+    expect((screen.getByRole('textbox',{name:/^Primer apellido/}) as HTMLInputElement).value).toBe('');
+    await userEvent.type(name,'CORRECCION DECLARADA');
+    await userEvent.click(screen.getByRole('button',{name:'Guardar identificación'}));
+    await waitFor(()=>expect(declarePerson).toHaveBeenCalledWith(journey.id,'presentador-adulto',{primerNombre:'CORRECCION DECLARADA'},true));
+    expect(identifyPerson).toHaveBeenCalledTimes(1);
+  });
+  it.each(['VACIO','ERROR'])('el fallback %s solicita datos sin afirmar existencia', async () => {
+    vi.mocked(identifyPerson).mockResolvedValue(empty());
+    mount();await run();await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));
+    expect(await screen.findByRole('textbox',{name:/^Primer nombre/})).toBeTruthy();
+    expect(screen.getByRole('textbox',{name:/^Primer apellido/})).toBeTruthy();
+    expect(screen.queryByText(/Los antecedentes obtenidos/)).toBeNull();
+  });
   it('el fallback manual no omite nombres obligatorios ni acepta texto de marcado como nombre', async () => {
     mount();await run();await userEvent.click(screen.getByRole('button', {name: 'Revisar RUN'}));await screen.findByRole('textbox', {name: /^Primer nombre/});
     await userEvent.click(screen.getByRole('button', {name: 'Guardar identificación'}));expect(declarePerson).not.toHaveBeenCalled();
