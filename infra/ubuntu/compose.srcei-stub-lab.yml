@@ -1,0 +1,22 @@
+# CARRIL A exclusivamente sintético. Se usa EN LUGAR del overlay productivo.
+services:
+  app:
+    networks: [datos, inspeccion, salida, pisee_privada]
+    volumes:
+      - ${PISEE_CAMPAIGN_DIR:?Campaña sintética nueva}:/run/pisee-campaign:ro
+  pisee:
+    image: ${SRCEI_STUB_IMAGE:?Imagen Python del laboratorio por digest}
+    entrypoint: [python3, /test/srcei-stub.py]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ../../scripts/qa/srcei-stub.py:/test/srcei-stub.py:ro
+      - ../../formulario-publico/backend/src/test/resources/srcei/completo-sintetico.xml:/test/response.xml:ro
+    networks: [pisee_privada]
+    mem_limit: 64m
+    pids_limit: 32
+    logging: {driver: none}
+networks:
+  pisee_privada: {internal: true}

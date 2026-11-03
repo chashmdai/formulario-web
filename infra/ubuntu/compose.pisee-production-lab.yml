@@ -1,0 +1,30 @@
+# Overlay de compose.yml, exclusivamente candidato privado. No ejecutar sobre el proyecto institucional.
+services:
+  app:
+    networks: [datos, inspeccion, salida, pisee_privada]
+    volumes:
+      - ${PISEE_PRIVATE_DIR:?Copia institucional independiente}/runtime/certsX509-institucional/public.pem:/run/pisee/public.pem:ro
+      - ${PISEE_CAMPAIGN_DIR:?Campaña privada autorizada}:/run/pisee-campaign:ro
+  pisee:
+    image: ${PISEE_IMAGE:?Wrapper Linux de producción por digest}
+    build: {context: ../pisee, dockerfile: Dockerfile.production}
+    restart: "no"
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    pids_limit: 64
+    tmpfs: ["/tmp:size=32m,uid=1000,gid=1000,mode=0700"]
+    volumes:
+      - ${PISEE_PRIVATE_DIR}/runtime:/opt/pisee:ro
+      - ${PISEE_PRIVATE_DIR}/runtime/config.json:/var/lib/pisee/config.json:ro
+      - ${PISEE_PRIVATE_DIR}/runtime/assets:/var/lib/pisee/assets:ro
+      - ${PISEE_PRIVATE_DIR}/runtime/conversiones:/var/lib/pisee/conversiones:ro
+      - ${PISEE_PRIVATE_DIR}/state:/var/lib/pisee
+    networks: [pisee_privada, pisee_salida]
+    # Sin stdout persistido; config privada usa error y /dev/null.
+    logging: {driver: none}
+networks:
+  pisee_privada: {internal: true}
+  pisee_salida: {}

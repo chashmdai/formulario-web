@@ -1,0 +1,7 @@
+FROM ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates xmlsec1 curl \
+    && rm -rf /var/lib/apt/lists/*
+# UID 1000; Ubuntu ya reserva ese UID. Nada institucional se copia a la imagen.
+USER 1000:1000
+WORKDIR /var/lib/pisee
+ENTRYPOINT ["/opt/pisee/NodoV2", "start"]
