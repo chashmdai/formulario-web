@@ -22,7 +22,11 @@ class MigracionRegistroTest {
    db.migrate("publico");
    assertThat(db.sql.queryForObject("SELECT legacy_ack FROM public_delivery",String.class)).isEqualTo(legacy);
    assertThat(store.consultar(id,identity.run()).estado()).isEqualTo("PENDIENTE_REGISTRO_SIGER");
-   assertThat(store.consultar(id,identity.run()).comprobante()).isNull();assertThat(store.reclamar(1)).hasSize(1);
+   assertThat(store.consultar(id,identity.run()).comprobante()).isNull();
+   assertThatThrownBy(()->store.reclamar(1)).isInstanceOf(FalloTecnico.class).extracting(x->((FalloTecnico)x).status).isEqualTo(503);
+   var ackKey=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+   var ready=new RecepcionJdbc(db,mapper,"laboratorio-v1",true,"test-v2",keys.getPrivate(),Map.of("test-v2",keys.getPublic()),Clock.systemUTC(),300000,Map.of("institution-test",ackKey.getPublic()));
+   assertThat(ready.reclamar(1)).hasSize(1);
   }
  }
 }
