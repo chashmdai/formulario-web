@@ -178,14 +178,23 @@ class Productor:
                          ('intercambio-publico/formulario-signing-public.pem','formulario-signing-public.pem'),
                          ('pki/proxy/origin-ca.crt','origin-ca.crt')]:
             shutil.copyfile(self.root/src,target/name)
+        public_ca=self.root/'intercambio-publico/public-edge-root-ca.crt'
+        if public_ca.is_file():shutil.copyfile(public_ca,target/'public-edge-root-ca.crt')
+        signing_status=json.loads((self.root/'authorization/signing-status.json').read_text())
         profile={'versions':['1.0','1.1'],'producer':'https://'+self.host,
                  'path':'/integracion/v3/formulario-completo/entregas',
                  'credentialFile':'integration-token','versionsHeader':'X-Formulario-Versiones: 1.0,1.1',
-                 'producerSigningApproval':json.loads((self.root/'authorization/signing-status.json').read_text())['approval'],
+                 'producerSigningApproval':signing_status['approval'],
+                 'producerSigningUseAuthorized':signing_status.get('authorizedUseForProtectedReception',False),
                  'pendingWindowsMaterial':['ACK_PUBLIC_ED25519_KEY','ACK_KEY_ID'],
                  'privateOriginPort':self.port,'privateOriginLoopbackOnly':True}
         profile['privateTunnelOrigin']='https://localhost:32443'
         profile['privateTransport']='SSH local forward 127.0.0.1:32443 -> DDN-UBUNTU 127.0.0.1:'+str(self.port)
+        profile['publicTlsTrustFile']='public-edge-root-ca.crt' if public_ca.is_file() else 'SYSTEM_TRUST_REQUIRES_VERIFICATION'
+        profile['originCaPurpose']='Solo conexión directa al origen o SSH; no sustituye la CA pública de Cloudflare'
+        profile['hostnameVerificationRequired']=True
+        profile['technicalConsumerNeedsTemporaryPassword']=False
+        profile['physicalWindowsE2eVerified']=False
         (target/'consumer-profile.json').write_text(json.dumps(profile,indent=2))
         hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in target.iterdir()}
         (target/'SHA256SUMS.json').write_text(json.dumps(hashes,indent=2))
