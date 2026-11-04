@@ -16,6 +16,7 @@ import subprocess
 import uuid
 import shutil
 import urllib.parse
+import datetime
 from html.parser import HTMLParser
 
 def reception_authorization(a):
@@ -24,6 +25,13 @@ def reception_authorization(a):
     else:flags=['receiptSignerApproved','windowsReady','physicalE2eVerified','noticeApproved']
     if not all(a.get(k) is True for k in flags):raise ValueError('Apertura no autorizada')
     return a
+
+def temporary_access_status(root):
+    props=dict(l.split('=',1) for l in (root/'config/application.properties').read_text().splitlines() if '=' in l and not l.startswith('#'))
+    if props.get('formulario.acceso-temporal.habilitado','false')!='true':return 'DISABLED'
+    expires=datetime.datetime.fromisoformat(props.get('formulario.acceso-temporal.expira','2026-12-15T00:00:00-03:00').split('[')[0])
+    if expires.tzinfo is None:raise ValueError('Zona de caducidad requerida')
+    return 'PASSWORD' if datetime.datetime.now(datetime.timezone.utc)<expires else 'EXPIRED'
 
 class Productor:
     def __init__(self, root):
@@ -88,13 +96,17 @@ class Productor:
         if status==401:
             self.authorize_temporary_access()
             status,_,body=self.request('GET','/api/session')
-        session=json.loads(body)
-        if status!=200 or session.get('certificationMode'):raise ValueError('Aplicación completa no disponible')
+        session_status=status;session=json.loads(body)
         status,_,body=self.request('GET','/operacion/v1/control','operations-token')
         if status!=200:raise ValueError('Control no disponible')
         c=json.loads(body)
+        expected_closed=session_status==503 and not c['aceptarNuevos'] and temporary_access_status(self.root)=='EXPIRED'
+        if expected_closed:
+            if self.request('GET','/acceso-temporal/salud')[0]!=200:raise ValueError('Servicio técnico no saludable')
+        elif session_status!=200 or session.get('certificationMode'):raise ValueError('Aplicación completa no disponible')
         return {'httpsVerified':True,'bearerAbsent':absent,'bearerWrong':wrong,'bearerValidUnknownResource':valid,
-                'certificationMode':False,'loginAvailable':session['loginAvailable'],
+                'certificationMode':False,'citizenAvailable':not expected_closed,'closedAtExpiry':expected_closed,
+                'loginAvailable':session.get('loginAvailable') if not expected_closed else None,
                 'acceptNew':c['aceptarNuevos'],'pull':c['recuperar']}
 
     def authorize_temporary_access(self):

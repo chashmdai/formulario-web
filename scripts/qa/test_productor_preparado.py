@@ -15,6 +15,21 @@ from productor import Productor,reception_authorization
 import transicion
 
 class ProductorGuardTest(unittest.TestCase):
+    def test_verificacion_operativa_con_cierre_seguro_despues_de_caducidad(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t);(root/'config').mkdir()
+            (root/'config/application.properties').write_text('formulario.acceso-temporal.habilitado=true\nformulario.acceso-temporal.expira=2020-01-01T00:00:00-03:00[America/Santiago]\n')
+            op=object.__new__(Productor);op.root=root
+            def request(method,path,kind=None,**kw):
+                if path.startswith('/integracion/'):
+                    return (404 if kind else 401),{},b''
+                if path=='/api/session':return 503,{},b'{"status":503}'
+                if path=='/acceso-temporal/salud':return 200,{},b'{}'
+                return 200,{},b'{"aceptarNuevos":false,"recuperar":false}'
+            op.request=request
+            self.assertTrue(op.verify()['closedAtExpiry'])
+            self.assertFalse(op.verify()['citizenAvailable'])
+
     def test_apertura_real_usa_nna_definitivo_y_no_prototipo_sandbox(self):
         with tempfile.TemporaryDirectory() as t:
             root=Path(t)

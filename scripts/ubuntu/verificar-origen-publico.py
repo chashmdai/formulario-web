@@ -11,7 +11,7 @@ import re
 import ssl
 import urllib.parse
 import uuid
-from productor import Productor
+from productor import Productor,temporary_access_status
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True);p.add_argument('--expect-reception',choices=['open','closed'],required=True);p.add_argument('--output',required=True);a=p.parse_args()
@@ -34,14 +34,23 @@ def main():
     valid,edge,_=request('GET',path,headers={**h,'Authorization':'Bearer '+(op.root/'secrets/integration-token').read_text().strip()})
     if (absent,wrong,valid)!=(401,401,404):raise ValueError('Transporte Bearer público no acreditado')
     anonymous=request('GET','/api/session')[0]
-    if anonymous!=401:raise ValueError('La barrera temporal no protege las API')
-    status,_,body=request('GET','/acceso-temporal',session=True)
-    if status!=200:raise ValueError('Pantalla de acceso no disponible')
-    token=re.search(r'name="_csrf" value="([^"]+)"',body.decode())
-    if not token:raise ValueError('Falta CSRF')
-    data=urllib.parse.urlencode({'_csrf':token[1],'password':(op.root/'secrets/acceso-temporal-password').read_text().strip()}).encode()
-    status,hout,_=request('POST','/acceso-temporal',data,{'Content-Type':'application/x-www-form-urlencoded'},True)
-    if status!=303 or hout.get('location')!='/?vista=inicio':raise ValueError('Acceso temporal público rechazado')
+    policy=temporary_access_status(op.root)
+    if policy=='DISABLED':raise ValueError('Protección temporal deshabilitada sin política verificable')
+    if policy=='PASSWORD':
+        if anonymous!=401:raise ValueError('La barrera temporal no protege las API')
+        status,_,body=request('GET','/acceso-temporal',session=True)
+        if status!=200:raise ValueError('Pantalla de acceso no disponible')
+        token=re.search(r'name="_csrf" value="([^"]+)"',body.decode())
+        if not token:raise ValueError('Falta CSRF')
+        data=urllib.parse.urlencode({'_csrf':token[1],'password':(op.root/'secrets/acceso-temporal-password').read_text().strip()}).encode()
+        status,hout,_=request('POST','/acceso-temporal',data,{'Content-Type':'application/x-www-form-urlencoded'},True)
+        if status!=303 or hout.get('location')!='/?vista=inicio':raise ValueError('Acceso temporal público rechazado')
+    elif anonymous==503 and a.expect_reception=='closed':
+        result={'publicOrigin':'https://'+op.host,'tlsVerifiedSystemCa':True,'technicalRequestsWithoutCookie':True,
+                'bearerAbsent':absent,'bearerWrong':wrong,'bearerValidUnknownResource':valid,
+                'passwordExpired':True,'serviceClosed':True,'communicationCreated':False,'pullClaimPerformed':False}
+        Path(a.output).write_text(json.dumps(result,indent=2));print(json.dumps(result));return
+    elif anonymous!=200:raise ValueError('Continuidad posterior a caducidad no acreditada')
     status,_,body=request('GET','/api/session',session=True);s=json.loads(body)
     if status!=200 or s['certificationMode'] or s['authenticated']:raise ValueError('Instancia pública incorrecta')
     status,_,body=request('GET','/api/formulario/recepcion/capacidades',session=True);caps=json.loads(body)
@@ -49,7 +58,7 @@ def main():
     if status!=200 or caps.get('adultos')!=expected or caps.get('nna')!=expected or caps.get('multimedia') is not True:raise ValueError('Capacidades públicas no coinciden')
     result={'publicOrigin':'https://'+op.host,'tlsVerifiedSystemCa':True,'cloudflareEdgeObserved':'cf-ray' in edge,
             'technicalRequestsWithoutCookie':True,'bearerAbsent':absent,'bearerWrong':wrong,'bearerValidUnknownResource':valid,
-            'anonymousCitizenApi':anonymous,'passwordLoginWorks':True,'certificationMode':False,'citizenAuthenticated':False,
+            'anonymousCitizenApi':anonymous,'passwordLoginWorks':policy=='PASSWORD','passwordExpired':policy=='EXPIRED','certificationMode':False,'citizenAuthenticated':False,
             'reception':caps,'personalQueryPerformed':False,'communicationCreated':False,'pullClaimPerformed':False}
     Path(a.output).write_text(json.dumps(result,indent=2));print(json.dumps(result))
 
