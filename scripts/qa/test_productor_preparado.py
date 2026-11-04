@@ -15,6 +15,23 @@ from productor import Productor,reception_authorization
 import transicion
 
 class ProductorGuardTest(unittest.TestCase):
+    def test_apertura_real_usa_nna_definitivo_y_no_prototipo_sandbox(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t)
+            for name in ['authorization','keys','config']:(root/name).mkdir()
+            a={'schema':'RC1_PUBLICATION_AUTHORIZATION_V2','authorized':True,'publicationAuthorized':True,
+               'receptionAuthorized':True,'receiptSignerUseAuthorized':True,'existingNoticeUseAuthorized':True}
+            (root/'authorization/open.approved.json').write_text(json.dumps(a));(root/'keys/institutional-trust.json').write_text('{}')
+            (root/'config/application.properties').write_text('initial')
+            op=object.__new__(Productor);op.root=root;seen={}
+            def config(values):seen.update(values);(root/'config/application.properties').write_text('configured')
+            op.config=config;op.control=lambda *args: {'accept':args};op.compose=lambda *args:None
+            op.open(True,False)
+            self.assertEqual(seen['publico.nna.habilitado'],'false')
+            self.assertEqual(seen['formulario.recepcion.habilitada'],'true')
+            self.assertEqual(seen['publico.recepcion.custodia-durable-autorizada'],'true')
+            self.assertFalse(json.loads((root/'keys/acceso-temporal-apertura.json').read_text()).get('physicalE2eVerified',False))
+
     def test_autorizacion_recepcion_no_inventa_e2e_windows(self):
         a={'schema':'RC1_PUBLICATION_AUTHORIZATION_V2','authorized':True,'publicationAuthorized':True,
            'receptionAuthorized':True,'receiptSignerUseAuthorized':True,'existingNoticeUseAuthorized':True,

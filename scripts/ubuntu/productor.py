@@ -151,7 +151,8 @@ class Productor:
         self.config({'publico.integracion.habilitada':str(trusted).lower(),'publico.integracion.preparada':'true',
                      'publico.recepcion.custodia-durable-autorizada':'true','publico.recepcion.habilitada':'true','publico.recepcion.aviso-validado':'true',
                      'formulario.adultos.habilitado':'true','formulario.recepcion.habilitada':'true',
-                     'publico.nna.habilitado':'true','formulario.srcei.envio-autorizado':'true'})
+                     # NNA definitivo usa /api/formulario; el prototipo /api/nna sigue cerrado.
+                     'publico.nna.habilitado':'false','formulario.srcei.envio-autorizado':'true'})
         if (self.root/'config/application.properties').read_bytes()!=previous_config:
             self.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
         return self.control(accept,pull)

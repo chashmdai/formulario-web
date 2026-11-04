@@ -1,5 +1,5 @@
 [Unit]
-Description=Formulario DDN definitivo preparado (sin publicación ni apertura)
+Description=Formulario DDN productivo (Compose inmutable y controles operacionales)
 Requires=docker.service
 Wants=network-online.target
 After=docker.service network-online.target
