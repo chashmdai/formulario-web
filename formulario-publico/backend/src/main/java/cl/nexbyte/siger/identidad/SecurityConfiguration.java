@@ -107,7 +107,7 @@ public class SecurityConfiguration {
             http.redirectToHttps(org.springframework.security.config.Customizer.withDefaults());
         }
         http.authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.svg", "/api/session", "/api/csrf",
+                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.svg", "/favicon.png", "/favicon.ico", "/api/session", "/api/csrf",
                                 "/oauth2/authorization/claveunica", "/redirect", "/logout", "/auth/session-expired", "/error").permitAll()
                         .requestMatchers("/api/nna/**").permitAll()
                         .requestMatchers("/api/formulario/**").permitAll()

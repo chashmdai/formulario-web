@@ -23,6 +23,14 @@ final class AccesoTemporalFilter extends OncePerRequestFilter {
                 r.setContentType(resource.endsWith("css")?"text/css;charset=UTF-8":"image/svg+xml");if(!q.getMethod().equals("HEAD"))input.transferTo(r.getOutputStream());return;
             }
         }
+        // Iconos públicos exactos: disponibles también en la pantalla de acceso/cierre.
+        if(read&&(path.equals("/favicon.png")||path.equals("/favicon.ico"))) {
+            try(var input=getClass().getResourceAsStream("/static"+path)) {
+                if(input==null){r.setStatus(404);return;}
+                r.setContentType(path.endsWith(".png")?"image/png":"image/x-icon");
+                if(!q.getMethod().equals("HEAD"))input.transferTo(r.getOutputStream());return;
+            }
+        }
         var mode=access.mode();
         if(mode==AccesoTemporal.Mode.UNAVAILABLE){unavailable(q,r);return;}
         if(mode==AccesoTemporal.Mode.OPEN){if(path.equals("/acceso-temporal")){redirect(r);return;}chain.doFilter(q,r);return;}
@@ -59,6 +67,6 @@ final class AccesoTemporalFilter extends OncePerRequestFilter {
             var csrf=(CsrfToken)q.getAttribute(CsrfToken.class.getName());
             form="<form method=\"post\" action=\"/acceso-temporal\"><input type=\"hidden\" name=\""+csrf.getParameterName()+"\" value=\""+csrf.getToken()+"\"><label for=\"password\">Contraseña de acceso temporal</label><input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" required minlength=\"16\" maxlength=\"256\" aria-describedby=\"access-help access-error\"><p id=\"access-error\" role=\"alert\">"+message+"</p><button type=\"submit\">Ingresar al formulario</button></form>";
         }
-        if(!q.getMethod().equals("HEAD"))r.getWriter().write("<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>"+(closed?"Servicio no disponible":"Acceso institucional")+" | Defensoría de la Niñez</title><link rel=\"stylesheet\" href=\"/acceso-temporal/estilo.css\"></head><body><header><img src=\"/acceso-temporal/logo.svg\" alt=\"Defensoría de la Niñez\"><span>FORMULARIO DE CONTACTO</span></header><main><section aria-labelledby=\"access-title\"><p class=\"tag\">"+(closed?"SERVICIO A LA CIUDADANÍA":"PRUEBAS INSTITUCIONALES")+"</p><h1 id=\"access-title\">"+(closed?"Servicio temporalmente no disponible":"Acceso temporal al formulario")+"</h1><p id=\"access-help\">"+(closed?"La recepción ciudadana todavía no está habilitada. Agradecemos tu comprensión.":"Este acceso está reservado para personas autorizadas durante las pruebas institucionales. Ingresa la contraseña que te entregó la institución.")+"</p>"+form+(!closed?"<p class=\"note\">Esta contraseña permite acceder a las pruebas. La identificación mediante ClaveÚnica se realiza por separado, únicamente en su sitio oficial.</p>":"")+"</section></main><footer>Defensoría de la Niñez · Formulario Público</footer></body></html>");
+        if(!q.getMethod().equals("HEAD"))r.getWriter().write("<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>"+(closed?"Servicio no disponible":"Acceso institucional")+" | Defensoría de la Niñez</title><link rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/favicon.png?v=20261104\"><link rel=\"stylesheet\" href=\"/acceso-temporal/estilo.css\"></head><body><header><img src=\"/acceso-temporal/logo.svg\" alt=\"Defensoría de la Niñez\"><span>FORMULARIO DE CONTACTO</span></header><main><section aria-labelledby=\"access-title\"><p class=\"tag\">"+(closed?"SERVICIO A LA CIUDADANÍA":"PRUEBAS INSTITUCIONALES")+"</p><h1 id=\"access-title\">"+(closed?"Servicio temporalmente no disponible":"Acceso temporal al formulario")+"</h1><p id=\"access-help\">"+(closed?"La recepción ciudadana todavía no está habilitada. Agradecemos tu comprensión.":"Este acceso está reservado para personas autorizadas durante las pruebas institucionales. Ingresa la contraseña que te entregó la institución.")+"</p>"+form+(!closed?"<p class=\"note\">Esta contraseña permite acceder a las pruebas. La identificación mediante ClaveÚnica se realiza por separado, únicamente en su sitio oficial.</p>":"")+"</section></main><footer>Defensoría de la Niñez · Formulario Público</footer></body></html>");
     }
 }

@@ -49,6 +49,15 @@ class AccesoTemporalHttpTest {
         mvc.perform(get("/acceso-temporal/estilo.css").secure(true)).andExpect(status().isOk());
         mvc.perform(get("/acceso-temporal/logo.svg").secure(true)).andExpect(status().isOk());
     }
+    @Test void iconosPublicosSinSesionYConTipoCorrecto()throws Exception {
+        for(String path:java.util.List.of("/favicon.png","/favicon.ico")) {
+            mvc.perform(get(path).secure(true)).andExpect(status().isOk())
+                .andExpect(content().contentType(path.endsWith(".png")?"image/png":"image/x-icon"))
+                .andExpect(result->org.junit.jupiter.api.Assertions.assertTrue(result.getResponse().getContentAsByteArray().length>100));
+            mvc.perform(head(path).secure(true)).andExpect(status().isOk()).andExpect(content().bytes(new byte[0]));
+        }
+        mvc.perform(get("/acceso-temporal").secure(true)).andExpect(content().string(org.hamcrest.Matchers.containsString("/favicon.png?v=20261104")));
+    }
     @Test void csrfYTransporteNoSeDebilitan()throws Exception {
         mvc.perform(post("/acceso-temporal").secure(true).contentType("application/x-www-form-urlencoded").param("password",PASSWORD)).andExpect(status().isForbidden());
         mvc.perform(post("/acceso-temporal").with(csrf()).contentType("application/x-www-form-urlencoded").param("password",PASSWORD)).andExpect(status().isForbidden());
