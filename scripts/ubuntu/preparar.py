@@ -73,7 +73,7 @@ def prepare(args):
         if not shutil.which(tool): raise ValueError("Dependencia ausente: "+tool)
     run('docker','image','inspect',RUNTIME) # obtener imagen oficial antes, sin descargas ocultas
     os.umask(0o077);target.mkdir(mode=0o700)
-    for folder in ['config','secrets','cu','keys','store','ipc/inspector','ipc/antivirus','clamav','mysql','mysql-init','pki/authority','pki/app','pki/mysql','pki/proxy']:
+    for folder in ['config','secrets','cu','keys','store','acceso-temporal','ipc/inspector','ipc/antivirus','clamav','mysql','mysql-init','pki/authority','pki/app','pki/mysql','pki/proxy']:
         p=target/folder;p.mkdir(mode=0o700,parents=True,exist_ok=True);os.chown(p,1000,1000)
     for base in ['ipc','pki']:os.chown(target/base,1000,1000)
     tokens={name:secrets.token_hex(32) for name in ['mysql-root-password','app-password','migration-password','keystore-password','operations-token','integration-token']}

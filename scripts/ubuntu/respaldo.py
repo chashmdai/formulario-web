@@ -151,7 +151,7 @@ def restore(a):
                 uid = 0 if name.endswith('authority') else 999
                 for p in [root / name, *(root / name).rglob('*')]:
                     if p.exists(): os.chown(p, uid, uid)
-            for name in ['secrets/mysql-root-password','compose.env']:
+            for name in ['secrets/mysql-root-password','secrets/acceso-temporal-password','compose.env']:
                 if (root / name).exists(): os.chown(root / name, 0, 0)
         shutil.move(root, target)
     print('Restauración descifrada e íntegra en destino nuevo; NO se inició aplicación ni se importó SQL')
