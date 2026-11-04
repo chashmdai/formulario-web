@@ -1,5 +1,7 @@
 # RC1 — instalación definitiva preparada y verificada
 
+**Actualización de seguridad posterior:** [acceso temporal instalado](ACCESO_TEMPORAL_RC1_2026-11-03.md) y [nuevo manifiesto](ACCESO_TEMPORAL_RC1_MANIFIESTO_2026-11-03.json). La imagen anterior identificada en este informe queda conservada para reversión; la instalación privada ahora exige acceso temporal en interfaz/API ciudadanas, sin modificar la identidad PISEE/CU/SIGER ni abrir recepción.
+
 Fecha: 03/11/2026, America/Santiago. Repositorio `chashmdai/formulario-web`, rama conservada `release/formulario-produccion-2026-11`. Este informe actualiza el cierre RC1 anterior; sus artefactos históricos permanecen identificados, sin sustituir firmas ni contratos históricos.
 
 | Estado | Resultado ejecutado |

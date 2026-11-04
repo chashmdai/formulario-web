@@ -8,6 +8,8 @@
 
 **Instalación definitiva preparada · 03/11/2026:** RC1 instalado privadamente en `/srv/ddn-formulario-produccion`, con recepción y PULL cerrados. [Estado ejecutado y manifiesto](docs/INSTALACION_PRODUCTIVA_EJECUTADA_2026-11-03.md). PISEE productivo, ClaveÚnica y productor PULL/ACK; el sitio público conserva su modo exclusivo de certificación. Graph y correo son responsabilidad de SIGER y quedan fuera del alcance del Formulario. Las referencias anteriores a instalaciones futuras son históricas; no autorizan publicación.
 
+**Acceso temporal institucional:** [protección instalada y caducidad](docs/ACCESO_TEMPORAL_RC1_2026-11-03.md). Contraseña validada en servidor; deja de exigirse el 15/12/2026 a las 00:00 America/Santiago. Sin GO institucional, ese vencimiento mantiene el servicio ciudadano cerrado. SIGER conserva su autenticación técnica independiente.
+
 [![CI Linux y Windows](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml)
 
 **Traspaso vigente · GATE H1 (01/11/2026):** [comenzar aquí](docs/TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md) · [instalación Ubuntu/Docker](docs/INSTALACION_UBUNTU_DOCKER.md) · [ClaveÚnica, PISEE y SIGER](docs/INTEGRACIONES_UBUNTU.md) · [verificaciones H1](docs/VERIFICACION_GATE_H1_2026-11-01.md).

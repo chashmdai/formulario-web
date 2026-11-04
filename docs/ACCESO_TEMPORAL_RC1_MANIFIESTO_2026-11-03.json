@@ -1,0 +1,177 @@
+{
+  "date": "2026-11-04",
+  "timezone": "America/Santiago",
+  "branch": "release/formulario-produccion-2026-11",
+  "backendSourceCommit": "8ce2590d587f0e84d3b2f1c10894cd9023e17a3c",
+  "operationCodeCommit": "e547e6cd32ab4091a8d863475afb6aba3232de70",
+  "installation": "/srv/ddn-formulario-produccion",
+  "url": "https://localhost:30443/?vista=inicio",
+  "expiresLocal": "2026-12-15T00:00:00 America/Santiago",
+  "expiresInstant": "2026-12-15T03:00:00Z",
+  "expiryEvaluatedOnServerEveryRequest": true,
+  "noGoAtExpiry": "503_SERVICE_UNAVAILABLE_NO_PASSWORD_NO_RECEPTION",
+  "currentOpeningAuthorized": false,
+  "receptionOpen": false,
+  "pullOpen": false,
+  "credentialPath": "/srv/ddn-formulario-produccion/secrets/acceso-temporal-password",
+  "credentialValueIncluded": false,
+  "credentialHashIncluded": false,
+  "passwordVerification": "PBKDF2-HMAC-SHA256, salt16, iterations310000, derived32",
+  "grantMaximumHours": 8,
+  "rateWindowSeconds": 900,
+  "failedAttemptsPerObservedOrigin": 5,
+  "failedAttemptsGlobal": 100,
+  "counterPath": "/srv/ddn-formulario-produccion/acceso-temporal/limites.json",
+  "trustClientForwardedHeaders": false,
+  "software": {
+    "backendSourceCommit": "8ce2590d587f0e84d3b2f1c10894cd9023e17a3c",
+    "operationCommit": "e547e6cd32ab4091a8d863475afb6aba3232de70",
+    "images": {
+      "app": "sha256:ede5eed7c415eec666c46261636058a5ee0049753d09b974135202233f2e1350",
+      "proxy": "sha256:8e16dea11ee81feddab2622ee05907b96dcd452de111acc3394f859719552207",
+      "mysql": "sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364",
+      "pisee": "sha256:e0245efc9e74b0a3995f0d944e43a008b895deab8c18e715b8c0a11f70fbf842",
+      "antivirus": "sha256:2513c005f21f3602f0172372ef8ea23f0e55cf6207c9c3785b72f2803f5994cb",
+      "inspector": "sha256:3a24d996d75003959df9b7f7733472cf9b4ef9b1fd1edfa87246613098f8a305"
+    },
+    "jarSha256": "635729349ee7f5e34de795939e3ffb44b288aee40f0ddf90403833345e4b08b3",
+    "imageArchiveSha256": "ab3b8964b9bc58ba49559bc52e136e6c2caa7f390eb887bb7e5a142346216fc8",
+    "versions": {
+      "app": "openjdk 25.0.5 2026-10-20 LTS",
+      "proxy": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+      "mysql": "/usr/sbin/mysqld  Ver 8.4.11 for Linux on x86_64 (MySQL Community Server - GPL)",
+      "pisee": "xmlsec1 1.3.9 (openssl)",
+      "antivirus": "ClamAV 1.5.4/28173/Tue Nov  3 06:27:52 2026",
+      "inspector": "Python 3.12.3"
+    },
+    "imageArchiveFilename": "images-acceso-temporal-20261103.tar",
+    "immutableArchiveLoadVerified": true
+  },
+  "previousAppImage": "sha256:3a6482156acad872ac9830c78e16ca23f7d977dd7b9d173e1b4c89db34ae987d",
+  "rollbackSnapshot": "/srv/ddn-formulario-produccion/rollback/acceso-temporal-20261103",
+  "firefox": {
+    "tlsVerified": true,
+    "tlsBypass": false,
+    "anonymousCitizenApi": 401,
+    "wrongPassword": 401,
+    "correctPasswordAllowsNavigation": true,
+    "sessionCookieSecure": true,
+    "sessionCookieHttpOnly": true,
+    "sessionCookieSameSite": "Lax",
+    "sessionIdRotated": true,
+    "citizenAuthenticated": false,
+    "officialOAuthRedirect": true,
+    "stateAndNoncePresent": true,
+    "callbackUnchanged": true,
+    "mobileOverflow": false,
+    "passwordIncludedInEvidence": false,
+    "finalWindowShowsAccessPage": true
+  },
+  "operation": {
+    "rotation": {
+      "oldGrantRevoked": true,
+      "oldPasswordRejected": true,
+      "newPasswordWorks": true,
+      "withoutRestart": true
+    },
+    "restart": {
+      "rateStatePreserved": true,
+      "sessionRequiresFreshAccess": true,
+      "producer": {
+        "httpsVerified": true,
+        "bearerAbsent": 401,
+        "bearerWrong": 401,
+        "bearerValidUnknownResource": 404,
+        "certificationMode": false,
+        "loginAvailable": true,
+        "acceptNew": false,
+        "pull": false
+      }
+    },
+    "custodyHasNoForeignDirectory": true,
+    "noServerClockChange": true
+  },
+  "protocolWithoutCitizenCookies": {
+    "physicalWindows": false,
+    "srcEiQueried": false,
+    "syntheticOnly": true,
+    "versions": [
+      "1.0",
+      "1.1"
+    ],
+    "communications": 2,
+    "attachmentsSha256": true,
+    "rangeAndHead": true,
+    "ed25519": true,
+    "canonicalHashes": true,
+    "commitBeforeAckLocalFixture": true,
+    "duplicateAckIdempotent": true,
+    "ackPending": 0,
+    "confirmed": 2
+  },
+  "primaryRestoredAfterProtocol": {
+    "httpsVerified": true,
+    "bearerAbsent": 401,
+    "bearerWrong": 401,
+    "bearerValidUnknownResource": 404,
+    "certificationMode": false,
+    "loginAvailable": true,
+    "acceptNew": false,
+    "pull": false
+  },
+  "restore": {
+    "decryptionAndFileHashesVerified": true,
+    "passwordRestoredSame": true,
+    "plaintextOwnerRoot": true,
+    "plaintextMode0400": true,
+    "hashOwnerApp": true,
+    "counterOwnerApp": true,
+    "decisionClosed": true,
+    "expiryConfigurationPresent": true
+  },
+  "tests": {
+    "backendH2": {
+      "total": 420,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "focusedGateAndOauth": 30,
+    "reactUnchanged": 219,
+    "lintTypescriptVite": "PASSED_OR_UNCHANGED_CACHE",
+    "python": {
+      "total": 33,
+      "failures": 0,
+      "skipped": 1
+    },
+    "controlledClockExpiryAndNoGo": true,
+    "certification": {
+      "passed": 30,
+      "total": 30
+    }
+  },
+  "preservation": {
+    "institutionalFiles": 597,
+    "institutionalFilesUnchanged": true,
+    "historicalAndCertificationContainers": 35,
+    "historicalAndCertificationContainersUnchanged": true,
+    "cloudflaredProcessUnchanged": true,
+    "existingPkiCuAndSigningFilesUnchanged": true,
+    "mainAndCertificationBranchesUnchanged": true
+  },
+  "backups": {
+    "rc1-antes-acceso-temporal-20261103.gpg": {
+      "path": "/srv/ddn-formulario-respaldos/rc1-antes-acceso-temporal-20261103.gpg",
+      "sha256": "e019330ce66d6d533215a03b0878c11e24b2ba7b8ed0fefe5b45d96d115b68b6"
+    },
+    "rc1-acceso-temporal-instalado-20261103.gpg": {
+      "path": "/srv/ddn-formulario-respaldos/rc1-acceso-temporal-instalado-20261103.gpg",
+      "sha256": "c61f01e72770e176dc18ed72a816d071fc7d875c2f81e6a3e963e4cbcf3a14e6"
+    }
+  },
+  "newPersonalQueries": false,
+  "physicalWindows": false,
+  "publicCutover": false,
+  "productionGo": false,
+  "instructionDate": "2026-11-03"
+}
