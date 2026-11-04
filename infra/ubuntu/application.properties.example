@@ -12,7 +12,7 @@ formulario.acceso-temporal.habilitado=false
 formulario.acceso-temporal.expira=2026-12-15T00:00:00-03:00[America/Santiago]
 formulario.acceso-temporal.hash-path=/run/keys/acceso-temporal-password.hash
 formulario.acceso-temporal.apertura-path=/run/keys/acceso-temporal-apertura.json
-formulario.acceso-temporal.limites-path=/var/lib/formulario/acceso-temporal/limites.json
+formulario.acceso-temporal.limites-path=/var/lib/acceso-temporal/limites.json
 publico.db.url=jdbc:mysql://mysql:3306/formulario_publico?sslMode=VERIFY_IDENTITY&connectTimeout=5000&socketTimeout=30000
 publico.db.user=formulario_app
 publico.db.pool=8

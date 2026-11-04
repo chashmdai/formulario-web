@@ -14,6 +14,7 @@ services:
       pisee_privada: {ipv4_address: "${PISEE_BACKEND_IPV4:?IP fija exclusiva backend}"}
     volumes:
       - ${PISEE_PRIVATE_DIR:?Runtime institucional privado}/runtime/certsX509-institucional/public.pem:/run/pisee/public.pem:ro
+      - ${FORM_PRIVATE_DIR}/acceso-temporal:/var/lib/acceso-temporal
     depends_on:
       pisee: {condition: service_healthy}
   proxy:

@@ -77,6 +77,9 @@ public final class AccesoTemporal {
     /** Ventana durable: 5 fallos/origen y 100 globales/15 min. No confía en X-Forwarded-For. */
     private boolean attempt(String remote, String credential, boolean record) throws Exception {
         Path path=Path.of(env.getRequiredProperty("formulario.acceso-temporal.limites-path"));
+        String custody=env.getProperty("formulario.multimedia.directorio");
+        if(custody!=null&&path.toAbsolutePath().normalize().startsWith(Path.of(custody).toAbsolutePath().normalize()))
+            throw new IOException("Estado de acceso separado de la custodia requerido");
         Files.createDirectories(path.getParent());
         long end=now().plusSeconds(900).getEpochSecond();int global=0;Map<String,Integer> clients=new TreeMap<>();
         if(Files.exists(path)) {

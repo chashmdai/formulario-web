@@ -81,4 +81,16 @@ class AccesoTemporalTest {
             assertEquals(503,r.getStatus());assertFalse(r.getContentAsString().contains("type=\"password\""));
         }
     }
+    @Test void estadoDeAccesoNuncaEscribeDentroDeCustodiaDeAdjuntos()throws Exception {
+        Path store=dir.resolve("custody");
+        env.setProperty("formulario.multimedia.directorio",store.toString());
+        env.setProperty("formulario.acceso-temporal.limites-path",store.resolve("forbidden/limits.json").toString());
+        assertEquals(AccesoTemporal.Result.UNAVAILABLE,access.authenticate(PASSWORD,"127.0.0.1",new MockHttpSession()));
+        assertFalse(Files.exists(store));
+        env.setProperty("formulario.acceso-temporal.limites-path",dir.resolve("separate/limits.json").toString());
+        try(var custody=new cl.nexbyte.siger.multimedia.AlmacenPrivado(store)) {
+            assertEquals(AccesoTemporal.Result.REJECTED,access.authenticate("WRONG-SYNTHETIC-PASSWORD","127.0.0.1",new MockHttpSession()));
+        }
+        try(var restarted=new cl.nexbyte.siger.multimedia.AlmacenPrivado(store)){assertTrue(Files.exists(dir.resolve("separate/limits.json")));}
+    }
 }

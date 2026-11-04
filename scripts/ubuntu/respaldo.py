@@ -85,7 +85,7 @@ def backup(a):
             gpg = Path(folder) / 'gpg'; gpg.mkdir(mode=0o700)
             root = Path(folder) / 'payload'; root.mkdir(mode=0o700)
             for name in ['config', 'secrets', 'cu', 'keys', 'pki', 'store', 'mysql', 'mysql-init', 'compose.env', 'clamav',
-                         'release','software','installation.json','compose.origin-ca.yml','authorization','transition','intercambio-publico']:
+                         'release','software','installation.json','compose.origin-ca.yml','authorization','transition','intercambio-publico','acceso-temporal']:
                 src = origin / name
                 if src.is_dir(): shutil.copytree(src, root / name, symlinks=True)
                 elif src.is_file(): shutil.copy2(src, root / name)
@@ -144,7 +144,7 @@ def restore(a):
         if inventory(root) != manifest['files']: raise ValueError('Contenido restaurado no coincide')
         # Preserva propietarios del runtime; filter=data elimina uid arbitrarios del TAR.
         if os.geteuid() == 0:
-            for name in ['config','secrets','cu','keys','pki','store','clamav','pisee']:
+            for name in ['config','secrets','cu','keys','pki','store','clamav','pisee','acceso-temporal']:
                 for p in [root / name, *(root / name).rglob('*')]:
                     if p.exists(): os.chown(p, 1000, 1000)
             for name in ['pki/mysql','mysql','mysql-init','pki/authority','pki/origin-authority']:

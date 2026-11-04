@@ -19,22 +19,26 @@ def write(path,data,uid):
         if Path(name).exists():Path(name).unlink()
 
 def main():
-    os.umask(0o077);p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True);p.add_argument('action',choices=['provision','rotate']);a=p.parse_args()
+    os.umask(0o077);p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True);p.add_argument('action',choices=['provision','rotate','configure']);a=p.parse_args()
     op=Productor(a.root)
     if os.geteuid()!=0 or op.meta['project']!='ddn-formulario-produccion':raise ValueError('Solo instalación definitiva y administrador')
     if any(x.is_symlink() or (x/'.git').exists() for x in [op.root,*op.root.parents]):raise ValueError('Custodia privada fuera de Git requerida')
     plain=op.root/'secrets/acceso-temporal-password';encoded=op.root/'keys/acceso-temporal-password.hash'
     if a.action=='provision' and (plain.exists() or encoded.exists()):raise ValueError('Ya provisionado; no sobrescribir')
-    password=secrets.token_urlsafe(32);salt=secrets.token_bytes(16)
-    value='pbkdf2-v5_8:'+(salt+hashlib.pbkdf2_hmac('sha256',password.encode(),salt,310000,32)).hex()
-    write(plain,password.encode(),0);write(encoded,value.encode(),1000)
+    if a.action=='configure':
+        if not plain.is_file() or not encoded.is_file():raise ValueError('Credencial previamente provisionada requerida')
+    else:
+        password=secrets.token_urlsafe(32);salt=secrets.token_bytes(16)
+        value='pbkdf2-v5_8:'+(salt+hashlib.pbkdf2_hmac('sha256',password.encode(),salt,310000,32)).hex()
+        write(plain,password.encode(),0);write(encoded,value.encode(),1000)
+    state=op.root/'acceso-temporal';state.mkdir(mode=0o700,exist_ok=True);state.chmod(0o700);os.chown(state,1000,1000)
     approval=op.root/'keys/acceso-temporal-apertura.json'
     if not approval.exists():write(approval,b'{"authorized":false}',1000)
     op.config({'formulario.acceso-temporal.habilitado':'true','formulario.acceso-temporal.expira':'2026-12-15T00:00:00-03:00[America/Santiago]',
         'formulario.acceso-temporal.hash-path':'/run/keys/acceso-temporal-password.hash',
         'formulario.acceso-temporal.apertura-path':'/run/keys/acceso-temporal-apertura.json',
-        'formulario.acceso-temporal.limites-path':'/var/lib/formulario/acceso-temporal/limites.json'})
-    print(json.dumps({'credentialProvisioned':True,'plaintextPrinted':False,'restartRequired':a.action=='provision','expiresLocal':'2026-12-15T00:00:00 America/Santiago'}))
+        'formulario.acceso-temporal.limites-path':'/var/lib/acceso-temporal/limites.json'})
+    print(json.dumps({'credentialProvisioned':True,'plaintextPrinted':False,'restartRequired':a.action!='rotate','expiresLocal':'2026-12-15T00:00:00 America/Santiago'}))
 
 if __name__=='__main__':
     try:main()
