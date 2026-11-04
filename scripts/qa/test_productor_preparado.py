@@ -15,6 +15,16 @@ from productor import Productor,reception_authorization
 import transicion
 
 class ProductorGuardTest(unittest.TestCase):
+    def test_reversion_critica_no_espera_backend_caido_para_reponer_origen(self):
+        op=object.__new__(Productor);op.meta={'project':'ddn-formulario-produccion'}
+        op.compose=lambda *a:self.fail('No esperar salud de backend detenido en emergencia')
+        calls=[]
+        plan={'source':{'id':'synthetic-source'},'privatePort':30443,'sourceUnitWasEnabled':False}
+        with patch.object(transicion,'docker',side_effect=lambda *args:calls.append(args)),patch.object(transicion,'set_port') as port:
+            transicion.restore(op,plan,start_private_proxy=False)
+        self.assertEqual(calls,[('stop','ddn-formulario-produccion-proxy-1'),('start','synthetic-source')])
+        port.assert_called_once_with(op,30443)
+
     def test_verificacion_operativa_con_cierre_seguro_despues_de_caducidad(self):
         with tempfile.TemporaryDirectory() as t:
             root=Path(t);(root/'config').mkdir()

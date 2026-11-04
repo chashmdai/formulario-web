@@ -37,14 +37,15 @@ def set_port(op, port):
     p.write_text('\n'.join('FORM_HTTPS_PORT='+str(port) if l.startswith('FORM_HTTPS_PORT=') else l for l in lines)+'\n')
     op.meta['port']=port;(op.root/'installation.json').write_text(json.dumps(op.meta,indent=2));op.port=port
 
-def restore(op, plan):
+def restore(op, plan, start_private_proxy=True):
     # Liberar el puerto antes de devolverlo al Caddy anterior.
     docker('stop',op.meta['project']+'-proxy-1')
     docker('start',plan['source']['id'])
-    set_port(op,plan['privatePort']);op.compose('up','-d','--no-build','--no-deps','--wait','proxy')
+    set_port(op,plan['privatePort'])
     if plan.get('sourceUnitWasEnabled'):
         result=subprocess.run(['systemctl','enable',plan['sourceUnit']],capture_output=True)
         if result.returncode:raise ValueError('Revisar arranque del origen anterior')
+    if start_private_proxy:op.compose('up','-d','--no-build','--no-deps','--wait','proxy')
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True)
@@ -78,10 +79,11 @@ def main():
                 except (OSError,ValueError):pass
                 # No dejar escritores accesibles durante una caída crítica; conservar SQL/volúmenes.
                 docker('stop',op.meta['project']+'-app-1')
+                op.config({'publico.recepcion.habilitada':'false','formulario.recepcion.habilitada':'false','formulario.adultos.habilitado':'false'})
             else:
                 state=op.verify()
                 if state['acceptNew'] or state['pull']:raise ValueError('Cerrar controles y conciliar antes de revertir')
-            restore(op,plan);plan['status']='ROLLED_BACK';path.write_text(json.dumps(plan,indent=2));print('Rollback completado');return
+            restore(op,plan,start_private_proxy=a.action!='emergency-rollback');plan['status']='ROLLED_BACK';path.write_text(json.dumps(plan,indent=2));print('Rollback completado; datos/volúmenes conservados');return
         if a.test_only:
             if plan['source']['project']=='ddn-formulario-institucional' or plan['publicPort']==24443:
                 raise ValueError('El ensayo no puede tocar certificación')
