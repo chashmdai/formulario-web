@@ -86,6 +86,8 @@ def main():
         op.meta['compose']=base_compose+['-f',str(overlay)]
         op.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
         op.cookies={}
+        # La autorización de campaña sigue separada del Bearer institucional.
+        if (op.root/'secrets/acceso-temporal-password').exists():op.authorize_temporary_access()
         def api(method,path,data=None,headers=None,code=200,technical=False):
             h=dict(headers or {})
             if not technical and method not in ['GET','HEAD']:

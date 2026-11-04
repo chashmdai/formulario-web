@@ -7,6 +7,12 @@ server.ssl.key-store=/run/pki/server.p12
 server.ssl.key-store-type=PKCS12
 server.servlet.session.cookie.secure=true
 server.forward-headers-strategy=none
+# Activación temporal explícita; ficheros fuera de Git e imágenes.
+formulario.acceso-temporal.habilitado=false
+formulario.acceso-temporal.expira=2026-12-15T00:00:00-03:00[America/Santiago]
+formulario.acceso-temporal.hash-path=/run/keys/acceso-temporal-password.hash
+formulario.acceso-temporal.apertura-path=/run/keys/acceso-temporal-apertura.json
+formulario.acceso-temporal.limites-path=/var/lib/formulario/acceso-temporal/limites.json
 publico.db.url=jdbc:mysql://mysql:3306/formulario_publico?sslMode=VERIFY_IDENTITY&connectTimeout=5000&socketTimeout=30000
 publico.db.user=formulario_app
 publico.db.pool=8

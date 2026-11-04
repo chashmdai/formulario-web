@@ -25,6 +25,7 @@
     <directory>${siger.build.directory}</directory>
     <resources>
       <resource><directory>src/main/resources</directory></resource>
+      <resource><directory>../front/src/prototipo/assets</directory><targetPath>acceso-temporal</targetPath><includes><include>logo.svg</include></includes></resource>
       <resource><directory>../front/dist</directory><targetPath>static</targetPath></resource>
       <resource><directory>../front/src/formulario</directory><targetPath>catalogos</targetPath><includes><include>territorio.json</include><include>paises.json</include></includes></resource>
     </resources>

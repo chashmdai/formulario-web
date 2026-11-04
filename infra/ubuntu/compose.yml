@@ -89,7 +89,7 @@ services:
       antivirus: {condition: service_healthy}
       inspector: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "--cacert", "/run/pki/ca.crt", "https://localhost:8443/api/session"]
+      test: ["CMD", "curl", "--fail", "--silent", "--cacert", "/run/pki/ca.crt", "https://localhost:8443${FORM_HEALTH_PATH:-/api/session}"]
       interval: 15s
       timeout: 5s
       retries: 12

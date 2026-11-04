@@ -87,9 +87,19 @@ public class SecurityConfiguration {
     }
 
     @Bean
+    AccesoTemporal accesoTemporal(Environment env, org.springframework.beans.factory.ObjectProvider<cl.nexbyte.siger.robustez.ControlesOperacion> controls,
+            tools.jackson.databind.json.JsonMapper mapper) {
+        return new AccesoTemporal(env, java.time.Clock.systemUTC(), () -> {
+            for(String flag:java.util.List.of("publico.integracion.habilitada","publico.recepcion.habilitada","publico.recepcion.aviso-validado","formulario.recepcion.habilitada"))
+                if(!env.getProperty(flag,Boolean.class,false))return false;
+            var control=controls.getIfAvailable();return control!=null&&control.estado().aceptarNuevos();
+        },mapper);
+    }
+
+    @Bean
     SecurityFilterChain security(HttpSecurity http, ClientRegistrationRepository registrations,
             RestClientAuthorizationCodeTokenResponseClient tokenClient, ClaveUnicaOidcUserService userService,
-            ClaveUnicaProperties properties,Environment environment) throws Exception {
+            ClaveUnicaProperties properties,Environment environment,AccesoTemporal accesoTemporal) throws Exception {
         var contextRepository = new HttpSessionSecurityContextRepository();
         if (properties.getEnvironment() == ClaveUnicaProperties.Stage.PRODUCTION) {
             http.redirectToHttps(org.springframework.security.config.Customizer.withDefaults());
@@ -112,6 +122,7 @@ public class SecurityConfiguration {
                     response.setContentType("application/problem+json");
                     response.getWriter().write("{\"title\":\"Sesión requerida o expirada\",\"status\":401}");
                 }));
+        http.addFilterAfter(new AccesoTemporalFilter(accesoTemporal),org.springframework.security.web.csrf.CsrfFilter.class);
         if (properties.isHabilitada()) {
             var resolver = new DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization");
             resolver.setAuthorizationRequestCustomizer(builder -> builder.scopes(new java.util.LinkedHashSet<>(java.util.List.of("openid", "run", "name"))));

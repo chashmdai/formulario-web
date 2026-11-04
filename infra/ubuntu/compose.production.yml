@@ -20,7 +20,7 @@ services:
     build: !reset null
     extra_hosts: ["${FORM_HOSTNAME}:127.0.0.1"]
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/pki/ca.crt --output /dev/null https://$$FORM_HOSTNAME:8443/api/session"]
+      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/pki/ca.crt --output /dev/null https://$$FORM_HOSTNAME:8443${FORM_HEALTH_PATH:-/api/session}"]
       interval: 30s
       timeout: 5s
       retries: 5

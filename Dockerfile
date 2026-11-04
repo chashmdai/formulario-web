@@ -17,6 +17,7 @@ COPY formulario-publico/backend/src ./src
 COPY contratos/fixtures/ /build/contratos/fixtures/
 COPY formulario-publico/front/src/formulario/territorio.json formulario-publico/front/src/formulario/paises.json /build/formulario-publico/front/src/formulario/
 COPY --from=frontend /build/formulario-publico/front/dist /build/formulario-publico/front/dist
+COPY --from=frontend /build/formulario-publico/front/src/prototipo/assets/logo.svg /build/formulario-publico/front/src/prototipo/assets/logo.svg
 RUN mvn -B -ntp -Dtest="*Test,!Carga*Test" -DargLine=-Xmx384m verify \
     && jar tf target/formulario-publico-0.1.0-SNAPSHOT.jar > /tmp/jar-entries \
     && grep -qx "BOOT-INF/classes/catalogos/territorio.json" /tmp/jar-entries \

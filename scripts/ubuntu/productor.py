@@ -15,6 +15,8 @@ import ssl
 import subprocess
 import uuid
 import shutil
+import urllib.parse
+from html.parser import HTMLParser
 
 class Productor:
     def __init__(self, root):
@@ -75,7 +77,11 @@ class Productor:
         wrong=self.request('GET',path,headers={**extra,'Authorization':'Bearer INVALID_SYNTHETIC_CREDENTIAL'})[0]
         valid=self.request('GET',path,'integration-token',headers=extra)[0]
         if (absent,wrong,valid)!=(401,401,404):raise ValueError('Verificación Bearer/ruta falló')
-        status,_,body=self.request('GET','/api/session');session=json.loads(body)
+        status,_,body=self.request('GET','/api/session')
+        if status==401:
+            self.authorize_temporary_access()
+            status,_,body=self.request('GET','/api/session')
+        session=json.loads(body)
         if status!=200 or session.get('certificationMode'):raise ValueError('Aplicación completa no disponible')
         status,_,body=self.request('GET','/operacion/v1/control','operations-token')
         if status!=200:raise ValueError('Control no disponible')
@@ -83,6 +89,22 @@ class Productor:
         return {'httpsVerified':True,'bearerAbsent':absent,'bearerWrong':wrong,'bearerValidUnknownResource':valid,
                 'certificationMode':False,'loginAvailable':session['loginAvailable'],
                 'acceptNew':c['aceptarNuevos'],'pull':c['recuperar']}
+
+    def authorize_temporary_access(self):
+        """Solo operación local: valor desde custodia; nunca argumentos, consola ni JSON."""
+        status,_,body=self.request('GET','/acceso-temporal')
+        if status==303:return
+        if status!=200:raise ValueError('Acceso temporal no disponible')
+        class Form(HTMLParser):
+            token=None
+            def handle_starttag(self,tag,attrs):
+                a=dict(attrs)
+                if tag=='input' and a.get('type')=='hidden' and a.get('name')=='_csrf':self.token=a.get('value')
+        form=Form();form.feed(body.decode())
+        if not form.token:raise ValueError('Falta protección CSRF')
+        data=urllib.parse.urlencode({'_csrf':form.token,'password':(self.root/'secrets/acceso-temporal-password').read_text().strip()}).encode()
+        status,_,_=self.request('POST','/acceso-temporal',data=data,headers={'Content-Type':'application/x-www-form-urlencoded'})
+        if status!=303:raise ValueError('Acceso temporal rechazado')
 
     def install_ack(self, source, fingerprint):
         status,_,body=self.request('GET','/operacion/v1/control','operations-token');c=json.loads(body)
@@ -115,6 +137,10 @@ class Productor:
         for flag in ['receiptSignerApproved','windowsReady','physicalE2eVerified','noticeApproved']:
             if a.get(flag) is not True:raise ValueError('Apertura no autorizada')
         if not json.loads((self.root/'keys/institutional-trust.json').read_text()):raise ValueError('Falta ACK Windows')
+        approval=self.root/'keys/acceso-temporal-apertura.json'
+        approval.write_text(json.dumps({**{k:a[k] for k in ['receiptSignerApproved','windowsReady','physicalE2eVerified','noticeApproved']},'authorized':True}))
+        approval.chmod(0o400)
+        if os.geteuid()==0:os.chown(approval,1000,1000)
         self.control()
         self.config({'publico.integracion.habilitada':'true','publico.recepcion.aviso-validado':'true',
                      'formulario.adultos.habilitado':'true','formulario.recepcion.habilitada':'true',

@@ -111,6 +111,7 @@ class ClaveUnicaFlowTest {
     }
     @Autowired MockMvc mvc;
     @Autowired ClaveUnicaProperties properties;
+    @Autowired org.springframework.web.context.WebApplicationContext application;
     record Login(MockHttpSession session, String state) { }
     Login initiate() throws Exception {
         var result = mvc.perform(get("/oauth2/authorization/claveunica").secure(true)).andExpect(status().is3xxRedirection()).andReturn();
@@ -233,5 +234,26 @@ class ClaveUnicaFlowTest {
                 .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(header().exists("Strict-Transport-Security"));
+    }
+    @Test void accesoTemporalPermaneceSeparadoDuranteCodeCallbackYLogout(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        String password="SYNTHETIC-OAUTH-GATE-PASSWORD";
+        java.nio.file.Files.writeString(dir.resolve("hash"),AccesoTemporal.PREFIX+org.springframework.security.crypto.password.Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8().encode(password));
+        var env=new org.springframework.mock.env.MockEnvironment().withProperty("formulario.acceso-temporal.habilitado","true")
+                .withProperty("formulario.acceso-temporal.hash-path",dir.resolve("hash").toString())
+                .withProperty("formulario.acceso-temporal.limites-path",dir.resolve("limits").toString());
+        var gate=new AccesoTemporal(env,java.time.Clock.fixed(Instant.parse("2026-11-03T20:00:00Z"),java.time.ZoneOffset.UTC),()->false,tools.jackson.databind.json.JsonMapper.builder().build());
+        var protectedMvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(application)
+                .addFilters(new AccesoTemporalFilter(gate)).apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
+        var session=new MockHttpSession();assertThat(gate.authenticate(password,"127.0.0.1",session)).isEqualTo(AccesoTemporal.Result.ACCEPTED);
+        protectedMvc.perform(get("/api/session").secure(true).session(session)).andExpect(jsonPath("$.authenticated").value(false));
+        var start=protectedMvc.perform(get("/oauth2/authorization/claveunica").secure(true).session(session)).andExpect(status().is3xxRedirection()).andReturn();
+        var parameters=query(URI.create(start.getResponse().getRedirectedUrl()).getRawQuery());NONCE.set(parameters.get("nonce"));
+        String old=session.getId();
+        protectedMvc.perform(get("/redirect").secure(true).session(session).param("code","test-code").param("state",parameters.get("state")))
+                .andExpect(redirectedUrl("http://localhost:5173"));
+        assertThat(session.getId()).isNotEqualTo(old);assertThat(gate.granted(session)).isTrue();
+        protectedMvc.perform(get("/api/session").secure(true).session(session)).andExpect(jsonPath("$.authenticated").value(true));
+        protectedMvc.perform(post("/auth/logout").secure(true).session(session).with(csrf())).andExpect(redirectedUrl(ProviderLogout.url(properties)));
+        assertThat(session.isInvalid()).isTrue();
     }
 }
