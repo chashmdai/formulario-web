@@ -18,6 +18,13 @@ import shutil
 import urllib.parse
 from html.parser import HTMLParser
 
+def reception_authorization(a):
+    if a.get('schema')=='RC1_PUBLICATION_AUTHORIZATION_V2':
+        flags=['authorized','publicationAuthorized','receptionAuthorized','receiptSignerUseAuthorized','existingNoticeUseAuthorized']
+    else:flags=['receiptSignerApproved','windowsReady','physicalE2eVerified','noticeApproved']
+    if not all(a.get(k) is True for k in flags):raise ValueError('Apertura no autorizada')
+    return a
+
 class Productor:
     def __init__(self, root):
         self.root=Path(root).resolve();self.meta=json.loads((self.root/'installation.json').read_text())
@@ -132,20 +139,21 @@ class Productor:
         return self.verify()
 
     def open(self, accept, pull):
-        # Este fichero lo firma/autoriza operación después del E2E físico, nunca el instalador.
-        a=json.loads((self.root/'authorization/open.approved.json').read_text())
-        for flag in ['receiptSignerApproved','windowsReady','physicalE2eVerified','noticeApproved']:
-            if a.get(flag) is not True:raise ValueError('Apertura no autorizada')
-        if not json.loads((self.root/'keys/institutional-trust.json').read_text()):raise ValueError('Falta ACK Windows')
+        a=reception_authorization(json.loads((self.root/'authorization/open.approved.json').read_text()))
+        trusted=bool(json.loads((self.root/'keys/institutional-trust.json').read_text()))
+        if pull and not trusted:raise ValueError('Recuperación requiere identidad ACK Windows; recepción independiente')
         approval=self.root/'keys/acceso-temporal-apertura.json'
-        approval.write_text(json.dumps({**{k:a[k] for k in ['receiptSignerApproved','windowsReady','physicalE2eVerified','noticeApproved']},'authorized':True}))
+        approval.write_text(json.dumps({**a,'authorized':True}))
         approval.chmod(0o400)
         if os.geteuid()==0:os.chown(approval,1000,1000)
         self.control()
-        self.config({'publico.integracion.habilitada':'true','publico.recepcion.aviso-validado':'true',
+        previous_config=(self.root/'config/application.properties').read_bytes()
+        self.config({'publico.integracion.habilitada':str(trusted).lower(),'publico.integracion.preparada':'true',
+                     'publico.recepcion.custodia-durable-autorizada':'true','publico.recepcion.habilitada':'true','publico.recepcion.aviso-validado':'true',
                      'formulario.adultos.habilitado':'true','formulario.recepcion.habilitada':'true',
                      'publico.nna.habilitado':'true','formulario.srcei.envio-autorizado':'true'})
-        self.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
+        if (self.root/'config/application.properties').read_bytes()!=previous_config:
+            self.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
         return self.control(accept,pull)
 
     def export_public(self, destination):

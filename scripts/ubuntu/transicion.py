@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import subprocess
 import time
-from productor import Productor
+from productor import Productor,reception_authorization
 
 def docker(*args):
     p=subprocess.run(['docker',*args],capture_output=True)
@@ -42,13 +42,16 @@ def restore(op, plan):
     docker('stop',op.meta['project']+'-proxy-1')
     docker('start',plan['source']['id'])
     set_port(op,plan['privatePort']);op.compose('up','-d','--no-build','--no-deps','--wait','proxy')
+    if plan.get('sourceUnitWasEnabled'):
+        result=subprocess.run(['systemctl','enable',plan['sourceUnit']],capture_output=True)
+        if result.returncode:raise ValueError('Revisar arranque del origen anterior')
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True)
     s=p.add_subparsers(dest='action',required=True)
     pre=s.add_parser('prepare');pre.add_argument('--source-container',required=True);pre.add_argument('--source-backup',required=True)
     ap=s.add_parser('apply');ap.add_argument('--test-only',action='store_true');ap.add_argument('--authorization')
-    s.add_parser('rollback');a=p.parse_args()
+    s.add_parser('rollback');s.add_parser('emergency-rollback');a=p.parse_args()
     try:
         op=Productor(a.root);folder=op.root/'transition';folder.mkdir(mode=0o700,exist_ok=True);path=folder/'plan.json'
         if a.action=='prepare':
@@ -62,20 +65,33 @@ def main():
             if Path(a.source_backup+'.sha256').read_text().strip()!=digest:raise ValueError('Respaldo previo no íntegro')
             plan={'source':source,'backup':str(Path(a.source_backup).resolve()),'backupSha256':digest,
                   'privatePort':op.port,'publicPort':int(ports[0]['HostPort']),'targetProject':op.meta['project'],'status':'PREPARED'}
+            if source['project']=='ddn-formulario-institucional':
+                plan['sourceUnit']='ddn-formulario-institucional.service'
+                plan['sourceUnitWasEnabled']=subprocess.run(['systemctl','is-enabled',plan['sourceUnit']],capture_output=True).returncode==0
             path.write_text(json.dumps(plan,indent=2));path.chmod(0o600)
             print(json.dumps({'prepared':True,'sourcePort':plan['publicPort'],'targetPrivatePort':op.port,'planSha256':sha(path)}));return
         plan=json.loads(path.read_text())
-        if a.action=='rollback':
+        if a.action in ['rollback','emergency-rollback']:
             if plan['status']!='APPLIED':raise ValueError('No hay transición aplicada')
-            state=op.verify()
-            if state['acceptNew'] or state['pull']:raise ValueError('Cerrar controles y conciliar antes de revertir')
+            if a.action=='emergency-rollback':
+                try:op.control(False,False)
+                except (OSError,ValueError):pass
+                # No dejar escritores accesibles durante una caída crítica; conservar SQL/volúmenes.
+                docker('stop',op.meta['project']+'-app-1')
+            else:
+                state=op.verify()
+                if state['acceptNew'] or state['pull']:raise ValueError('Cerrar controles y conciliar antes de revertir')
             restore(op,plan);plan['status']='ROLLED_BACK';path.write_text(json.dumps(plan,indent=2));print('Rollback completado');return
         if a.test_only:
             if plan['source']['project']=='ddn-formulario-institucional' or plan['publicPort']==24443:
                 raise ValueError('El ensayo no puede tocar certificación')
         else:
             auth=json.loads(Path(a.authorization).read_text())
-            if auth.get('planSha256')!=sha(path) or not all(auth.get(k) is True for k in ['authorized','windowsPhysicalE2e','receiptSignerApproved','providerAndCallbackApproved']):
+            if auth.get('planSha256')!=sha(path):raise ValueError('Autorización institucional del plan requerida')
+            if auth.get('schema')=='RC1_PUBLICATION_AUTHORIZATION_V2':
+                reception_authorization(auth)
+                if auth.get('existingCallbackUseAuthorized') is not True:raise ValueError('Uso del callback requiere autorización')
+            elif not all(auth.get(k) is True for k in ['authorized','windowsPhysicalE2e','receiptSignerApproved','providerAndCallbackApproved']):
                 raise ValueError('Autorización institucional del plan requerida')
         if snapshot(plan['source']['id'])!=plan['source'] or sha(plan['backup'])!=plan['backupSha256']:
             raise ValueError('Origen o respaldo cambiaron: regenerar plan')
@@ -88,6 +104,9 @@ def main():
                 try:op.verify();break
                 except (ValueError,OSError):time.sleep(1)
             else:raise ValueError('Smoke no conforme')
+            if plan.get('sourceUnitWasEnabled'):
+                result=subprocess.run(['systemctl','disable',plan['sourceUnit']],capture_output=True)
+                if result.returncode:raise ValueError('No se pudo retirar autoarranque del origen sustituido')
         except Exception:
             restore(op,plan);raise
         plan['status']='APPLIED';path.write_text(json.dumps(plan,indent=2));print('Transición aplicada; controles siguen cerrados')

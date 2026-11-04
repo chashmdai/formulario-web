@@ -11,10 +11,26 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts/ubuntu'))
-from productor import Productor
+from productor import Productor,reception_authorization
 import transicion
 
 class ProductorGuardTest(unittest.TestCase):
+    def test_autorizacion_recepcion_no_inventa_e2e_windows(self):
+        a={'schema':'RC1_PUBLICATION_AUTHORIZATION_V2','authorized':True,'publicationAuthorized':True,
+           'receptionAuthorized':True,'receiptSignerUseAuthorized':True,'existingNoticeUseAuthorized':True,
+           'windowsReady':False,'physicalE2eVerified':False}
+        self.assertIs(reception_authorization(a),a)
+        self.assertFalse(a['physicalE2eVerified'])
+        a['receptionAuthorized']=False
+        with self.assertRaises(ValueError):reception_authorization(a)
+
+    def test_backup_no_sobre_escribe_cas_cambiado(self):
+        spec=importlib.util.spec_from_file_location('scheduled_backup',ROOT/'scripts/ubuntu/respaldo-programado.py')
+        m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+        class Changed:
+            def request(self,*args,**kwargs):return 412,{},b''
+        with self.assertRaises(ValueError):m.put_control(Changed(),'"7"',True,False)
+
     def test_ack_con_misma_clave_y_otro_pem_no_es_identidad_independiente(self):
         with tempfile.TemporaryDirectory() as t:
             root=Path(t);(root/'keys').mkdir()

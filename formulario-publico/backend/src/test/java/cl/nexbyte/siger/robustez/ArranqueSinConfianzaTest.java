@@ -27,4 +27,13 @@ class ArranqueSinConfianzaTest {
         assertThatThrownBy(()->controls.cambiar(0,true,false,"NORMAL","PRUEBA_LOCAL")).isInstanceOf(FalloTecnico.class);
         assertThatThrownBy(()->controls.cambiar(0,false,true,"NORMAL","PRUEBA_LOCAL")).isInstanceOf(FalloTecnico.class);
     }
+    @Test void custodiaAutorizadaPermiteRecepcionSinInventarConfianzaAck()throws Exception {
+        var env=new MockEnvironment().withProperty("publico.integracion.habilitada","false")
+            .withProperty("publico.recepcion.custodia-durable-autorizada","true")
+            .withProperty("publico.recepcion.habilitada","true").withProperty("publico.recepcion.aviso-validado","true")
+            .withProperty("formulario.recepcion.habilitada","true").withProperty("publico.nna.habilitado","true");
+        assertThat(JdbcRecepcionConfiguration.institutionalKeys(new JsonMapper(),env)).isEmpty();
+        env.setProperty("ciclo-vida.eliminacion.habilitada","true");
+        assertThatThrownBy(()->JdbcRecepcionConfiguration.institutionalKeys(new JsonMapper(),env)).isInstanceOf(IllegalStateException.class);
+    }
 }

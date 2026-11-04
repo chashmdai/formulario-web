@@ -90,7 +90,9 @@ public class SecurityConfiguration {
     AccesoTemporal accesoTemporal(Environment env, org.springframework.beans.factory.ObjectProvider<cl.nexbyte.siger.robustez.ControlesOperacion> controls,
             tools.jackson.databind.json.JsonMapper mapper) {
         return new AccesoTemporal(env, java.time.Clock.systemUTC(), () -> {
-            for(String flag:java.util.List.of("publico.integracion.habilitada","publico.recepcion.habilitada","publico.recepcion.aviso-validado","formulario.recepcion.habilitada"))
+            if(!env.getProperty("publico.integracion.habilitada",Boolean.class,false)
+                    &&!env.getProperty("publico.recepcion.custodia-durable-autorizada",Boolean.class,false))return false;
+            for(String flag:java.util.List.of("publico.recepcion.habilitada","publico.recepcion.aviso-validado","formulario.recepcion.habilitada"))
                 if(!env.getProperty(flag,Boolean.class,false))return false;
             var control=controls.getIfAvailable();return control!=null&&control.estado().aceptarNuevos();
         },mapper);

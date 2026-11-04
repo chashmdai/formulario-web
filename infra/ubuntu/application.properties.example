@@ -19,6 +19,8 @@ publico.db.pool=8
 datos.mysql-local=false
 publico.recepcion.habilitada=false
 publico.recepcion.aviso-validado=false
+# Recepción durable independiente del despliegue Windows, solo con autorización expresa.
+publico.recepcion.custodia-durable-autorizada=false
 publico.recepcion.aviso-version=ADULTO_20261031_1
 publico.nna.habilitado=false
 formulario.habilitado=true

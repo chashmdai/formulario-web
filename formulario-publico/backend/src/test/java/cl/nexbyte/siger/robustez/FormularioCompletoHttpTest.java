@@ -29,7 +29,8 @@ class FormularioCompletoHttpTest {
         @Bean AdjuntosFormulario adjuntos(BaseJdbc db,RecorridosJdbc journeys){return new AdjuntosFormulario(db,journeys,b->true);}
         @Bean RecepcionFormularioJdbc reception(BaseJdbc db,RecorridosJdbc journeys,AdjuntosFormulario files,JsonMapper mapper)throws Exception {
             var keys=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
-            return new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"test",keys.getPrivate(),Map.of("test",keys.getPublic()),Map.of(),Clock.systemUTC(),true);
+            var ack=KeyPairGenerator.getInstance("Ed25519").generateKeyPair(); // Identidad independiente, solo fixture de PULL habilitado.
+            return new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"test",keys.getPrivate(),Map.of("test",keys.getPublic()),Map.of("institution-test",ack.getPublic()),Clock.systemUTC(),true);
         }
     }
     @BeforeEach void before()throws Exception {

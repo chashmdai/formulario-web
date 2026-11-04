@@ -1,6 +1,10 @@
 {
     admin off
     auto_https off
+    # Evitar que errores de transporte registren query OAuth/cabeceras de sesión.
+    log default {
+        output discard
+    }
 }
 (backend) {
     reverse_proxy https://app:8443 {

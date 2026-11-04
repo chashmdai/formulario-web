@@ -40,6 +40,23 @@ class FormularioCompletoJdbcTest {
     DatosFormulario datos(Map<String,String> fields,List<UUID> attachments){return new DatosFormulario(fields,List.of(),List.of(),attachments);}
     AdjuntosFormulario.Archivo texto(String name,String text){return new AdjuntosFormulario.Archivo(name,text.getBytes(StandardCharsets.UTF_8));}
     RecepcionFormularioJdbc.Estado enviar(){return service.recibir(UUID.randomUUID(),journey,session,datos());}
+    @Test void recepcionDurableSinSigerConservaPendienteYFirmaHastaImportarAck()throws Exception {
+        var c=new ControlesOperacion(db,true,false);c.cambiar(c.estado().revision(),true,false,"NORMAL","PRUEBA_LOCAL");
+        service=new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"publico",signer.getPrivate(),Map.of("publico",signer.getPublic()),Map.of(),clock,true);
+        var id=UUID.randomUUID();var initial=service.recibir(id,journey,session,datos());
+        assertEquals("PENDIENTE_REGISTRO_SIGER",initial.estado());assertNull(initial.registro());
+        initial.custodia().verificar(Map.of("publico",signer.getPublic()),mapper);
+        assertEquals(409,assertThrows(FalloTecnico.class,()->c.cambiar(c.estado().revision(),true,true,"NORMAL","PRUEBA_LOCAL")).status);
+        assertEquals(503,assertThrows(FalloTecnico.class,()->service.reclamar(1)).status);
+        service=new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"publico",signer.getPrivate(),Map.of("publico",signer.getPublic()),Map.of(),clock,true);
+        assertEquals(initial,service.consultar(id,session));assertEquals(initial,service.recibir(id,journey,session,datos()));
+        assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE state='PENDIENTE' AND ack IS NULL",Integer.class));
+        // Simula solamente en unidad la importación posterior de una clave ACK distinta.
+        service=crear();var ready=new ControlesOperacion(db,true,true);ready.cambiar(ready.estado().revision(),true,true,"NORMAL","PRUEBA_LOCAL");
+        var delivery=service.reclamar(1).getFirst();assertEquals(id,delivery.entrega().comunicacion().id());assertEquals(initial.custodia(),delivery.entrega().custodia());
+        service.confirmar(id,delivery.reserva(),ack(delivery.entrega(),institution,"institucion"));
+        assertEquals("REGISTRADA_SIGER",service.consultar(id,session).estado());
+    }
     RegistroInstitucional ack(EntregaFormulario delivery,KeyPair pair,String kid){
         var c=delivery.comunicacion();var r=new ComprobanteInstitucional.Contenido("1.1","SIGER_DDN","COMUNICACION_REGISTRADA",c.id(),UUID.randomUUID(),1,"COM-1",now.get(),"FORMULARIO_WEB_NNA",delivery.sha256(),delivery.huellaProcedencia());
         return new RegistroInstitucional(r,ComprobanteInstitucional.firmar(r,kid,pair.getPrivate(),mapper));

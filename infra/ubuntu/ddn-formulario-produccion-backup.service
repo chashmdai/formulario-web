@@ -1,0 +1,13 @@
+[Unit]
+Description=Respaldo cifrado y verificado del Formulario productivo
+Requires=docker.service
+After=docker.service ddn-formulario-produccion.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/python3 /srv/ddn-formulario-produccion/release/scripts/ubuntu/respaldo-programado.py --root /srv/ddn-formulario-produccion
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

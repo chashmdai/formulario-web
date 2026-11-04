@@ -2,13 +2,14 @@ package cl.nexbyte.siger.robustez;
 import java.util.*;
 public final class ControlesOperacion{
     private final BaseJdbc db;
-    private final boolean habilitacionPermitida;
+    private final boolean recepcionPermitida,recuperacionPermitida;
     public record Control(long revision,boolean aceptarNuevos,boolean recuperar,String contingencia){}
     public ControlesOperacion(BaseJdbc db){this(db,true);}
-    public ControlesOperacion(BaseJdbc db,boolean habilitacionPermitida){this.db=db;this.habilitacionPermitida=habilitacionPermitida;}
+    public ControlesOperacion(BaseJdbc db,boolean habilitacionPermitida){this(db,habilitacionPermitida,habilitacionPermitida);}
+    public ControlesOperacion(BaseJdbc db,boolean recepcionPermitida,boolean recuperacionPermitida){this.db=db;this.recepcionPermitida=recepcionPermitida;this.recuperacionPermitida=recuperacionPermitida;}
     public Control estado(){return db.sql.queryForObject("SELECT revision,accept_new,pull_enabled,contingency FROM operation_control WHERE id=1",(rs,n)->new Control(rs.getLong(1),rs.getBoolean(2),rs.getBoolean(3),rs.getString(4)));}
     public Control cambiar(long version,boolean aceptar,boolean recuperar,String contingencia,String motivo){
-        if(!habilitacionPermitida&&(aceptar||recuperar))throw new FalloTecnico(409);
+        if(aceptar&&!recepcionPermitida||recuperar&&!recuperacionPermitida)throw new FalloTecnico(409);
         if(contingencia==null||motivo==null||!Set.of("NORMAL","SOLO_CONSULTA").contains(contingencia)||!Set.of("MANTENIMIENTO","INCIDENTE","PRUEBA_LOCAL","REANUDACION","LIMITE_CAPACIDAD").contains(motivo)
             ||("SOLO_CONSULTA".equals(contingencia)&&(aceptar||recuperar)))throw new FalloTecnico(400);
         return db.transaction(()->{

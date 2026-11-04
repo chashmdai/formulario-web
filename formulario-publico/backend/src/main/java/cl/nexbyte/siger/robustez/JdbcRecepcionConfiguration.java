@@ -18,9 +18,11 @@ public class JdbcRecepcionConfiguration {
     }
     @Bean ControlesOperacion controles(BaseJdbc db,Environment env){
         boolean enabled=env.getProperty("publico.integracion.habilitada",Boolean.class,true);
-        var controls=new ControlesOperacion(db,enabled);
-        if(!enabled&&(controls.estado().aceptarNuevos()||controls.estado().recuperar()))
-            throw new IllegalStateException("Arranque cerrado exige controles persistidos de recepción/PULL cerrados");
+        boolean custody=env.getProperty("publico.recepcion.custodia-durable-autorizada",Boolean.class,false);
+        var controls=new ControlesOperacion(db,enabled||custody,enabled);
+        var state=controls.estado();
+        if(state.aceptarNuevos()&&!enabled&&!custody||state.recuperar()&&!enabled)
+            throw new IllegalStateException("Controles persistidos incompatibles con autorización de recepción/confianza ACK");
         return controls;
     }
     @Bean RegistroOperacionesExternas operaciones(BaseJdbc db){return new RegistroOperacionesExternas(db);}
@@ -36,7 +38,10 @@ public class JdbcRecepcionConfiguration {
     public static Map<String,PublicKey> institutionalKeys(JsonMapper mapper,Environment env)throws java.io.IOException {
         if(env.getProperty("publico.integracion.habilitada",Boolean.class,true))
             return publicKeys(mapper,Path.of(env.getRequiredProperty("publico.comprobante.institutional-trusted-keys")));
-        for(String flag:List.of("publico.recepcion.habilitada","publico.recepcion.aviso-validado","publico.nna.habilitado",
+        boolean custody=env.getProperty("publico.recepcion.custodia-durable-autorizada",Boolean.class,false);
+        for(String flag:List.of("ciclo-vida.online-habilitado","ciclo-vida.eliminacion.habilitada"))
+            if(env.getProperty(flag,Boolean.class,false))throw new IllegalStateException("Sin confianza ACK se prohíbe retirada/mantenimiento: "+flag);
+        if(!custody)for(String flag:List.of("publico.recepcion.habilitada","publico.recepcion.aviso-validado","publico.nna.habilitado",
                 "formulario.adultos.habilitado","formulario.recepcion.habilitada","ciclo-vida.online-habilitado","ciclo-vida.eliminacion.habilitada"))
             if(env.getProperty(flag,Boolean.class,false))throw new IllegalStateException("Sin confianza ACK se exige recepción y custodia cerradas: "+flag);
         return Map.of(); // Ninguna clave confiada: ninguna firma ACK puede validarse.

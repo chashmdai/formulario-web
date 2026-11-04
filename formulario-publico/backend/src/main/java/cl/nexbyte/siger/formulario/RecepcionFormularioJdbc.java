@@ -101,7 +101,7 @@ public final class RecepcionFormularioJdbc {
     public List<Reserva> reclamar(int limit,Set<String> versions){
         if(versions==null||versions.isEmpty()||!Set.of("1.0","1.1").containsAll(versions))throw new FalloTecnico(400);
         if(limit<1||limit>10)throw new FalloTecnico(400);var control=controles.estado();
-        if(!enabled||!control.recuperar()||!control.contingencia().equals("NORMAL"))throw new FalloTecnico(503);
+        if(!enabled||institutional.isEmpty()||!control.recuperar()||!control.contingencia().equals("NORMAL"))throw new FalloTecnico(503);
         return db.transaction(()->{
             long now=clock.millis();var result=new ArrayList<Reserva>();
             var ids=db.sql.queryForList("SELECT id FROM citizen_submission WHERE ((state='PENDIENTE' AND next_attempt_ms<=?) OR (state='RESERVADA' AND lease_until_ms<=?)) AND ((document_version='1.0' AND ?=TRUE) OR (document_version='1.1' AND ?=TRUE)) ORDER BY created_ms,id LIMIT ?",String.class,now,now,versions.contains("1.0"),versions.contains("1.1"),limit*4);

@@ -162,7 +162,7 @@ public final class RecepcionJdbc implements RecepcionDurable {
     public void confirmar(UUID id,SobreComunicacion.Confirmacion receipt){throw new FalloTecnico(409);}
     public List<EntregaReservada> reclamar(int limite){
         if(limite<1||limite>100)throw new FalloTecnico(400);
-        var control=controles.estado();if(!habilitacion||!control.recuperar()||!control.contingencia().equals("NORMAL"))throw new FalloTecnico(503);
+        var control=controles.estado();if(!habilitacion||institutionalTrust.isEmpty()||!control.recuperar()||!control.contingencia().equals("NORMAL"))throw new FalloTecnico(503);
         return db.transaction(()->{
             long now=clock.millis();
             var ids=db.sql.queryForList("SELECT id FROM public_delivery WHERE (state='PENDIENTE' AND next_attempt_ms<=?) OR (state='RESERVADA' AND lease_until_ms<=?) ORDER BY created_ms,id LIMIT ?",String.class,now,now,Math.min(400,limite*4));

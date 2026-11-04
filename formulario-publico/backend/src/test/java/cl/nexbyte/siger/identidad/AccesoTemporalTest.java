@@ -72,6 +72,13 @@ class AccesoTemporalTest {
         env.setProperty("formulario.acceso-temporal.habilitado","false");clock.at=access.expires();
         assertEquals(AccesoTemporal.Mode.OPEN,new AccesoTemporal(env,clock,()->false,JsonMapper.builder().build()).mode());
     }
+    @Test void caducidadContinuaMismoFormularioAutorizadoSinExigirE2eWindows()throws Exception {
+        Files.writeString(dir.resolve("go.json"),"{\"schema\":\"RC1_PUBLICATION_AUTHORIZATION_V2\",\"authorized\":true,\"publicationAuthorized\":true,\"receptionAuthorized\":true,\"receiptSignerUseAuthorized\":true,\"existingNoticeUseAuthorized\":true,\"windowsReady\":false,\"physicalE2eVerified\":false}");
+        var authorized=new AccesoTemporal(env,clock,()->true,JsonMapper.builder().build());
+        clock.at=access.expires().minusNanos(1);assertEquals(AccesoTemporal.Mode.PASSWORD,authorized.mode());
+        clock.at=access.expires();assertEquals(AccesoTemporal.Mode.OPEN,authorized.mode());
+        assertEquals(AccesoTemporal.Mode.UNAVAILABLE,access.mode()); // Cierre operacional sigue prevaleciendo.
+    }
     @Test void filtroExpiradoNoMuestraContraseñaNiEjecutaApiCiudadana()throws Exception {
         clock.at=access.expires();var filter=new AccesoTemporalFilter(access);
         for(String path:java.util.List.of("/","/api/formulario/recorridos")) {

@@ -50,7 +50,10 @@ public final class AccesoTemporal {
             Path p=Path.of(env.getRequiredProperty("formulario.acceso-temporal.apertura-path"));
             if(Files.size(p)>4096)return false;
             var value=mapper.readTree(Files.readString(p));
-            for(String flag:List.of("authorized","receiptSignerApproved","windowsReady","physicalE2eVerified","noticeApproved"))
+            var flags="RC1_PUBLICATION_AUTHORIZATION_V2".equals(value.path("schema").asString())
+                ?List.of("authorized","publicationAuthorized","receptionAuthorized","receiptSignerUseAuthorized","existingNoticeUseAuthorized")
+                :List.of("authorized","receiptSignerApproved","windowsReady","physicalE2eVerified","noticeApproved");
+            for(String flag:flags)
                 if(!value.path(flag).asBoolean(false))return false;
             return receptionApproved.getAsBoolean();
         } catch(Exception e){return false;}
