@@ -92,7 +92,10 @@ def main():
             h=dict(headers or {})
             if not technical and method not in ['GET','HEAD']:
                 s,_,body=op.request('GET','/api/csrf');assert s==200;c=json.loads(body);h[c['headerName']]=c['token']
-            status,hout,body=op.request(method,path,'integration-token' if technical else None,data,h)
+            saved_cookies=op.cookies
+            if technical:op.cookies={}  # Consumidor técnico sin sesión ni contraseña de campaña.
+            try:status,hout,body=op.request(method,path,'integration-token' if technical else None,data,h)
+            finally:op.cookies=saved_cookies
             if status!=code:raise ValueError('Aceptación HTTPS falló: '+str(status)+' esperado '+str(code)+' ruta '+path)
             return json.loads(body) if body and hout.get('content-type','').startswith('application/json') else body,hout
         op.control(True,False)
