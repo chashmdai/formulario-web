@@ -1,0 +1,278 @@
+{
+  "release": "RC1-production-prepared",
+  "date": "2026-11-03",
+  "timezone": "America/Santiago",
+  "branch": "release/formulario-produccion-2026-11",
+  "architecture": "linux/amd64",
+  "backendSourceCommit": "a160f8b90f1358b24b8cbfca73598b6f1456c096",
+  "operationCommit": "d3ca44bf4f15a94dbe1d65d8551d0974b651929d",
+  "images": {
+    "app": "sha256:3a6482156acad872ac9830c78e16ca23f7d977dd7b9d173e1b4c89db34ae987d",
+    "proxy": "sha256:8e16dea11ee81feddab2622ee05907b96dcd452de111acc3394f859719552207",
+    "mysql": "sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364",
+    "pisee": "sha256:e0245efc9e74b0a3995f0d944e43a008b895deab8c18e715b8c0a11f70fbf842",
+    "antivirus": "sha256:2513c005f21f3602f0172372ef8ea23f0e55cf6207c9c3785b72f2803f5994cb",
+    "inspector": "sha256:3a24d996d75003959df9b7f7733472cf9b4ef9b1fd1edfa87246613098f8a305"
+  },
+  "jarSha256": "485f2f644adbf4bd0ef966e8181da4d814d8d97f6113ba74c869c3fef1c5143d",
+  "imageArchiveSha256": "06452867abd026edaf8aaa8106b9f8d97dc0dc09f1f6436d9ab8dbb2fb8e80ff",
+  "versions": {
+    "app": "openjdk 25.0.5 2026-10-20 LTS",
+    "proxy": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+    "mysql": "/usr/sbin/mysqld  Ver 8.4.11 for Linux on x86_64 (MySQL Community Server - GPL)",
+    "pisee": "xmlsec1 1.3.9 (openssl)",
+    "antivirus": "ClamAV 1.5.4/28173/Tue Nov  3 06:27:52 2026",
+    "inspector": "Python 3.12.3"
+  },
+  "installation": {
+    "root": "/srv/ddn-formulario-produccion",
+    "project": "ddn-formulario-produccion",
+    "url": "https://localhost:30443/?vista=inicio",
+    "hostname": "formulario.defensorianinez.gob.cl",
+    "publishedHostPort": "127.0.0.1:30443",
+    "piseeNetwork": "10.203.74.0/29",
+    "backendIpv4": "10.203.74.3",
+    "nodeIpv4": "10.203.74.2",
+    "onlyProxyPublished": true,
+    "servicesHealthy": 6,
+    "systemdEnabled": true,
+    "immutableArchiveLoadVerified": true,
+    "productionSubmissions": 0,
+    "acceptNew": false,
+    "pull": false,
+    "certificationMode": false
+  },
+  "certificates": {
+    "originSan": [
+      "formulario.defensorianinez.gob.cl",
+      "localhost"
+    ],
+    "originExpiresUtc": "2027-11-03T21:17:27Z",
+    "originCertificateSha256": "2806061c120657e889ee75c4d02b58dfa516ea3af028bd674614db5df65e6293",
+    "originCaPemSha256": "9ce8ccfc0045660c4f46b88ccee91deca5e88890af7f6dec26c2ef7b7d31557e",
+    "backendMysqlExpiresUtc": "2027-12-05T20:41:55Z",
+    "srceiExpiresUtc": "2029-09-28T11:07:16Z",
+    "srceiCertificateDerSha256": "3dc48ca30f6894d3321da10173af47960d5fe9afdbbd769696f1e6de678a64e0",
+    "privateProfileTrustOnly": true,
+    "tlsBypass": false
+  },
+  "pisee": {
+    "environment": "PRODUCTION",
+    "enabled": true,
+    "productionAuthorized": true,
+    "legalBasisApproved": true,
+    "purpose": "REGISTRO DE USUARIOS",
+    "restrictedCampaign": false,
+    "allowedRunsRequired": false,
+    "realNode": true,
+    "stubInstalled": false,
+    "personalQueryRepeatedForClosure": false,
+    "nodeBinarySha256": "f09005d9142e10885371ed9045f516e35002655c26e83dd1dddddf1acf77b25b",
+    "xmlInput": "entradaSRCel",
+    "xmlLastCodePoint": "U+006C"
+  },
+  "pullAck": {
+    "bearerAbsent": 401,
+    "bearerWrong": 401,
+    "bearerValidUnknownResource": 404,
+    "prepared": true,
+    "enabled": false,
+    "producerKeyId": "ddn-formulario-prod-20261103-v1",
+    "producerSigningApproval": "PENDING_INSTITUTIONAL_APPROVAL",
+    "producerPublicPemSha256": "712fd54ba0676c6457901a9cc6f8eea7b30c4ff1eea1bba63ee055ba64948f92",
+    "newCredentialProvisioned": true,
+    "credentialExportedOnlyToPrivateCustody": true,
+    "ackTrustEmpty": true,
+    "pendingWindowsMaterial": [
+      "ACK_PUBLIC_ED25519_KEY",
+      "ACK_KEY_ID"
+    ],
+    "publicPackage": "/home/admin-ti/operacion-formulario/intercambio-siger-produccion-20261103-v2",
+    "packageHashes": {
+      "formulario-signing-trust.json": "650ae1f7c46027c83a901d3b394a462cc52d75f61e708a7d20aeaaebda73cf22",
+      "consumer-profile.json": "7377e967a79fe26b8bec3f1d558d72b4a4d151ea3709c168c0b7c08c12becfe1",
+      "formulario-signing-public.pem": "712fd54ba0676c6457901a9cc6f8eea7b30c4ff1eea1bba63ee055ba64948f92",
+      "origin-ca.crt": "9ce8ccfc0045660c4f46b88ccee91deca5e88890af7f6dec26c2ef7b7d31557e"
+    },
+    "installedProducerSyntheticAcceptance": {
+      "physicalWindows": false,
+      "srcEiQueried": false,
+      "syntheticOnly": true,
+      "versions": [
+        "1.0",
+        "1.1"
+      ],
+      "communications": 2,
+      "attachmentsSha256": true,
+      "rangeAndHead": true,
+      "ed25519": true,
+      "canonicalHashes": true,
+      "commitBeforeAckLocalFixture": true,
+      "duplicateAckIdempotent": true,
+      "ackPending": 0,
+      "confirmed": 2
+    },
+    "handoffMechanismLocallyVerified": true,
+    "physicalWindowsPerformed": false,
+    "publicPackageArchive": {
+      "path": "/home/admin-ti/operacion-formulario/intercambio-siger-produccion-20261103-v2.zip",
+      "sha256": "0285d7de92877c8ad26629925bb8a5e588548b920e7b1b0ecc9ad3b37c474135",
+      "privateKeysOrBearerIncluded": false
+    }
+  },
+  "claveUnica": {
+    "host": "accounts.claveunica.gob.cl",
+    "http": 200,
+    "statePresent": true,
+    "noncePresent": true,
+    "authorizationCode": true,
+    "approvedCallback": true,
+    "institutionDisabled": false,
+    "accessDenied": false,
+    "loginFormVisible": true,
+    "realAuthenticationPerformed": false
+  },
+  "firefox": {
+    "httpsVerified": true,
+    "tlsBypass": false,
+    "profileTrustOnly": true,
+    "fullForm": true,
+    "adultDeclaredVisible": true,
+    "nnaVisible": true,
+    "officialLoginConfigured": true,
+    "authenticated": false,
+    "desktopOverflow": false,
+    "mobileOverflow": false,
+    "jsErrors": 0,
+    "personalQueryPerformed": false,
+    "communicationSubmitted": false
+  },
+  "publicCertification": {
+    "http": 200,
+    "certificationMode": true,
+    "authenticated": false,
+    "loginAvailable": true,
+    "integrationStatus": 503,
+    "homeHttp": 200,
+    "tlsBypass": false,
+    "publicCutover": false
+  },
+  "preservation": {
+    "protectedFiles": 597,
+    "protectedFilesUnchanged": true,
+    "protectedHistoricalAndCertificationContainers": 25,
+    "protectedContainersUnchanged": true,
+    "publicAndHistoricalChangeCount": 0,
+    "publicCutover": false,
+    "privateFormerNodeStoppedToAvoidDuplicateIdentity": true
+  },
+  "restart": {
+    "allSixServicesRestarted": true,
+    "databaseChecksumsUnchanged": true,
+    "tableCount": 20,
+    "signingIdentityUnchanged": true,
+    "producer": {
+      "httpsVerified": true,
+      "bearerAbsent": 401,
+      "bearerWrong": 401,
+      "bearerValidUnknownResource": 404,
+      "certificationMode": false,
+      "loginAvailable": true,
+      "acceptNew": false,
+      "pull": false
+    },
+    "hostRebootPerformed": false
+  },
+  "restore": {
+    "preparedProductionBackupRestored": true,
+    "allTableChecksumsEqual": true,
+    "tableCount": 20,
+    "signingKeyRestoredSame": true,
+    "restoredMysqlRestartPersistence": true,
+    "publicCutover": false
+  },
+  "completeBackup": {
+    "completeBackupDecrypted": true,
+    "releasePresent": true,
+    "immutableImagesPresent": true,
+    "imageArchiveHashMatches": true,
+    "nodeExecutablePreserved": true,
+    "mysqlInitOwnerCorrect": true,
+    "originAuthorityRootOnly": true,
+    "signingIdentitySame": true,
+    "wrongSanRejected": true,
+    "untrustedCaRejected": true
+  },
+  "backups": {
+    "productivo-preparado-completo-20261103.gpg": {
+      "path": "/srv/ddn-formulario-respaldos/productivo-preparado-completo-20261103.gpg",
+      "sha256": "19b8596a9f548927b0a54dc11084cfe2f909e37cd404b201860218ca03fa50a6",
+      "decryptionAndManifestVerified": true
+    },
+    "certificacion-previa-completa-20261103.gpg": {
+      "path": "/srv/ddn-formulario-respaldos/certificacion-previa-completa-20261103.gpg",
+      "sha256": "e20d164644747da7baa6e82031233967ec2022b60d5f868ad0a881f97224fbb4",
+      "decryptionAndManifestVerified": true
+    }
+  },
+  "cipherKeyIncludedInBackup": false,
+  "transition": {
+    "status": "PREPARED",
+    "publicCutoverPerformed": false,
+    "publicOriginPort": 24443,
+    "preparedPrivateOriginPort": 30443,
+    "planSha256": "1154f63638f9fcf52edb2356fe248cc0b63113ac7cfdd2f4311034c3b3a1db68",
+    "explicitRollbackVerifiedAgainstFixture": true,
+    "smokeFailureInjectedOnlyInTestHarness": true,
+    "automaticRollbackVerified": true,
+    "publicSourceModified": false
+  },
+  "tests": {
+    "react": 219,
+    "lintTypescriptVite": "PASSED",
+    "backendH2": {
+      "total": 401,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "backendMysqlTls": {
+      "total": 401,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "backendSkippedReasons": [
+      "MultimediaWorkersRealTest opt-in",
+      "RecuperacionProcesoTest opt-in"
+    ],
+    "python": {
+      "total": 33,
+      "skipped": 1,
+      "failures": 0
+    },
+    "certification": {
+      "passed": 30,
+      "total": 30
+    }
+  },
+  "graphMailRequiredByFormulario": false,
+  "productionGo": false,
+  "pendingExternal": [
+    "Windows definitive VM and public ACK identity",
+    "Physical institutional COMMIT/COM/ACK E2E",
+    "Institutional approval of new Formulario signer",
+    "Complete official CU authentication and final authorized callback validation",
+    "Security/privacy/retention and coordinated opening approval",
+    "Off-host backup custody and approved RPO/RTO",
+    "Edge transport validation after authorized public-origin transition"
+  ],
+  "artifactHashesRecomputed": {
+    "jarMatches": true,
+    "archiveMatches": true
+  },
+  "qaDependencies": {
+    "python": "3.12",
+    "cryptography": "46.0.5"
+  }
+}
