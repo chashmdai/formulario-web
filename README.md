@@ -4,17 +4,17 @@
 
 # Formulario Público · SIGER 2026
 
-**EL FORMULARIO PÚBLICO NO SE ENCUENTRA HABILITADO PARA PRODUCCIÓN.**
+**RC1 publicado y recepción protegida habilitada · 04/11/2026:** [https://formulario.defensorianinez.gob.cl](https://formulario.defensorianinez.gob.cl). Contraseña temporal hasta el 15/12/2026 a las 00:00 America/Santiago. Las Comunicaciones permanecen en custodia durable hasta su recuperación por SIGER; no se inventan ACK ni folios. [Checkpoint operativo vigente](docs/CHECKPOINT_PRODUCCION_SIGER_2026-11-04.md) · [manifiesto de publicación](docs/PUBLICACION_RC1_MANIFIESTO_2026-11-04.json).
 
-**Instalación definitiva preparada · 03/11/2026:** RC1 instalado privadamente en `/srv/ddn-formulario-produccion`, con recepción y PULL cerrados. [Estado ejecutado y manifiesto](docs/INSTALACION_PRODUCTIVA_EJECUTADA_2026-11-03.md). PISEE productivo, ClaveÚnica y productor PULL/ACK; el sitio público conserva su modo exclusivo de certificación. Graph y correo son responsabilidad de SIGER y quedan fuera del alcance del Formulario. Las referencias anteriores a instalaciones futuras son históricas; no autorizan publicación.
+**Referencia de preparación · 03/11/2026:** [instalación privada previa](docs/INSTALACION_PRODUCTIVA_EJECUTADA_2026-11-03.md), ahora sustituida operativamente por el checkpoint del 04/11. Se conservan los artefactos y la instancia anterior para reversión. Graph/correo siguen fuera del alcance del Formulario y corresponden a SIGER.
 
-**Acceso temporal institucional:** [protección instalada y caducidad](docs/ACCESO_TEMPORAL_RC1_2026-11-03.md). Contraseña validada en servidor; deja de exigirse el 15/12/2026 a las 00:00 America/Santiago. Sin GO institucional, ese vencimiento mantiene el servicio ciudadano cerrado. SIGER conserva su autenticación técnica independiente.
+**Acceso temporal institucional:** [protección y caducidad](docs/ACCESO_TEMPORAL_RC1_2026-11-03.md). La autorización expresa de publicación/recepción quedó registrada el 04/11: al vencer la contraseña continúa el mismo RC1, sujeto a sus controles de incidencia y capacidad. No se exige E2E Windows para recibir. SIGER conserva Bearer y firma ACK independientes.
 
 [![CI Linux y Windows](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml)
 
-**Traspaso vigente · GATE H1 (01/11/2026):** [comenzar aquí](docs/TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md) · [instalación Ubuntu/Docker](docs/INSTALACION_UBUNTU_DOCKER.md) · [ClaveÚnica, PISEE y SIGER](docs/INTEGRACIONES_UBUNTU.md) · [verificaciones H1](docs/VERIFICACION_GATE_H1_2026-11-01.md).
+**Referencia histórica · GATE H1 (01/11/2026):** [traspaso](docs/TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md) · [instalación Ubuntu/Docker](docs/INSTALACION_UBUNTU_DOCKER.md) · [ClaveÚnica, PISEE y SIGER](docs/INTEGRACIONES_UBUNTU.md) · [verificaciones H1](docs/VERIFICACION_GATE_H1_2026-11-01.md).
 
-El candidato incluye Compose integrado con MySQL 8.4, HTTPS hasta Spring, almacenamiento privado, ClamAV e inspector. DDN-UBUNTU ya contiene un laboratorio que se preserva; la instalación nueva se hará por GATES. La futura VM Windows de SIGER todavía no tiene datos definitivos. Publicar este repositorio no instala ni habilita ciudadanía en Ubuntu.
+La instalación productiva utiliza Compose con MySQL 8.4, HTTPS hasta Spring, almacenamiento privado, ClamAV, Inspector y nodo PISEE real. La futura VM SIGER permanece pendiente. Las QA históricas se conservan; los controles de publicación/custodia efectivos están registrados en el checkpoint vigente. Un push por sí solo no realiza otro despliegue.
 
 Aplicación ciudadana de la **Defensoría de la Niñez**, desarrollada por Nexbyte SpA. Permite a personas adultas, niñas, niños y adolescentes presentar una Comunicación, aportar antecedentes y obtener su comprobante.
 

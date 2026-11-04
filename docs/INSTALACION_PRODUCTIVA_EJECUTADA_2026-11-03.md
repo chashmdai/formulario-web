@@ -1,5 +1,7 @@
 # RC1 — instalación definitiva preparada y verificada
 
+**Estado posterior vigente 04/11/2026:** [RC1 publicado, recepción protegida habilitada y continuidad SIGER](CHECKPOINT_PRODUCCION_SIGER_2026-11-04.md). La orden institucional posterior autorizó sustituir certificación y recibir sin exigir un E2E Windows previo. Este informe conserva la evidencia de preparación anterior.
+
 **Actualización de seguridad posterior:** [acceso temporal instalado](ACCESO_TEMPORAL_RC1_2026-11-03.md) y [nuevo manifiesto](ACCESO_TEMPORAL_RC1_MANIFIESTO_2026-11-03.json). La imagen anterior identificada en este informe queda conservada para reversión; la instalación privada ahora exige acceso temporal en interfaz/API ciudadanas, sin modificar la identidad PISEE/CU/SIGER ni abrir recepción.
 
 Fecha: 03/11/2026, America/Santiago. Repositorio `chashmdai/formulario-web`, rama conservada `release/formulario-produccion-2026-11`. Este informe actualiza el cierre RC1 anterior; sus artefactos históricos permanecen identificados, sin sustituir firmas ni contratos históricos.

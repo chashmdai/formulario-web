@@ -1,0 +1,247 @@
+{
+  "date": "2026-11-04",
+  "timezone": "America/Santiago",
+  "project": "ddn-formulario-produccion",
+  "root": "/srv/ddn-formulario-produccion",
+  "publicUrl": "https://formulario.defensorianinez.gob.cl",
+  "origin": "127.0.0.1:24443",
+  "backendSourceCommit": "b6f639a5ef14f81dd393295b9ea75e37ffe76746",
+  "operationCommit": "ee68edc5fd6a0cd24f129da228e72936c88de42d",
+  "software": {
+    "backendSourceCommit": "b6f639a5ef14f81dd393295b9ea75e37ffe76746",
+    "operationCommit": "ee68edc5fd6a0cd24f129da228e72936c88de42d",
+    "images": {
+      "app": "sha256:8bf75004aa68c3ebdb5fe3f22b18296f85a66c3e5a1653a40ae9745d9ce5ce08",
+      "proxy": "sha256:8e16dea11ee81feddab2622ee05907b96dcd452de111acc3394f859719552207",
+      "mysql": "sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364",
+      "pisee": "sha256:e0245efc9e74b0a3995f0d944e43a008b895deab8c18e715b8c0a11f70fbf842",
+      "antivirus": "sha256:2513c005f21f3602f0172372ef8ea23f0e55cf6207c9c3785b72f2803f5994cb",
+      "inspector": "sha256:3a24d996d75003959df9b7f7733472cf9b4ef9b1fd1edfa87246613098f8a305"
+    },
+    "jarSha256": "830de16985eb776381eb6ee13f619043ccf07c57fb0021c2cc7745d06a7bb4a5",
+    "imageArchiveSha256": "427d9e9a90cad66484763703151bff8531dd68997e5283411d44fe3ec179c823",
+    "versions": {
+      "app": "openjdk 25.0.5 2026-10-20 LTS",
+      "proxy": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+      "mysql": "/usr/sbin/mysqld  Ver 8.4.11 for Linux on x86_64 (MySQL Community Server - GPL)",
+      "pisee": "xmlsec1 1.3.9 (openssl)",
+      "antivirus": "ClamAV 1.5.4/28173/Tue Nov  3 06:27:52 2026",
+      "inspector": "Python 3.12.3"
+    },
+    "imageArchiveFilename": "images-publicacion-20261104.tar"
+  },
+  "services": [
+    {
+      "name": "ddn-formulario-produccion-app-1",
+      "image": "sha256:8bf75004aa68c3ebdb5fe3f22b18296f85a66c3e5a1653a40ae9745d9ce5ce08",
+      "healthy": true,
+      "restartPolicy": "unless-stopped"
+    },
+    {
+      "name": "ddn-formulario-produccion-mysql-1",
+      "image": "sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364",
+      "healthy": true,
+      "restartPolicy": "unless-stopped"
+    },
+    {
+      "name": "ddn-formulario-produccion-pisee-1",
+      "image": "sha256:e0245efc9e74b0a3995f0d944e43a008b895deab8c18e715b8c0a11f70fbf842",
+      "healthy": true,
+      "restartPolicy": "unless-stopped"
+    },
+    {
+      "name": "ddn-formulario-produccion-proxy-1",
+      "image": "sha256:8e16dea11ee81feddab2622ee05907b96dcd452de111acc3394f859719552207",
+      "healthy": true,
+      "restartPolicy": "unless-stopped"
+    },
+    {
+      "name": "ddn-formulario-produccion-antivirus-1",
+      "image": "sha256:2513c005f21f3602f0172372ef8ea23f0e55cf6207c9c3785b72f2803f5994cb",
+      "healthy": true,
+      "restartPolicy": "unless-stopped"
+    },
+    {
+      "name": "ddn-formulario-produccion-inspector-1",
+      "image": "sha256:3a24d996d75003959df9b7f7733472cf9b4ef9b1fd1edfa87246613098f8a305",
+      "healthy": true,
+      "restartPolicy": "unless-stopped"
+    }
+  ],
+  "publicVerification": {
+    "publicOrigin": "https://formulario.defensorianinez.gob.cl",
+    "tlsVerifiedSystemCa": true,
+    "cloudflareEdgeObserved": true,
+    "technicalRequestsWithoutCookie": true,
+    "bearerAbsent": 401,
+    "bearerWrong": 401,
+    "bearerValidUnknownResource": 404,
+    "anonymousCitizenApi": 401,
+    "passwordLoginWorks": true,
+    "passwordExpired": false,
+    "certificationMode": false,
+    "citizenAuthenticated": false,
+    "reception": {
+      "nna": true,
+      "adultos": true,
+      "multimedia": true
+    },
+    "personalQueryPerformed": false,
+    "communicationCreated": false,
+    "pullClaimPerformed": false
+  },
+  "firefox": {
+    "publicHostVerified": true,
+    "tlsBypass": false,
+    "anonymousApi": 401,
+    "wrongPassword": 401,
+    "correctPasswordWorks": true,
+    "reception": {
+      "nna": true,
+      "adultos": true,
+      "multimedia": true
+    },
+    "citizenAuthenticated": false,
+    "secureCookie": true,
+    "httpOnlyCookie": true,
+    "sameSite": "Lax",
+    "technicalWithoutCookies": [
+      401,
+      401,
+      404
+    ],
+    "adultDeclaredFormVisible": true,
+    "nnaDefinitiveFormVisible": true,
+    "mobileOverflow": false,
+    "officialClaveUnicaRedirect": true,
+    "stateAndNonce": true,
+    "callbackMatchesPublicDomain": true,
+    "providerLoginFormObserved": true,
+    "institutionDisabledObserved": false,
+    "fullOfficialAuthenticationPerformed": false,
+    "personalQueryPerformed": false,
+    "communicationCreated": false,
+    "pullClaimPerformed": false,
+    "jsErrors": 0
+  },
+  "realDependencies": {
+    "javaContainerToRealNodeTcp": true,
+    "realGescodNonPersonalJson": true,
+    "realClamAvEicarDetected": true,
+    "personalQueryPerformed": false,
+    "communicationCreated": false
+  },
+  "authorization": {
+    "schema": "RC1_PUBLICATION_AUTHORIZATION_V2",
+    "publicationAuthorized": true,
+    "receptionAuthorized": true,
+    "existingSignerUseAuthorized": true,
+    "windowsReady": false,
+    "physicalE2eVerified": false,
+    "qualifiedSignatureCertificationClaimed": false
+  },
+  "effectiveReception": {
+    "adults": true,
+    "nnaDefinitive": true,
+    "attachments": true,
+    "acceptNew": true,
+    "pull": false,
+    "contingency": "NORMAL",
+    "legacySandboxNnaEnabled": false,
+    "temporaryPasswordRequired": true,
+    "expiryLocal": "2026-12-15T00:00:00 America/Santiago",
+    "afterExpiry": "CONTINUE_SAME_RC1_WITHOUT_PASSWORD_IF_AUTHORIZATION_AND_OPERATIONAL_CONTROLS_REMAIN_VALID"
+  },
+  "integration": {
+    "base": "https://formulario.defensorianinez.gob.cl/integracion/v3/formulario-completo/entregas",
+    "versions": [
+      "1.0",
+      "1.1"
+    ],
+    "prepared": true,
+    "ackTrustConfigured": false,
+    "reservationsEnabled": false,
+    "missingWindowsMaterial": [
+      "ACK_PUBLIC_ED25519_KEY",
+      "ACK_KEY_ID"
+    ],
+    "producerSignerId": "ddn-formulario-prod-20261103-v1",
+    "producerPublicPemSha256": "712fd54ba0676c6457901a9cc6f8eea7b30c4ff1eea1bba63ee055ba64948f92",
+    "publicEdgeCaPemSha256": "7e8b80d078d3dd77d3ed2108dd2b33412c12d7d72cb0965741c70708691776a2",
+    "publicWindowsPackage": "/home/admin-ti/operacion-formulario/intercambio-siger-publico-20261104.zip",
+    "publicWindowsPackageSha256": "1456fdf2c1c6be2e74cb71733c92ad33bf9376b4aabd7c962a100c604d0977ab",
+    "privateKeysOrBearerInPublicPackage": false,
+    "deliveryCredentialMatches": true
+  },
+  "capacity": {
+    "mediaQuota": "5GB",
+    "minimumFilesystemFree": "16GB",
+    "diskFreeGiBAtCheck": 37.56,
+    "automaticRetirementEnabled": false
+  },
+  "backups": {
+    "dailyEncrypted": {
+      "atUtc": "20261104T131015Z",
+      "archive": "/srv/ddn-formulario-respaldos/productivo-diario/formulario-20261104T131015Z.gpg",
+      "sha256": "37ae114e64ea8185a590a9d1aa923fdc4f2d02d3ec5dafb400617ce4e5ad8192",
+      "cipherAndIntegrityVerified": true,
+      "previousControlRestored": true,
+      "retentionDeletesPerformed": false
+    },
+    "scheduledLocal": "03:15 America/Santiago + random <=5m",
+    "timerEnabled": true,
+    "sourceCertification": {
+      "path": "/srv/ddn-formulario-respaldos/certificacion-previa-publicacion-20261104.gpg",
+      "sha256": "4b2282b8b8a9ef61f7eca20b0c78ae58f7da434ed29d0ffe99dfb17884ddc524"
+    },
+    "preparedBeforePublication": {
+      "path": "/srv/ddn-formulario-respaldos/rc1-antes-publicacion-20261104.gpg",
+      "sha256": "6a837c3ff22bd5bed2054093e87b694ec6dcac886ca1a47d518a2f812a6b4e70"
+    },
+    "offHostDestinationConfigured": false
+  },
+  "transition": "APPLIED",
+  "oldCertificationProxyStopped": true,
+  "oldCertificationAutoStartDisabled": true,
+  "preservation": {
+    "institutionalFiles": 597,
+    "institutionalFilesUnchanged": true,
+    "historicalContainersExcludingAuthorizedOldProxy": 34,
+    "historicalContainersUnchanged": true,
+    "cloudflaredProcessUnchanged": true,
+    "existingPkiSignerCredentialsUnchanged": true,
+    "mainAndCertificationBranchUnchanged": true
+  },
+  "countsAtCheck": {
+    "completeCommunications": 0,
+    "legacyDeliveries": 0
+  },
+  "tests": {
+    "backend": {
+      "total": 423,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "python": {
+      "total": 38,
+      "failures": 0,
+      "skipped": 1
+    },
+    "frontendUnchanged": {
+      "react": 219,
+      "lintTypescriptVite": "PASSED_CACHED_IDENTICAL_FRONTEND"
+    }
+  },
+  "newPersonalQueriesPerformed": false,
+  "newCommunicationsGeneratedByCodex": false,
+  "physicalWindowsPerformed": false,
+  "mysqlDurability": {
+    "innodb_doublewrite": "ON",
+    "innodb_flush_log_at_trx_commit": "1",
+    "log_bin": "ON",
+    "sync_binlog": "1"
+  },
+  "verifiedAtUtc": "2026-11-04T13:52:37.780824+00:00",
+  "productionPreflight": "PASSED_WITH_ACTUAL_MOUNTED_PISEE_CONFIG"
+}

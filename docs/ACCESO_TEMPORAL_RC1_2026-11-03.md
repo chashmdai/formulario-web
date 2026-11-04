@@ -1,5 +1,7 @@
 # RC1 — protección temporal instalada para pruebas institucionales
 
+**Actualización 04/11/2026:** [publicación y recepción autorizadas](CHECKPOINT_PRODUCCION_SIGER_2026-11-04.md). La política de apertura V2 permite que, al vencer la contraseña, continúe el mismo RC1 con la recepción autorizada sin requerir Windows/E2E terminados. Siguen vigentes los cierres por incidencia y capacidad. Las referencias siguientes al estado inicialmente cerrado son históricas.
+
 Encargo del 03/11/2026; cierre de ejecución 04/11/2026, America/Santiago. Rama `release/formulario-produccion-2026-11`. Instalación privada `/srv/ddn-formulario-produccion`, URL `https://localhost:30443/?vista=inicio`. No se sustituyó certificación ni se modificó Cloudflare. Recepción y PULL continúan cerrados.
 
 ## Comportamiento instalado
