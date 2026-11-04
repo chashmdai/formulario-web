@@ -1,5 +1,7 @@
 # RC1 — operación, respaldo, actualización y reversión
 
+**Instalación definitiva ya ejecutada:** [rutas, herramientas y recuperación comprobada](INSTALACION_PRODUCTIVA_EJECUTADA_2026-11-03.md). Se restauró también un respaldo real de la instalación preparada: veinte tablas idénticas y persistencia después del reinicio de un MySQL independiente. Las pruebas sintéticas históricas indicadas más abajo se mantienen como evidencia complementaria.
+
 Complementa la guía TI. El alcance actual es privado; no ejecutar estas instrucciones sobre certificación ni campañas históricas. Los comandos de ejemplo requieren las rutas definitivas revisadas por TI. No copiar valores secretos a terminal, informes o tickets.
 
 ## Comando de operación

@@ -24,7 +24,7 @@
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
     route {
-        @wrongHost not host {$FORM_HOSTNAME}
+        @wrongHost not host {$FORM_HOSTNAME} localhost
         respond @wrongHost "Origen no autorizado" 421
         # Administración solo por red backend privada y credencial separada.
         @private path /operacion /operacion/* /actuator /actuator/* /admin /admin/*

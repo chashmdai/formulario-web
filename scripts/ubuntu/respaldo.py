@@ -147,8 +147,8 @@ def restore(a):
             for name in ['config','secrets','cu','keys','pki','store','clamav','pisee']:
                 for p in [root / name, *(root / name).rglob('*')]:
                     if p.exists(): os.chown(p, 1000, 1000)
-            for name in ['pki/mysql','mysql','mysql-init','pki/authority']:
-                uid = 999 if name != 'pki/authority' else 0
+            for name in ['pki/mysql','mysql','mysql-init','pki/authority','pki/origin-authority']:
+                uid = 0 if name.endswith('authority') else 999
                 for p in [root / name, *(root / name).rglob('*')]:
                     if p.exists(): os.chown(p, uid, uid)
             for name in ['secrets/mysql-root-password','compose.env']:

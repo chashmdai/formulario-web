@@ -137,6 +137,8 @@ class Productor:
                  'producerSigningApproval':json.loads((self.root/'authorization/signing-status.json').read_text())['approval'],
                  'pendingWindowsMaterial':['ACK_PUBLIC_ED25519_KEY','ACK_KEY_ID'],
                  'privateOriginPort':self.port,'privateOriginLoopbackOnly':True}
+        profile['privateTunnelOrigin']='https://localhost:32443'
+        profile['privateTransport']='SSH local forward 127.0.0.1:32443 -> DDN-UBUNTU 127.0.0.1:'+str(self.port)
         (target/'consumer-profile.json').write_text(json.dumps(profile,indent=2))
         hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in target.iterdir()}
         (target/'SHA256SUMS.json').write_text(json.dumps(hashes,indent=2))

@@ -6,6 +6,8 @@
 
 **EL FORMULARIO PÚBLICO NO SE ENCUENTRA HABILITADO PARA PRODUCCIÓN.**
 
+**Instalación definitiva preparada · 03/11/2026:** RC1 instalado privadamente en `/srv/ddn-formulario-produccion`, con recepción y PULL cerrados. [Estado ejecutado y manifiesto](docs/INSTALACION_PRODUCTIVA_EJECUTADA_2026-11-03.md). PISEE productivo, ClaveÚnica y productor PULL/ACK; el sitio público conserva su modo exclusivo de certificación. Graph y correo son responsabilidad de SIGER y quedan fuera del alcance del Formulario. Las referencias anteriores a instalaciones futuras son históricas; no autorizan publicación.
+
 [![CI Linux y Windows](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/chashmdai/formulario-web/actions/workflows/ci.yml)
 
 **Traspaso vigente · GATE H1 (01/11/2026):** [comenzar aquí](docs/TRASPASO_DDN_UBUNTU_GATE_H1_2026-11-01.md) · [instalación Ubuntu/Docker](docs/INSTALACION_UBUNTU_DOCKER.md) · [ClaveÚnica, PISEE y SIGER](docs/INTEGRACIONES_UBUNTU.md) · [verificaciones H1](docs/VERIFICACION_GATE_H1_2026-11-01.md).

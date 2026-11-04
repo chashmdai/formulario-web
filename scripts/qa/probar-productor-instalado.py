@@ -9,6 +9,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -26,12 +27,35 @@ def b64(value):return base64.urlsafe_b64encode(value).rstrip(b'=').decode()
 def decode(value):return base64.urlsafe_b64decode(value+'='*((-len(value))%4))
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True);p.add_argument('--work',required=True);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True);p.add_argument('--work',required=True)
+    modes=p.add_mutually_exclusive_group();modes.add_argument('--windows-handoff',action='store_true');modes.add_argument('--start-handoff-pull',action='store_true');modes.add_argument('--finish-handoff',action='store_true')
+    a=p.parse_args()
     os.umask(0o077);work=Path(a.work).absolute()
-    if work.exists() or any((q/'.git').exists() or q.is_symlink() for q in [work,*work.parents]):raise ValueError('Directorio nuevo privado requerido')
+    if any((q/'.git').exists() or q.is_symlink() for q in [work,*work.parents]):raise ValueError('Directorio privado fuera de Git requerido')
     op=Productor(a.root)
+    if a.start_handoff_pull or a.finish_handoff:
+        saved_state=json.loads((work/'handoff-state.json').read_text())
+        current=(op.root/'config/application.properties').read_text()
+        if op.port==24443 or saved_state['root']!=str(op.root) or not re.fullmatch('formulario_acceptance_[a-f0-9]{12}',saved_state['schema']) or '/'+saved_state['schema']+'?' not in current:
+            raise ValueError('No es la campaña privada preparada')
+        if a.start_handoff_pull:
+            if 'PISEE_SRCEI_ENABLED=false' not in current:raise ValueError('Campaña física exclusivamente sintética')
+            print(json.dumps(op.control(False,True)));return
+        op.control(False,False)
+        config=op.root/'config/application.properties';config.write_bytes(decode(saved_state['config']))
+        trust=op.root/'keys/institutional-trust.json';trust.write_bytes(decode(saved_state['trust']))
+        op.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
+        schema=saved_state['schema']
+        revoke=f"REVOKE ALL PRIVILEGES ON {schema}.* FROM 'formulario_app'@'%'; REVOKE ALL PRIVILEGES ON {schema}.* FROM 'formulario_migrador'@'%';"
+        response=subprocess.run(['docker','exec','-i',op.meta['project']+'-mysql-1','mysql','--defaults-extra-file=/run/secrets/root.cnf'],input=revoke.encode(),capture_output=True)
+        if response.returncode:raise ValueError('Revisar revocación de esquema sintético')
+        saved_state['status']='FINISHED';(work/'handoff-state.json').write_text(json.dumps(saved_state))
+        print(json.dumps({'handoffFinished':True,'productionRestored':op.verify(),'physicalWindowsResultMustBeVerifiedSeparately':True}));return
+    if work.exists():raise ValueError('Directorio nuevo privado requerido')
     state=op.verify()
     if op.port==24443 or state['acceptNew'] or state['pull']:raise ValueError('Solo ventana privada cerrada')
+    if a.windows_handoff and not json.loads((op.root/'keys/institutional-trust.json').read_text()):
+        raise ValueError('Instalar antes la clave pública ACK real de Windows; no se inventa una identidad')
     work.mkdir(mode=0o700);store=work/'store';store.mkdir();os.chown(store,1000,1000)
     config=op.root/'config/application.properties';saved=config.read_bytes();trust=op.root/'keys/institutional-trust.json';oldtrust=trust.read_bytes()
     schema='formulario_acceptance_'+uuid.uuid4().hex[:12]
@@ -40,22 +64,25 @@ def main():
         r=subprocess.run(['docker','exec','-i',container,'mysql','--defaults-extra-file=/run/secrets/root.cnf','--batch','--skip-column-names'],input=text.encode(),capture_output=True)
         if r.returncode:raise ValueError('SQL de aceptación rechazado')
         return r.stdout
-    key=Ed25519PrivateKey.generate();kid='synthetic-local-ack-20261103';pub=key.public_key().public_bytes(serialization.Encoding.PEM,serialization.PublicFormat.SubjectPublicKeyInfo)
-    (work/'synthetic-ack-key.pem').write_bytes(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()))
+    key=None;kid='synthetic-local-ack-20261103';pub=b''
+    if not a.windows_handoff:
+        key=Ed25519PrivateKey.generate();pub=key.public_key().public_bytes(serialization.Encoding.PEM,serialization.PublicFormat.SubjectPublicKeyInfo)
+        (work/'synthetic-ack-key.pem').write_bytes(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()))
     overlay=work/'acceptance.yml';overlay.write_text('services:\n  app:\n    volumes:\n      - '+str(store)+':/var/lib/formulario\n')
-    base_compose=op.meta['compose'];created=False;result={'physicalWindows':False,'srcEiQueried':False,'syntheticOnly':True}
+    base_compose=op.meta['compose'];created=False;leave_active=False;result={'physicalWindows':False,'srcEiQueried':False,'syntheticOnly':True}
     try:
         sql(f"CREATE DATABASE {schema} CHARACTER SET utf8mb4; GRANT SELECT,INSERT,UPDATE,DELETE ON {schema}.* TO 'formulario_app'@'%'; GRANT ALL ON {schema}.* TO 'formulario_migrador'@'%';")
         created=True
         cmd=base_compose+['--profile','migracion','run','--rm','-T','-e',f'MIGRATION_DB_URL=jdbc:mysql://mysql:3306/{schema}?sslMode=VERIFY_IDENTITY','migrar']
         with (work/'migration.log').open('w') as f:r=subprocess.run(cmd,stdin=subprocess.DEVNULL,stdout=f,stderr=f)
         if r.returncode:raise ValueError('Migración sintética falló')
-        trust.write_text(json.dumps({kid:pub.decode()}));os.chown(trust,1000,1000)
+        if not a.windows_handoff:trust.write_text(json.dumps({kid:pub.decode()}));os.chown(trust,1000,1000)
         # Sustituye SOLO la base y custodia del contenedor productor durante el ensayo.
         props=dict(l.split('=',1) for l in saved.decode().splitlines() if '=' in l and not l.startswith('#'))
         op.config({'publico.db.url':props['publico.db.url'].replace('/formulario_publico?','/'+schema+'?'),
             'publico.integracion.habilitada':'true','publico.recepcion.aviso-validado':'true',
             'formulario.adultos.habilitado':'true','formulario.recepcion.habilitada':'true'})
+        if a.windows_handoff:op.config({'PISEE_SRCEI_ENABLED':'false'})
         op.meta['compose']=base_compose+['-f',str(overlay)]
         op.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
         op.cookies={}
@@ -91,7 +118,13 @@ def main():
             payload={'campos':{'motivo':'consulta','tema':'general','consulta-confirmada':'true','consulta-general-detalle':'ACEPTACION TECNICA SINTETICA. No es una solicitud ciudadana.','adult-region':'13'},'personas':[],'instituciones':[],'adjuntos':attachments}
             ident=str(uuid.uuid4());receipt,_=api('POST',path+'/comunicaciones',payload,{'Idempotency-Key':ident});same,_=api('POST',path+'/comunicaciones',payload,{'Idempotency-Key':ident});assert receipt==same
             ids.append(receipt['id'])
-        op.control(False,False);op.control(False,True)
+        op.control(False,False)
+        if a.windows_handoff:
+            saved_state={'root':str(op.root),'schema':schema,'config':b64(saved),'trust':b64(oldtrust),'status':'READY_PULL_CLOSED',
+                         'communications':2,'syntheticOnly':True,'physicalWindowsResult':False}
+            (work/'handoff-state.json').write_text(json.dumps(saved_state,indent=2));leave_active=True
+            print(json.dumps({'windowsHandoffPrepared':True,'syntheticCommunications':2,'acceptNew':False,'pull':False,'physicalWindowsResult':False}));return
+        op.control(False,True)
         consumer=sqlite3.connect(work/'controlled-consumer.sqlite');consumer.execute('PRAGMA synchronous=FULL');consumer.execute('CREATE TABLE registry(id TEXT PRIMARY KEY, hash TEXT, ack TEXT, ack_pending INT)');consumer.commit()
         public=json.loads((op.root/'keys/receipt-trust.json').read_text())
         for index,version in enumerate(['1.0','1.1'],1):
@@ -123,11 +156,12 @@ def main():
         (work/'result.json').write_text(json.dumps(result,indent=2));print(json.dumps(result))
     finally:
         # La base productiva jamás recibió estas Comunicaciones ni el ACK del doble.
-        config.write_bytes(saved);trust.write_bytes(oldtrust);os.chown(config,1000,1000);os.chown(trust,1000,1000)
-        op.meta['compose']=base_compose
-        op.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
-        if created:sql(f"REVOKE ALL PRIVILEGES ON {schema}.* FROM 'formulario_app'@'%'; REVOKE ALL PRIVILEGES ON {schema}.* FROM 'formulario_migrador'@'%';")
-        (work/'production-restored.json').write_text(json.dumps(op.verify(),indent=2))
+        if not leave_active:
+            config.write_bytes(saved);trust.write_bytes(oldtrust);os.chown(config,1000,1000);os.chown(trust,1000,1000)
+            op.meta['compose']=base_compose
+            op.compose('up','-d','--no-build','--no-deps','--force-recreate','--wait','app')
+            if created:sql(f"REVOKE ALL PRIVILEGES ON {schema}.* FROM 'formulario_app'@'%'; REVOKE ALL PRIVILEGES ON {schema}.* FROM 'formulario_migrador'@'%';")
+            (work/'production-restored.json').write_text(json.dumps(op.verify(),indent=2))
 
 if __name__=='__main__':
     try:main()

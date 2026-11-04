@@ -1,5 +1,7 @@
 # Integraciones del Formulario en Ubuntu
 
+**Estado vigente 03/11/2026:** PISEE productivo ya instalado y acreditado; productor definitivo preparado privadamente en `/srv/ddn-formulario-produccion`. Ver [informe ejecutado](INSTALACION_PRODUCTIVA_EJECUTADA_2026-11-03.md). Las secciones de ZIP pendiente y túnel no creado conservan el contexto histórico de H1; no describen el estado actual. Graph/correo quedan fuera del Formulario. No modificar el túnel ni el sitio público de certificación activos.
+
 **Actualización 02/11/2026:** [modo de instalación cerrado sin CU ni confianza ACK](ARRANQUE_CERRADO_UBUNTU_2026-11-02.md). Los requisitos originales siguen vigentes al habilitar cada integración.
 
 

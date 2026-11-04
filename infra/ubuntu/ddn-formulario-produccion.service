@@ -1,0 +1,19 @@
+[Unit]
+Description=Formulario DDN definitivo preparado (sin publicación ni apertura)
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
+ConditionPathExists=/srv/ddn-formulario-produccion/installation.json
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/srv/ddn-formulario-produccion
+UMask=0077
+ExecStart=/usr/bin/docker compose --env-file /srv/ddn-formulario-produccion/compose.env -p ddn-formulario-produccion -f /srv/ddn-formulario-produccion/release/infra/ubuntu/compose.yml -f /srv/ddn-formulario-produccion/release/infra/ubuntu/compose.production.yml -f /srv/ddn-formulario-produccion/compose.origin-ca.yml up -d --no-build --wait --wait-timeout 240
+TimeoutStartSec=300
+# No ExecStop: detener esta unidad no detiene contenedores ni borra datos.
+# El cierre de recepción y mantenimiento se realiza por los controles CAS.
+
+[Install]
+WantedBy=multi-user.target
