@@ -1,0 +1,95 @@
+{
+  "schema": "DDN_PULL_CONTINUO_CANDIDATE_V1",
+  "status": "PREPARED_NOT_INSTALLED",
+  "branch": "feature/formulario-pull-continuo-20261105",
+  "applicationSourceCommit": "c42bc4fb913c85001e01c6ba4c7b332a530ca448",
+  "operationSourceCommit": "0c21bc21c6acbcf8c6259e111f4903ab116eb2d8",
+  "jarSha256": "5f778552618fd734af4d04c8cf511d67b0d80a21756c57d9e8ab81abf81fbaaa",
+  "runtimeChanged": false,
+  "imagesReused": {
+    "app": "sha256:6fa0f5d53cc72e98fd9789537bf3e98269826be7e4ea9fbbd40158651ffaba6b",
+    "proxy": "sha256:8e16dea11ee81feddab2622ee05907b96dcd452de111acc3394f859719552207",
+    "mysql": "sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364",
+    "antivirus": "sha256:2513c005f21f3602f0172372ef8ea23f0e55cf6207c9c3785b72f2803f5994cb",
+    "pisee": "sha256:e0245efc9e74b0a3995f0d944e43a008b895deab8c18e715b8c0a11f70fbf842",
+    "inspector": "sha256:3a24d996d75003959df9b7f7733472cf9b4ef9b1fd1edfa87246613098f8a305"
+  },
+  "files": {
+    "scripts/ubuntu/continuidad.py": "35bce1581b05c273423bca9c0bcd176a94017e258938faa5825d499a7e4dcfc4",
+    "scripts/ubuntu/respaldo-programado.py": "ccc39ab05122ef2e5d44cd6fb21ca8e517c655daea0f339f23630768f39fc507",
+    "scripts/ubuntu/respaldo.py": "2f0f984fb8db5fdcaec58ef17a9dd35a9d589699b8d52aa436713f6ae0d81382",
+    "scripts/ubuntu/productor.py": "896472757e9192d9895392773726d0a84bb04f85863161bbacc02faf02699f56"
+  },
+  "tests": {
+    "sourceCommit": "0c21bc21c6acbcf8c6259e111f4903ab116eb2d8",
+    "backendH2": {
+      "total": 429,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "backendMysql": {
+      "total": 33,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "python": {
+      "total": 51,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "mysqlNativeRecovery": {
+      "status": "PASSED",
+      "nativeMysqlDumpRestore": true,
+      "mysqlServerRestart": true,
+      "controlPreserved": true,
+      "ed25519AndOriginalHashVerified": true,
+      "hostPortsPublished": false,
+      "productionUsed": false
+    },
+    "gpgRoundtrip": {
+      "actualGpgAndTar": true,
+      "dockerDumpIsSyntheticDouble": true,
+      "restoredSqlBytesAndOriginals": true
+    },
+    "frontend": "UNCHANGED_CACHED_FRONTEND_STAGE",
+    "providersQueried": false,
+    "windowsTestedByUbuntu": false,
+    "hostRebootTested": false
+  },
+  "preservation": {
+    "verifiedAtUtc": "2026-11-05T15:41:28.293917+00:00",
+    "productionUnchanged": true,
+    "protectedFilesCompared": 45,
+    "controls": {
+      "revision": 18,
+      "aceptarNuevos": true,
+      "recuperar": false,
+      "contingencia": "NORMAL"
+    },
+    "queueAggregateUnchanged": true,
+    "confirmed": 2,
+    "activeLeases": 0,
+    "servicesHealthy": 6,
+    "sameContainerIdsImagesStarts": true,
+    "passwordConfigurationSecretsPkiAuthorizationsUnchanged": true,
+    "backupActualHashVerified": true,
+    "freeGiBAfterTests": 31.13,
+    "productionMutationsPerformed": false
+  },
+  "citizenPasswordPolicyChanged": false,
+  "publicPullOpened": false,
+  "windowsCandidateReported": {
+    "commit": "02d4184",
+    "package": "smr-continua-rc1-20261105-r2",
+    "deployed": false,
+    "scmQualified": false
+  },
+  "pending": [
+    "institutionalContinuousCustodyApproval",
+    "windowsDeploymentAndQualification",
+    "coordinatedInitialActivation"
+  ]
+}
