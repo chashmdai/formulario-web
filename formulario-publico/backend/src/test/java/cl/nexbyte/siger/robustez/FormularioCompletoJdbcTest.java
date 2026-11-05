@@ -61,14 +61,14 @@ class FormularioCompletoJdbcTest {
         var c=delivery.comunicacion();var r=new ComprobanteInstitucional.Contenido("1.1","SIGER_DDN","COMUNICACION_REGISTRADA",c.id(),UUID.randomUUID(),1,"COM-1",now.get(),"FORMULARIO_WEB_NNA",delivery.sha256(),delivery.huellaProcedencia());
         return new RegistroInstitucional(r,ComprobanteInstitucional.firmar(r,kid,pair.getPrivate(),mapper));
     }
-    void reiniciarSoloJdbcSintetico() {
+    void reiniciarSoloJdbcSintetico()throws Exception {
         db.close();String supplied=System.getenv("ROBUST_DB_URL");
         String url=supplied==null?"jdbc:h2:file:"+directory.resolve("publico").toAbsolutePath().toString().replace('\\','/')+";DB_CLOSE_ON_EXIT=FALSE;WRITE_DELAY=0":supplied;
         db=new BaseJdbc(url,supplied==null?"sa":System.getenv("ROBUST_DB_USER"),supplied==null?"":System.getenv("ROBUST_DB_PASSWORD"),12);
         journeys=new RecorridosJdbc(db,mapper,r->{throw new AssertionError("No proveedor real");},r->false,clock,new byte[32],"ADULTO_LAB_1","NNA_LAB_1");
         files=new AdjuntosFormulario(db,journeys,b->true);service=crear();
     }
-    @Test void pausaAdministrativaPersisteTrasReinicioYPermiteConciliarAckEnVuelo() {
+    @Test void pausaAdministrativaPersisteTrasReinicioYPermiteConciliarAckEnVuelo()throws Exception {
         var initial=enviar();var lease=service.reclamar(1).getFirst();var signed=ack(lease.entrega(),institution,"institucion");
         var control=new ControlesOperacion(db);var paused=control.cambiar(control.estado().revision(),true,false,"NORMAL","INCIDENTE");
         reiniciarSoloJdbcSintetico();assertEquals(paused,new ControlesOperacion(db).estado());
@@ -78,7 +78,7 @@ class FormularioCompletoJdbcTest {
         assertFalse(new ControlesOperacion(db).estado().recuperar());
         assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
     }
-    @Test void recuperacionContinuaNoCaducaPorRelojYLeaseVencidaSeReasignaSinDuplicar() {
+    @Test void recuperacionContinuaNoCaducaPorRelojYLeaseVencidaSeReasignaSinDuplicar()throws Exception {
         var initial=enviar();var lease=service.reclamar(1).getFirst();var signed=ack(lease.entrega(),institution,"institucion");
         var before=new ControlesOperacion(db).estado();now.set(now.get().plus(java.time.Duration.ofDays(100)));
         reiniciarSoloJdbcSintetico();assertEquals(before,new ControlesOperacion(db).estado());
@@ -89,16 +89,35 @@ class FormularioCompletoJdbcTest {
         service.confirmar(initial.id(),retry.reserva(),signed);assertTrue(service.reclamar(1).isEmpty());
         assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE state='CONFIRMADA'",Integer.class));
     }
-    @Test void falloTemporalYOriginalIntegroSobrevivenReinicio() {
+    @Test void falloTemporalYOriginalIntegroSobrevivenReinicio()throws Exception {
         var bytes="Original sintetico continuo".getBytes(StandardCharsets.UTF_8);
         var file=files.reemplazar(journey,session,List.of(texto("continuo.txt",new String(bytes,StandardCharsets.UTF_8)))).getFirst();
         var initial=service.recibir(UUID.randomUUID(),journey,session,datos(datos().campos(),List.of(file.id())));
         var lease=service.reclamar(1).getFirst();service.fallo(initial.id(),lease.reserva(),"RECEPTOR_NO_DISPONIBLE");
         reiniciarSoloJdbcSintetico();assertTrue(service.reclamar(1).isEmpty());now.set(now.get().plusSeconds(3));
         var retry=service.reclamar(1).getFirst();assertArrayEquals(bytes,service.adjuntoReservado(initial.id(),retry.reserva(),file.id()).contenido());
-        assertEquals(file.sha256(),AdjuntosFormulario.hash(bytes));
+        assertEquals(file.sha256(),HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));
         service.confirmar(initial.id(),retry.reserva(),ack(retry.entrega(),institution,"institucion"));
         assertEquals("REGISTRADA_SIGER",service.consultar(initial.id(),session).estado());
+    }
+    @Test void respaldoSqlH2RestauraDocumentoOriginalFirmaAckYControlSinCambiarOrigen()throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(System.getenv("ROBUST_DB_URL")==null,"H2 SQL export; MySQL se verifica mediante dump/restore separado");
+        var file=files.reemplazar(journey,session,List.of(texto("restaurar.txt","Original sintetico a restaurar"))).getFirst();
+        var original=files.descargar(journey,file.id(),session).contenido();
+        var initial=service.recibir(UUID.randomUUID(),journey,session,datos(datos().campos(),List.of(file.id())));
+        var lease=service.reclamar(1).getFirst();var signed=ack(lease.entrega(),institution,"institucion");service.confirmar(initial.id(),lease.reserva(),signed);
+        var ctl=new ControlesOperacion(db);var paused=ctl.cambiar(ctl.estado().revision(),true,false,"NORMAL","MANTENIMIENTO");
+        var snapshot=directory.resolve("synthetic-backup.sql").toAbsolutePath().toString().replace('\\','/').replace("'","''");
+        db.sql.execute("SCRIPT TO '"+snapshot+"'");
+        try(var restored=new BaseJdbc("jdbc:h2:file:"+directory.resolve("restored").toAbsolutePath().toString().replace('\\','/')+";DB_CLOSE_ON_EXIT=FALSE;WRITE_DELAY=0","sa","",4)) {
+            restored.sql.execute("RUNSCRIPT FROM '"+snapshot+"'");assertEquals(paused,new ControlesOperacion(restored).estado());
+            var row=restored.sql.queryForMap("SELECT body,ack,state FROM citizen_submission WHERE id=?",initial.id().toString());
+            var delivery=mapper.readValue(row.get("body").toString(),EntregaFormulario.class);delivery.validar(Map.of("publico",signer.getPublic()),mapper);
+            var receipt=mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class);delivery.validarRegistro(receipt,Map.of("institucion",institution.getPublic()),mapper);assertEquals(signed,receipt);assertEquals("CONFIRMADA",row.get("state"));
+            var j=new RecorridosJdbc(restored,mapper,r->{throw new AssertionError("No proveedor");},r->false,clock,new byte[32],"ADULTO_LAB_1","NNA_LAB_1");
+            var f=new AdjuntosFormulario(restored,j,b->true);assertArrayEquals(original,f.descargar(journey,file.id(),session).contenido());
+        }
+        assertEquals(paused,new ControlesOperacion(db).estado());assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
     }
     @Test void custodiaConserva5000CaracteresYNoEntregaDatosPersonalesAlNavegador()throws Exception {
         var data=datos(Map.of("nna-region","13","nna-primary-method","unsafe","nna-story","x".repeat(5000)),List.of());var key=UUID.randomUUID();var state=service.recibir(key,journey,session,data);

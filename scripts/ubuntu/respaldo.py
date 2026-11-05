@@ -110,7 +110,8 @@ def backup(a):
             run(['gpg','--no-options','--homedir',str(gpg),'--batch','--yes','--pinentry-mode','loopback','--passphrase-file',str(password),
                  '--symmetric','--cipher-algo','AES256','--output',str(output),str(archive)])
             output.chmod(0o600)
-            digest = hashlib.file_digest(output.open('rb'), 'sha256').hexdigest()
+            with output.open('rb') as stream:
+                digest = hashlib.file_digest(stream, 'sha256').hexdigest()
             output.with_suffix(output.suffix + '.sha256').write_text(digest + '\n')
     finally:
         if writers: run(['docker','start',*reversed(writers)])
@@ -121,7 +122,9 @@ def restore(a):
     target, source, password = private(a.destination), private(a.archive), key(a.key_file)
     if target.exists(): raise ValueError('Restauración requiere directorio NUEVO')
     expected = source.with_suffix(source.suffix + '.sha256').read_text().strip()
-    if hashlib.file_digest(source.open('rb'), 'sha256').hexdigest() != expected:
+    with source.open('rb') as stream:
+        actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if actual != expected:
         raise ValueError('Hash de respaldo inválido')
     with tempfile.TemporaryDirectory(prefix='ddn-restore-', dir=target.parent) as folder:
         gpg = Path(folder) / 'gpg'; gpg.mkdir(mode=0o700)
