@@ -119,6 +119,15 @@ class FormularioCompletoJdbcTest {
         }
         assertEquals(paused,new ControlesOperacion(db).estado());assertEquals(1,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
     }
+    @Test void capacidadInsuficienteCierraAdmisionSinBorrarNiCambiarIntencionCas() {
+        var before=new ControlesOperacion(db).estado();
+        var env=new org.springframework.mock.env.MockEnvironment().withProperty("capacidad.minimo-libre",Long.MAX_VALUE+"B")
+            .withProperty("formulario.multimedia.directorio",directory.toString());
+        service.admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
+        assertFalse(service.disponible());assertEquals(503,assertThrows(FalloTecnico.class,()->enviar()).status);
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
+        assertEquals(before,new ControlesOperacion(db).estado());
+    }
     @Test void custodiaConserva5000CaracteresYNoEntregaDatosPersonalesAlNavegador()throws Exception {
         var data=datos(Map.of("nna-region","13","nna-primary-method","unsafe","nna-story","x".repeat(5000)),List.of());var key=UUID.randomUUID();var state=service.recibir(key,journey,session,data);
         assertEquals("PENDIENTE_REGISTRO_SIGER",state.estado());assertNull(state.registro());assertNotNull(state.custodia());

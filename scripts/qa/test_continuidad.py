@@ -103,5 +103,12 @@ class BackupContinuidadTest(unittest.TestCase):
     def test_pausa_concurrente_prevalece_y_copia_se_registra(self):self.scenario(operator_change=True)
     def test_fallo_conserva_cierre(self):self.scenario(failure=True)
     def test_respaldo_de_instancia_cerrada_no_reabre(self):self.scenario(closed=True)
+    def test_capacidad_insuficiente_conserva_cierre_y_no_inicia_copia(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t);op=Op(root,True,True)
+            with patch.object(backup.shutil,'disk_usage',return_value=types.SimpleNamespace(free=16*2**30-1)),patch.object(backup.subprocess,'run',side_effect=AssertionError('No copiar sin capacidad')):
+                with self.assertRaises(ValueError):backup.run_backup(op,root/'copies',root/'key')
+            self.assertFalse(op.state['aceptarNuevos']);self.assertFalse(op.state['recuperar'])
+            self.assertFalse((root/'copies').exists())
 
 if __name__=='__main__':unittest.main()
