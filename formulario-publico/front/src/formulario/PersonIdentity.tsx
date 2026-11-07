@@ -4,6 +4,7 @@ import { ApiError } from '../api';
 import { declarePerson, getPerson, identifyPerson, resetPerson } from './api';
 import type { Declarations, IdentityField, IdentityView, PersonRole } from './api';
 import { formatRunNumber, pastedRun, runNumber, validRun } from './run';
+import { NAME_MAX_LENGTH, nameProblem, normalizeName, typingProblem } from './personalData';
 
 export interface PersonIdentityHandle {save: () => Promise<IdentityView | null>}
 export type RelatedRole = Exclude<PersonRole,'PRESENTADOR'>;
@@ -29,7 +30,13 @@ export function PersonIdentity({journey,person,role,identityRef,children,onResol
     if(next.autenticada||next.personaId!==person)throw new ApiError(502);
     setView(next);setValues(next.valoresDeclarados);setErrors({});setFailure('');setBusy(next.estado==='CONSULTANDO');callback.current?.(next);
   }
-  function fail(error:unknown) {setBusy(false);setFailure(error instanceof ApiError&&error.status===429?'Espera unos minutos antes de revisar otro RUN.':'No pudimos revisar o guardar los datos de esta persona. Inténtalo nuevamente.');}
+  function fail(error:unknown) {setBusy(false);setFailure(error instanceof ApiError&&error.status===429?'Espera unos minutos antes de revisar otro RUN.':error instanceof ApiError&&error.status===400?'Algunos datos de esta persona no tienen un formato válido. Revísalos e inténtalo nuevamente.':'No pudimos revisar o guardar los datos de esta persona. Inténtalo nuevamente.');}
+  /** Para terceros basta un dato parcial: se valida el formato, no la extensión del nombre. */
+  function problemFor(key:IdentityField,value:string){return key==='edad'?(value&&(!/^\d{1,2}$/.test(value)||Number(value)>17)?'Indica una edad entre 0 y 17 años, o deja el campo en blanco.':null):nameProblem(key,value,false);}
+  function leave(key:IdentityField,value:string){
+    const clean=key==='edad'?value:normalizeName(value);if(clean!==value)setValues(old=>({...old,[key]:clean}));
+    const problem=problemFor(key,clean);setErrors(old=>{const next={...old};delete next[key];return problem?{...next,[key]:problem}:next;});
+  }
   useEffect(()=>{
     let active=true;const token=++generation.current;
     void getPerson(journey,person).catch(error=>{if(!(error instanceof ApiError)||error.status!==404)throw error;if(!active||token!==generation.current)return null;return identifyPerson(journey,person,role);})
@@ -63,11 +70,11 @@ export function PersonIdentity({journey,person,role,identityRef,children,onResol
   async function save():Promise<IdentityView|null> {
     if(busy)return null;
     const current=view?.estado==='REVISADO'?view:await review();if(!current||current.estado!=='REVISADO')return null;
-    const input=view?values:current.valoresDeclarados,problems:Record<string,string>={};
+    const input=Object.fromEntries(Object.entries(view?values:current.valoresDeclarados).map(([key,value])=>[key,value&&key!=='edad'&&fields.some(f=>f.key===key)?normalizeName(value):value])) as Declarations,problems:Record<string,string>={};
+    if(view)setValues(input);
     for(const [key,value] of Object.entries(input)) {
-      if(!value)continue;
-      if(key==='edad'&&(!/^\d{1,2}$/.test(value)||Number(value)>17))problems[key]='Indica una edad entre 0 y 17 años, o deja el campo en blanco.';
-      if(key!=='edad'&&fields.some(f=>f.key===key)&&(!/^[\p{L}\p{M} .'-]+$/u.test(value)||!/\p{L}/u.test(value)))problems[key]='Escribe solo letras y separadores de nombres.';
+      if(!value||!fields.some(f=>f.key===key))continue;
+      const problem=problemFor(key as IdentityField,value);if(problem)problems[key]=problem;
     }
     if(Object.keys(problems).length){setErrors(problems);document.getElementById(id(fields.find(f=>problems[f.key])!.suffix))?.focus();return null;}
     const token=++generation.current;setBusy(true);
@@ -89,19 +96,19 @@ export function PersonIdentity({journey,person,role,identityRef,children,onResol
           <input type="text" id={id('run')+'-dv'} data-mask="run-dv" inputMode="text" maxLength={1} placeholder="K" autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-label="Dígito verificador del RUN" value={dv} disabled={busy} onChange={e=>changed('dv',e.target.value)} aria-invalid={!!errors.run} />
         </div></div><p className="field-error" hidden={!errors.run}>{errors.run}</p>
       </div>}
-      <div className="lookup-actions"><button type="button" className="btn btn-secondary" disabled={busy||preserved} onClick={()=>{void review();}}>Revisar RUN</button>
+      <div className="lookup-actions"><button type="button" className="btn btn-secondary" aria-busy={busy||undefined} disabled={busy||preserved} onClick={()=>{void review();}}>Revisar RUN</button>
         <button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>{invalidate();setNumero('');setDv('');void review(true);}}>Continuar sin RUN</button></div>
-      <div className="manual-status" id={id('lookup')} role="status" aria-live="polite" hidden={!busy&&!failure&&!view?.runInformado}>{busy?'Estamos revisando los datos…':failure||view?.mensaje}</div>
+      <div className={`manual-status${busy?' is-busy':failure?' is-error':''}`} id={id('lookup')} role="status" aria-live="polite" hidden={!busy&&!failure&&!view?.runInformado}>{busy&&<span className="ui-spinner inline-spinner" aria-hidden="true"/>}{busy?'Estamos revisando los datos…':failure||view?.mensaje}</div>
       {failure&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>{void(view?.estado==='REVISADO'?save():view?.estado==='CONSULTANDO'||preserved||(!numero&&!dv)?refresh():review());}}>Volver a intentar</button>}
-      <p className="field-help">Puedes informar un RUN si lo conoces. Los datos sobre otras personas se registran como información declarada.</p>
+      <p className="field-help">RUN opcional. Lo que informes sobre otras personas queda registrado como dato declarado.</p>
     </div>
     <div className="repeat-fields">
       {fields.filter(f=>(role==='AFECTADO_NNA'||f.key!=='edad')&&view?.camposFaltantes.includes(f.key)).map(f=><div className="field" data-identity-attr={f.suffix} key={f.key}>
         <label htmlFor={id(f.suffix)}>{f.label} <span className="muted-label">{role==='ADULTO_RELACIONADO'?'(si lo sabes)':f.hint}</span></label>
-        <input id={id(f.suffix)} data-key={f.suffix} data-name-part={f.key==='edad'?undefined:true} type={f.key==='edad'?'number':'text'} {...(f.key==='edad'?{min:0,max:17,inputMode:'numeric' as const}: {})} maxLength={f.key==='edad'?2:500}
+        <input id={id(f.suffix)} data-key={f.suffix} data-name-part={f.key==='edad'?undefined:true} type={f.key==='edad'?'number':'text'} {...(f.key==='edad'?{min:0,max:17,inputMode:'numeric' as const}:{autoCapitalize:'words',spellCheck:false})} maxLength={f.key==='edad'?2:NAME_MAX_LENGTH}
           placeholder={role==='AFECTADO_NNA'?(f.key==='edad'?'Ej.: 12':f.label):role==='PERSONA_SENALADA'&&f.key==='primerNombre'?'Primer nombre':undefined}
-          value={values[f.key]||''} disabled={busy} onChange={e=>{const value=e.target.value;setValues(old=>({...old,[f.key]:value}));setErrors(old=>{const next={...old};delete next[f.key];return next;});}} aria-invalid={!!errors[f.key]} aria-describedby={id(f.suffix)+'-error'} />
-        <p className="field-error" id={id(f.suffix)+'-error'} hidden={!errors[f.key]}>{errors[f.key]}</p>
+          value={values[f.key]||''} disabled={busy} onBlur={e=>leave(f.key,e.target.value)} onChange={e=>{const value=e.target.value;setValues(old=>({...old,[f.key]:value}));setErrors(old=>{const next={...old};delete next[f.key];const immediate=f.key==='edad'?null:typingProblem(f.key,value);if(immediate)return {...next,[f.key]:immediate};return old[f.key]&&problemFor(f.key,value)===old[f.key]?old:next;});}} aria-invalid={!!errors[f.key]} aria-describedby={id(f.suffix)+'-error'} />
+        <p className="field-error" id={id(f.suffix)+'-error'} hidden={!errors[f.key]} aria-live="polite">{errors[f.key]}</p>
       </div>)}
       {children}
     </div>

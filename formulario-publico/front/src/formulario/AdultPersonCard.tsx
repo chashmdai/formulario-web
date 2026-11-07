@@ -3,9 +3,9 @@ import type { Ref } from 'react';
 import { PersonIdentity } from './PersonIdentity';
 import type { PersonIdentityHandle } from './PersonIdentity';
 import type { AdultPersonCard as Card } from './adultRules';
-import { comunas, regiones } from './territorio';
+import { comunas } from './territorio';
+import { RegionOptions } from './RegionOptions';
 
-const order=['15','01','02','03','04','05','13','06','07','16','08','09','14','10','11','12'];
 const institutions=['Establecimiento educativo','Organismo público','Empresa o entidad privada','Fundación u ONG','Otra institución'];
 /** Tarjetas controladas del mockup; el contenedor conserva metadatos y confirma cualquier retiro en backend. */
 export function AdultPersonCard({card,journey,identityRef,error,disabled=false,position,canRemove=true,onChange,onKind,onRemove}: {
@@ -18,7 +18,7 @@ export function AdultPersonCard({card,journey,identityRef,error,disabled=false,p
   const attrs=(key:string)=>({id:`${prefix}-${key}-${n}`,value:value(key),disabled,'aria-invalid':!!error,'aria-describedby':error?card.id+'-error':undefined});
   const textField=(key:string,label:string,placeholder?:string)=><div className="field"><label htmlFor={`${prefix}-${key}-${n}`}>{label} <span className="muted-label">(opcional)</span></label><input {...attrs(key)} type="text" maxLength={500} placeholder={placeholder} onChange={e=>update(key,e.target.value)} /></div>;
   const location=<>
-    <div className="field"><label htmlFor={`${prefix}-region-${n}`}>Región <span className="muted-label">{affected?'(si la sabes)':'(opcional)'}</span></label><div className="select-wrap"><ReadableSelect {...attrs('region')} onChange={e=>update('region',e.target.value)}><option value="">Selecciona una región</option>{order.map(code=><option key={code} value={code}>{regiones[code]}</option>)}</ReadableSelect></div></div>
+    <div className="field"><label htmlFor={`${prefix}-region-${n}`}>Región <span className="muted-label">{affected?'(si la sabes)':'(opcional)'}</span></label><div className="select-wrap"><ReadableSelect {...attrs('region')} onChange={e=>update('region',e.target.value)}><RegionOptions/></ReadableSelect></div></div>
     <div className="field"><label htmlFor={`${prefix}-commune-${n}`}>Comuna <span className="muted-label">(opcional)</span></label><div className="select-wrap"><ReadableSelect {...attrs('comuna')} id={`${prefix}-commune-${n}`} disabled={disabled||!value('region')} onChange={e=>update('comuna',e.target.value)}><option value="">{value('region')?'Selecciona una comuna':'Selecciona primero una región'}</option>{(comunas[value('region')]||[]).map(name=><option key={name} value={name}>{name}</option>)}</ReadableSelect></div></div>
   </>;
   return <section className="repeat-card" id={card.id} tabIndex={-1} aria-label={affected?`Antecedentes del NNA ${position??n}`:related?`Persona adulta relacionada ${position??n}`:`Persona o institución ${position??n}`}>

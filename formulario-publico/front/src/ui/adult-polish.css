@@ -1,0 +1,100 @@
+/*
+ * Pulido del formulario adulto (07/11/2026). Solo tokens institucionales definidos en experience.css:
+ * la paleta, tipografía Cabin y activos de la Defensoría no cambian. Modo oscuro y alto contraste heredan
+ * de esos tokens; prefers-reduced-motion (experience.css) anula animaciones y transiciones de este archivo.
+ */
+
+/* Jerarquía: subtítulos y etiquetas auxiliares más legibles, sin competir con los títulos. */
+html[data-theme] #form-experience .paper-caption{font-size:.88rem;line-height:1.55}
+html[data-theme] #form-experience .section-intro{font-size:.86rem}
+html[data-theme] .mini-tag{text-transform:uppercase}
+html[data-theme] #form-experience .micro-heading{font-weight:700;color:var(--content);margin:0 0 4px}
+html[data-theme] #form-experience .pane-head p{margin:2px 0 0}
+
+/* Estados de controles: transición discreta al pasar, enfocar o validar. */
+html[data-theme] #form-experience .field :is(input,select,textarea){transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease}
+html[data-theme] #form-experience .field :is(input,select,textarea):hover:not(:disabled):not([readonly]):not(:focus):not([aria-invalid=true]){border-color:var(--ui-accent)}
+html[data-theme] #form-experience :is(.radio-pill,.ack-checkbox,.resource-link,.upload-target,.repeat-card,.add-repeat){transition:border-color .18s ease,background-color .18s ease,box-shadow .18s ease,transform .18s ease}
+html[data-theme] #form-experience :is(.radio-pill,.ack-checkbox):hover{border-color:var(--ui-accent)}
+html[data-theme] #form-experience :is(.radio-pill,.ack-checkbox):has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+html[data-theme] #form-experience .resource-link:hover{transform:translateY(-1px);box-shadow:var(--sombra)}
+html[data-theme] #form-experience .repeat-card:focus-within{border-color:var(--ui-accent)}
+
+/* Mensajes de error: aparición suave y un indicador que no depende solo del color. */
+html[data-theme] #form-experience .field-error:not([hidden]),html[data-theme] .review-dialog .field-error:not([hidden]){display:flex;gap:.5em;align-items:flex-start;animation:ui-enter .18s ease-out}
+html[data-theme] #form-experience .field-error:not([hidden])::before,html[data-theme] .review-dialog .field-error:not([hidden])::before{content:"!";content:"!" / "";flex:none;display:inline-grid;place-items:center;width:1.3em;height:1.3em;margin-top:.15em;border-radius:50%;background:var(--ui-danger);color:var(--surface);font-size:.74em;font-weight:700;line-height:1}
+html[data-theme] #form-experience .error-summary li+li{margin-top:2px}
+html[data-theme] #form-experience .form-failure{padding:12px 14px;border:1px solid var(--ui-danger);border-radius:10px;background:var(--ui-danger-soft)}
+
+/* Avisos informativos breves (no bloquean el envío). */
+html[data-theme] #form-experience .field-note{margin:8px 0 0;padding:9px 12px;border-left:3px solid var(--link-tone);border-radius:0 8px 8px 0;background:var(--ui-accent-soft);color:var(--content);font-size:.82rem;line-height:1.55}
+html[data-theme] #form-experience .correction-help{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:16px 0 0}
+html[data-theme] #form-experience .correction-help p{margin:0}
+html[data-theme] #form-experience .btn-small{min-height:38px;padding:8px 14px;font-size:.8rem}
+
+/* Estado de la revisión del RUN: espera, error y resultado con señales visibles. */
+html[data-theme] #form-experience .manual-status{display:flex;align-items:flex-start;gap:.6em;transition:background-color .2s ease,border-color .2s ease}
+html[data-theme] #form-experience .manual-status.is-busy{border-color:var(--ui-accent);background:var(--ui-accent-soft)}
+html[data-theme] #form-experience .manual-status.is-error{border-color:var(--ui-danger);background:var(--ui-danger-soft);color:var(--ui-danger)}
+html[data-theme] #form-experience .manual-status.is-done{border-left:3px solid var(--link-tone)}
+html[data-theme] .inline-spinner{width:1.05em;height:1.05em;margin:.2em 0 0;border-width:2px}
+html[data-theme] #form-experience .status-label.is-verified{border-color:var(--ui-success);background:var(--ui-success-soft);color:var(--ui-success);font-weight:600}
+
+/* Botones en curso: indicador dentro del propio botón; el texto se conserva para lectores de pantalla. */
+html[data-theme] .btn[aria-busy=true]{cursor:progress}
+html[data-theme] .btn[aria-busy=true]::after{content:"";width:1em;height:1em;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:receipt-spin .75s linear infinite}
+@media(prefers-reduced-motion:reduce){html[data-theme] .btn[aria-busy=true]::after{border-right-color:currentColor;border-style:dotted}}
+html[data-theme] .btn:not(:disabled):active{transform:translateY(1px)}
+
+/* Progreso: la barra y los números de etapa acompañan el avance. */
+html[data-theme] #form-experience .journey-track span{transition:width .45s cubic-bezier(.2,.7,.2,1)}
+html[data-theme] #form-experience .journey-num{transition:background-color .25s ease,color .25s ease,transform .25s ease}
+html[data-theme] #form-experience .journey .active .journey-num{transform:scale(1.06)}
+html[data-theme] #adult-step-message{text-align:center}
+html[data-theme] #adult-step-message strong{color:var(--content);font-weight:600}
+
+/* Relato: contador con aviso al acercarse al límite. */
+html[data-theme] #form-experience .char-counter{transition:color .2s ease}
+html[data-theme] #form-experience .char-counter.is-near-limit{color:var(--ui-warning);font-weight:600}
+
+/* Revisión final: el resumen entra con suavidad y el pie queda visible. */
+html[data-theme] .review-dialog .review-section{animation:ui-enter .22s ease-out both}
+
+/* Móvil: menos aire vertical y botones de paso a todo el ancho, en orden lógico. */
+@media(max-width:600px){
+  html[data-theme] #form-experience .hero{padding:18px 0 14px}
+  html[data-theme] #form-experience #hero-description{font-size:.95rem}
+  html[data-theme] #form-experience .paper-body{padding:20px 16px}
+  html[data-theme] #form-experience .paper[data-section-tone]>.paper-top{padding:18px 16px}
+  html[data-theme] #form-experience .adult-step-nav{display:grid;grid-template-columns:1fr;gap:10px;padding:14px}
+  html[data-theme] #form-experience .adult-step-nav #adult-next{order:1}
+  html[data-theme] #form-experience .adult-step-nav #adult-step-message{order:2;margin:0;max-width:none}
+  html[data-theme] #form-experience .adult-step-nav #adult-prev{order:3}
+  html[data-theme] #form-experience .adult-step-nav .btn{width:100%}
+  html[data-theme] #form-experience .review-bar{flex-direction:column;align-items:stretch}
+  html[data-theme] #form-experience .review-bar .btn{width:100%}
+  html[data-theme] #form-experience .lookup-actions .btn{flex:1 1 100%}
+  html[data-theme] #form-experience .correction-help .btn{width:100%}
+}
+
+/* Alto contraste: los nuevos estados conservan borde visible en lugar de fondos tenues. */
+html[data-theme=contrast] #form-experience :is(.field-note,.manual-status.is-busy,.manual-status.is-done,.status-label.is-verified){background:#000;border:1px solid #fff;color:#fff}
+html[data-theme=contrast] #form-experience .field-error:not([hidden])::before{background:#ffed55;color:#000}
+@media(forced-colors:active){
+  html[data-theme] .btn[aria-busy=true]::after{border-color:ButtonText;border-right-color:transparent}
+  html[data-theme] #form-experience .field-error:not([hidden])::before{forced-color-adjust:none;background:Mark;color:MarkText}
+}
+
+/* Identidad verificada con ClaveÚnica: presentación estática (texto seleccionable), sin apariencia de campo editable. */
+html[data-theme] #form-experience .verified-identity{margin:0 0 22px;padding:18px 20px;border:1px solid var(--neutral-border);border-left:4px solid var(--ui-success);border-radius:12px;background:var(--surface-muted)}
+html[data-theme] #form-experience .verified-identity-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+html[data-theme] #form-experience .verified-identity-head h3{margin:0;font-size:1rem;line-height:1.4;color:var(--content)}
+html[data-theme] #form-experience .verified-identity-head p{margin:2px 0 0;font-size:.82rem;color:var(--subtle)}
+html[data-theme] #form-experience .verified-lock{display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:50%;background:var(--ui-success-soft);color:var(--ui-success)}
+html[data-theme] #form-experience .verified-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px;margin:0}
+html[data-theme] #form-experience .verified-list>div{min-width:0;padding-top:10px;border-top:1px solid var(--neutral-border)}
+html[data-theme] #form-experience .verified-list dt{font-size:.78rem;color:var(--subtle);margin:0 0 2px}
+html[data-theme] #form-experience .verified-list dd{margin:0;font-size:1rem;font-weight:600;color:var(--content);overflow-wrap:anywhere;user-select:text;cursor:text}
+@media(max-width:600px){html[data-theme] #form-experience .verified-list{grid-template-columns:minmax(0,1fr)}}
+html[data-theme=contrast] #form-experience .verified-identity{background:#000;border-color:#fff;border-left-color:#ffed55}
+html[data-theme=contrast] #form-experience .verified-lock{background:#000;color:#ffed55;border:1px solid #ffed55}

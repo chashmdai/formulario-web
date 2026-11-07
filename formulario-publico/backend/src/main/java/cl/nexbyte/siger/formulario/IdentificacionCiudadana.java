@@ -138,7 +138,7 @@ public final class IdentificacionCiudadana {
         for(var entry:values.entrySet()) {
             String key=entry.getKey(),value=entry.getValue()==null?"":entry.getValue().strip();
             if(value.isEmpty()) { if(attrs.get(key)!=null && attrs.get(key).fuente()==Fuente.DECLARACION_CIUDADANA) attrs.remove(key); continue; }
-            validar(key,value,clock);
+            validar(key,value,clock,p.rol()==Rol.PRESENTADOR&&p.id().equals("presentador-adulto"));
             if(corregirRegistrales && Set.of("primerNombre","segundoNombre").contains(key) && attrs.containsKey("nombres")
                 && attrs.get("nombres").fuente()==Fuente.SRCEI) discrepancies.put("nombres",attrs.remove("nombres"));
             if(attrs.containsKey(key)&&attrs.get(key).fuente()==Fuente.SRCEI)discrepancies.put(key,attrs.get(key));
@@ -146,12 +146,29 @@ public final class IdentificacionCiudadana {
         }
         return new Persona(p.id(),p.rol(),p.runNumero(),p.runDv(),p.modulo11(),p.autenticada(),p.estadoConsulta(),p.consultadaEn(),p.consultaRef(),attrs,discrepancies);
     }
-    public static void validar(String key,String value,Clock clock) {
+    /** Palabras separadas por un espacio, guion o apóstrofo; el punto admite abreviaturas («Ma. José», «Jr.»). Igual que personalData.ts. */
+    private static final java.util.regex.Pattern FORMA_NOMBRE = java.util.regex.Pattern.compile(
+        "\\p{L}[\\p{L}\\p{M}]*(?:(?:[ '’\\-]|\\. ?)\\p{L}[\\p{L}\\p{M}]*)*\\.?");
+    private static final java.util.regex.Pattern DOCUMENTO = java.util.regex.Pattern.compile("[\\p{L}\\p{N} ./-]{1,40}");
+    private static final java.util.regex.Pattern ALFANUMERICO = java.util.regex.Pattern.compile("[\\p{L}\\p{N}]");
+    private static final int MAX_NOMBRE = 100;
+    /** Escrituras en que un nombre de un solo carácter es habitual. */
+    private static final Set<Character.UnicodeScript> ESCRITURAS_SILABICAS = EnumSet.of(Character.UnicodeScript.HAN,
+        Character.UnicodeScript.HANGUL, Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA, Character.UnicodeScript.YI);
+    public static void validar(String key,String value,Clock clock) { validar(key,value,clock,false); }
+    /** @param presentadorAdulto exige más de una inicial en nombres y apellidos de quien presenta sin ClaveÚnica. */
+    public static void validar(String key,String value,Clock clock,boolean presentadorAdulto) {
         if(value.length()>500||value.codePoints().anyMatch(Character::isISOControl)) throw new IllegalArgumentException("Atributo inválido");
-        if(NOMBRES.contains(key) && (!value.matches("[\\p{L}\\p{M} .'-]+")||value.codePoints().noneMatch(Character::isLetter))) throw new IllegalArgumentException("Nombre inválido");
+        if(NOMBRES.contains(key)) {
+            if(value.length()>MAX_NOMBRE||!FORMA_NOMBRE.matcher(value).matches()) throw new IllegalArgumentException("Nombre inválido");
+            if(presentadorAdulto&&value.codePoints().filter(Character::isLetter).count()<2
+                &&value.codePoints().noneMatch(c->ESCRITURAS_SILABICAS.contains(Character.UnicodeScript.of(c))))
+                throw new IllegalArgumentException("Nombre inválido");
+        }
         if(key.equals("nacionalidad")&&!NacionalidadesFormulario.valida(value))throw new IllegalArgumentException("Nacionalidad inválida");
         if(key.equals("tipoDocumento")&&!Set.of("PASAPORTE","IDENTIDAD_EXTRANJERA","OTRO").contains(value))throw new IllegalArgumentException("Tipo de documento inválido");
-        if(key.equals("numeroDocumento")&&(value.length()>120||value.isBlank()))throw new IllegalArgumentException("Número de documento inválido");
+        if(key.equals("numeroDocumento")&&(!DOCUMENTO.matcher(value).matches()||ALFANUMERICO.matcher(value).results().count()<3))
+            throw new IllegalArgumentException("Número de documento inválido");
         if(key.equals("fechaNacimiento"))try {
             if(!value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")||LocalDate.parse(value).isAfter(LocalDate.now(clock))||LocalDate.parse(value).isBefore(LocalDate.now(clock).minusYears(130)))throw new IllegalArgumentException("Fecha inválida");
         }catch(DateTimeException error){throw new IllegalArgumentException("Fecha inválida");}

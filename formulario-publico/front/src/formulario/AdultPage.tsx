@@ -27,6 +27,7 @@ import { usePreferences } from './preferences';
 import '../prototipo/prototipo.css';
 import '../prototipo/inicio.css';
 import '../ui/experience.css';
+import '../ui/adult-polish.css';
 
 export default function AdultPage({initialJourney,mode='manual'}:{initialJourney?:Journey;mode?:'manual'|'cu'}){
   const [mediaEnabled,setMediaEnabled]=useState(false);
@@ -64,7 +65,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
       if(kind==='ADULTO_CU'&&!s.authenticated&&!s.loginAvailable)throw new ApiError(503);
       const j=await startJourney(kind,caps.avisoAdulto,true);setJourney(j);setSession(s);setPrivacy(false);setInitialFiles([]);
       if(kind==='ADULTO_CU'&&!s.authenticated)window.location.assign('/oauth2/authorization/claveunica');
-    }catch{setError('Este acceso está temporalmente cerrado. Inténtalo nuevamente más tarde.');}
+    }catch(e){setError(e instanceof ApiError&&e.status===429?'Se iniciaron muchos formularios desde esta conexión en la última hora. Espera unos minutos e inténtalo nuevamente.':'Este acceso está temporalmente cerrado. Inténtalo nuevamente más tarde.');}
     finally{sending.current=false;setBusy(false);}
   }
   async function send(){
@@ -83,7 +84,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
   const authenticated=journey?.tipo!=='ADULTO_CU'||session?.authenticated;
   return <>
     <a className="skip" href="#principal">Saltar al formulario</a><InstitutionalHeader {...preferences} title="Formulario para personas adultas" sessionAction={session?.authenticated&&kind==='ADULTO_CU'&&csrf&&<form action="/auth/logout" method="post" className="session-action"><input type="hidden" name={csrf.parameterName} value={csrf.token} /><button className="btn btn-secondary" type="submit">Cerrar sesión</button></form>} onHome={()=>{if(dirty&&!receipt)setExit(true);else window.location.assign('/?vista=inicio');}} />
-    <div className="shell" id="form-experience"><section className="hero" aria-labelledby="titulo"><div className="hero-text"><p className="eyebrow"><span className="accent-line" aria-hidden="true" /> Comunícate con la Defensoría</p><h1 id="titulo">¿En qué podemos ayudarte?</h1><p id="hero-description">Completa solo los datos necesarios y cuéntanos por qué te comunicas con la Defensoría.</p></div></section>
+    <div className="shell" id="form-experience"><section className="hero" aria-labelledby="titulo"><div className="hero-text"><p className="eyebrow"><span className="accent-line" aria-hidden="true" /> Comunícate con la Defensoría</p><h1 id="titulo">¿En qué podemos ayudarte?</h1><p id="hero-description">En tres pasos: tus datos, el motivo y tu mensaje. Antes de enviar podrás revisarlo todo.</p></div></section>
       <FormToolbar title={kind==='ADULTO_CU'?'Persona adulta · ClaveÚnica':'Persona adulta · Identificación declarada'} full={full} step={step} total={3} onView={setFull} />
       <div className="page-layout" id="public-surface"><FormProgress step={step} full={full} disabled={loading||!journey||!!receipt||!!fatal||!authenticated} onNavigate={target=>navigation.current?.go(target)} />
         <main className="form-area" id="principal" tabIndex={-1} onChangeCapture={()=>setDirty(true)} onDropCapture={()=>setDirty(true)}>

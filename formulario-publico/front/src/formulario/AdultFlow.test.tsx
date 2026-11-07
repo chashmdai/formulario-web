@@ -29,7 +29,7 @@ function mount(full=false,port?:AttachmentPort,cu=false){
   render(<AdultFlow journey={{...journey,tipo:cu?'ADULTO_CU':'ADULTO_DECLARADO'}} session={cu?{authenticated:true,identity:{run:'12345678-5',nombres:'NOMBRE CU',apellidos:'APELLIDO CU',nombresComponentes:['NOMBRE','CU'],apellidosComponentes:['APELLIDO','CU']},environment:'SANDBOX',loginAvailable:true}:null} full={full} filePort={files} onStep={step} onReview={review} />);return {review,step,files};
 }
 async function identity(cu=false){
-  if(cu){await screen.findByDisplayValue('NOMBRE');await waitFor(()=>expect((byId('adult-run') as HTMLInputElement).disabled).toBe(false));return;}
+  if(cu){await screen.findByRole('region',{name:'Datos verificados con ClaveÚnica'});await waitFor(()=>expect(document.querySelector('#manual-status.is-busy')).toBeNull());return;}
   await userEvent.type(screen.getByRole('textbox',{name:/^RUN/}),'12345678');await userEvent.type(screen.getByRole('textbox',{name:'Dígito verificador del RUN'}),'5');await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));
   await userEvent.type(await screen.findByRole('textbox',{name:/^Primer nombre/}),'NOMBRE');await userEvent.type(screen.getByRole('textbox',{name:/^Primer apellido/}),'APELLIDO');
 }
@@ -47,7 +47,7 @@ describe('Recorridos adultos trasladados del mockup',()=>{
     expect(screen.queryByText(/Cargar datos de demostración/)).toBeNull();expect(screen.queryByText(/Resultado SRCeI.*simulado/)).toBeNull();
   });
   it('CU conserva nombre de sesión de solo lectura y valida el otro perfil de entrevista',async()=>{
-    const {review}=mount(false,undefined,true);await identity(true);expect((screen.getByDisplayValue('NOMBRE') as HTMLInputElement).readOnly).toBe(true);await reason('consulta','entrevista');await last();
+    const {review}=mount(false,undefined,true);await identity(true);expect(screen.getByRole('region',{name:'Datos verificados con ClaveÚnica'}).textContent).toContain('NOMBRE');expect(screen.queryByRole('textbox',{name:/^Primer nombre/})).toBeNull();await reason('consulta','entrevista');await last();
     await userEvent.type(byId('entrevista-motivo'),'Entrevista sintética');await userEvent.selectOptions(byId('entrevista-rol'),'otro');await userEvent.selectOptions(byId('adult-region'),'13');await userEvent.click(screen.getByRole('button',{name:'Revisar respuestas'}));
     // La revisión fallida guarda identidad de forma asíncrona y después enfoca el resumen.
     // No escribir mientras el formulario sigue deshabilitado ni competir con ese foco pendiente.

@@ -11,32 +11,20 @@ import { PrivacyDialog } from './PrivacyDialog';
 import { InstitutionalFooter } from './InstitutionalFooter';
 import { ApiError, getSession } from '../api';
 import { getJourneyCapabilities, startJourney } from '../formulario/api';
+import { usePreferences } from '../formulario/preferences';
 import './prototipo.css';
 import './inicio.css';
 import '../ui/experience.css';
 
 /** Portada institucional: registra el aviso y el recorrido antes de abrir el formulario o ClaveÚnica. */
 export default function StartPage({navigate=(url:string)=>window.location.assign(url)}:{navigate?:(url:string)=>void}={}) {
-  const [theme, setTheme] = useState(() => {
-    try { const value = localStorage.getItem('siger:theme'); return value && ['light', 'dark', 'contrast'].includes(value) ? value : 'light'; }
-    catch { return 'light'; }
-  });
-  const [scale, setScale] = useState(() => {
-    try { const value = Number(localStorage.getItem('siger:font-scale') || 1); return Number.isFinite(value) ? Math.min(130, Math.max(100, Math.round(value * 100))) : 100; }
-    catch { return 100; }
-  });
+  const preferences = usePreferences(false);
   const [manualUnavailable, setManualUnavailable] = useState(false);
   const [privacyRoute, setPrivacyRoute] = useState<'cu' | 'manual' | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);useDialogFocus(dialog);
   const [starting,setStarting]=useState(false),[startError,setStartError]=useState('');
   const pending=useRef(false);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.view = 'steps';
-    document.documentElement.style.setProperty('--ui-scale', String(scale / 100));
-    document.title = 'Formulario de contacto | Defensoría de la Niñez';
-    try { localStorage.setItem('siger:theme', theme); localStorage.setItem('siger:font-scale', String(scale / 100)); } catch { /* Preferencias opcionales, sin datos personales. */ }
-  }, [theme, scale]);
+  useEffect(() => { document.title = 'Formulario de contacto | Defensoría de la Niñez'; }, []);
   function close() { dialog.current?.close(); setManualUnavailable(false); }
   function beginAdult(route: 'cu' | 'manual') { close(); setStartError('');setPrivacyRoute(route); }
   async function acceptChannel() {
@@ -47,13 +35,12 @@ export default function StartPage({navigate=(url:string)=>window.location.assign
       if(!caps.disponible||route==='cu'&&!session.authenticated&&!session.loginAvailable)throw new ApiError(503);
       await startJourney(route==='cu'?'ADULTO_CU':'ADULTO_DECLARADO',caps.avisoAdulto,true);
       navigate(route==='cu'&&!session.authenticated?'/oauth2/authorization/claveunica':`/?vista=formulario-adulto&modo=${route==='cu'?'cu':'manual'}`);
-    }catch{setStartError('Este acceso está temporalmente cerrado. Inténtalo nuevamente más tarde.');}
+    }catch(e){setStartError(e instanceof ApiError&&e.status===429?'Se iniciaron muchos formularios desde esta conexión en la última hora. Espera unos minutos e inténtalo nuevamente.':'Este acceso está temporalmente cerrado. Inténtalo nuevamente más tarde.');}
     finally{pending.current=false;setStarting(false);}
   }
   return <>
     <a className="skip" href="#landing">Saltar a la selección</a>
-    <InstitutionalHeader theme={theme} scale={scale} onTheme={v => setTheme(['light', 'dark', 'contrast'].includes(v) ? v : 'light')}
-      onIncrease={() => setScale(v => Math.min(130, v + 10))} onDecrease={() => setScale(v => Math.max(100, v - 10))} />
+    <InstitutionalHeader {...preferences} />
     <AudienceSelection onNna={() => window.location.assign('/?vista=formulario-nna')} onAdult={() => { setManualUnavailable(false); dialog.current?.showModal(); }} />
     <AdultAccess dialogRef={dialog} onClose={close} onManual={() => beginAdult('manual')} onCu={() => beginAdult('cu')} manualUnavailable={manualUnavailable} />
     {privacyRoute && <PrivacyDialog busy={starting} error={startError} onClose={() => setPrivacyRoute(null)} onAccept={()=>{void acceptChannel();}} />}

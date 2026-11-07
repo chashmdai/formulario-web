@@ -177,18 +177,14 @@ export function PrivacyDialog({onClose, onAccept, busy=false, error=''}: {onClos
               ><small>Llamar por teléfono</small></a
             ><a
               className="privacy-contact-item"
-              href="https://www.defensorianinez.cl/"
+              href="https://www.defensorianinez.cl/home-nna/oficinas-regionales-ninos/"
               rel="noopener noreferrer"
               target="_blank"
-              ><strong>Atención presencial</strong
-              ><span>Teatinos 340, Santiago</span
-              ><small>Revisar oficinas y horarios oficiales ↗</small></a
+              ><strong>Oficinas regionales</strong
+              ><span>Direcciones, teléfonos y contactos de cada sede</span
+              ><small>Ver oficinas regionales ↗</small></a
             >
           </div>
-          <p className="field-help">
-            Los datos de contacto y horarios deben verificarse antes de publicar
-            esta interfaz de manera definitiva.
-          </p>
         </div>
         <div className="dialog-foot privacy-footer">
           <button className="btn btn-secondary" id="privacy-rechoose" onClick={rechoose} type="button">

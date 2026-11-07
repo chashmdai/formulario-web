@@ -19,6 +19,20 @@ describe('Inicio institucional en migración', () => {
     expect(screen.getByRole('link', {name: 'Iniciar sesión con ClaveÚnica'}).getAttribute('href')).toBe('/oauth2/authorization/claveunica');
     expect(screen.queryByText(/USUARIO DEMO/)).toBeNull();
   });
+  it('distingue el límite antiabuso de un cierre del servicio', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation(async (url, init) => {
+      const u = String(url);
+      if (init?.method === 'POST') return new Response('{}', {status: 429});
+      return new Response(JSON.stringify(u === '/api/session' ? {authenticated:false,loginAvailable:false} : u === '/api/csrf' ? {token:'t',headerName:'X-CSRF-TOKEN',parameterName:'_csrf'} : {disponible:true,avisoAdulto:'ADULTO_LAB_1'}), {status: 200});
+    });
+    render(<StartPage />);
+    await userEvent.click(screen.getByRole('button', {name: /Soy una persona adulta/}));
+    await userEvent.click(screen.getByRole('button', {name: /No tengo ClaveÚnica/}));
+    await userEvent.click(screen.getByRole('radio', {name: /^Acepto/}));
+    await userEvent.click(screen.getByRole('button', {name: 'Continuar'}));
+    expect(await screen.findByText(/Se iniciaron muchos formularios desde esta conexión/)).toBeTruthy();
+    expect(screen.queryByText(/temporalmente cerrado/)).toBeNull();
+  });
   it('no fabrica un ingreso adulto cuando el backend está cerrado', async () => {
     const fetch = vi.spyOn(window, 'fetch').mockImplementation(async url=>new Response(JSON.stringify(String(url)==='/api/session'?{authenticated:false,loginAvailable:false}:{disponible:false}),{status:200}));
     render(<StartPage />);
@@ -55,7 +69,7 @@ describe('Inicio institucional en migración', () => {
     await userEvent.click(screen.getByRole('button', {name: /No tengo ClaveÚnica/}));
     expect((screen.getByRole('radio', {name: /^Acepto/}) as HTMLInputElement).checked).toBe(false);
     expect(fetch).not.toHaveBeenCalled();
-    expect(Object.keys(localStorage).sort()).toEqual(['siger:font-scale', 'siger:theme']);
+    expect(Object.keys(localStorage).filter(key=>!['siger:font-scale','siger:theme'].includes(key))).toEqual([]);
   });
   it('aplica apariencia y escala acotada sin almacenar datos de personas', async () => {
     render(<StartPage />);

@@ -19,6 +19,14 @@ function mount(role:RelatedRole='AFECTADO_NNA',person='afectado-1') {
   return identityRef;
 }
 describe('Identificación persistente de terceros',()=>{
+  it('para terceros acepta una inicial conocida pero advierte números al salir del campo',async()=>{
+    vi.mocked(identifyPerson).mockResolvedValue({...view(),personaId:'senalado-1'});vi.mocked(declarePerson).mockImplementation(async(_j,_p,values)=>({...view(),personaId:'senalado-1',valoresDeclarados:values}));
+    mount('PERSONA_SENALADA','senalado-1');const name=await screen.findByRole('textbox',{name:/^Primer nombre/});
+    await userEvent.type(name,'J1');await userEvent.tab();expect(screen.getByText('No incluyas números.')).toBeTruthy();
+    await userEvent.clear(name);await userEvent.type(name,' J ');await userEvent.tab();expect(screen.queryByText('No incluyas números.')).toBeNull();
+    await userEvent.click(screen.getByRole('button',{name:'Guardar persona'}));
+    await waitFor(()=>expect(declarePerson).toHaveBeenCalledWith('j-sintetico','senalado-1',expect.objectContaining({primerNombre:'J'})));
+  });
   it('sin RUN permite datos desconocidos sin exigir nombres ni inventar autenticación',async()=>{
     mount();const name=await screen.findByRole('textbox',{name:/^Primer nombre/});expect((name as HTMLInputElement).required).toBe(false);
     expect(identifyPerson).toHaveBeenCalledWith('j-sintetico','afectado-1','AFECTADO_NNA');

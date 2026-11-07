@@ -38,10 +38,13 @@ interface Props {
   onReview:(capture:AdultCapture,presenter:IdentityView,people:ReadonlyMap<string,IdentityView>,files:Attachment[])=>Promise<void>;
 }
 const reasonCopy:Record<string,[string,string]>={
-  consulta:['Realizar una consulta','Para consultas generales, solicitudes de orientación o información institucional.'],
-  vulneracion:['Informar una vulneración de derechos','Permite describir hechos o situaciones que podrían afectar los derechos de un NNA.'],
-  promocion:['Actividad de Promoción y Difusión','Permite consultar o solicitar actividades destinadas a comunidades u organizaciones.'],
+  consulta:['Realizar una consulta','Orientación, información institucional, entrevistas o estadísticas.'],
+  vulneracion:['Informar una vulneración de derechos','Hechos que podrían afectar los derechos de un niño, niña o adolescente.'],
+  promocion:['Actividad de Promoción y Difusión','Charlas, talleres o capacitaciones para tu comunidad u organización.'],
 };
+const stepNames=['Tus datos','Motivo de contacto','Tu comunicación'];
+/** Desplazamiento suave solo si la persona no pidió reducir el movimiento. */
+function smoothScroll():ScrollBehavior{try{return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===false?'smooth':'auto';}catch{return 'auto';}}
 /** Recorrido adulto del mockup. El contenedor revisa/envía la captura; aquí no se fabrican comprobantes. */
 export function AdultFlow({journey,session,full,filePort,initialAttachments=[],mediaEnabled=false,navigationRef,onStep,onReview}:Props) {
   const [step,setStep]=useState(1),[values,setValues]=useState<Record<string,string>>({}),[errors,setErrors]=useState<FormErrors>({});
@@ -57,7 +60,7 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],m
   const required=adultRequired(values),reason=value('motivo'),topic=value('tema');
   const ready=!!reason&&(reason!=='consulta'||value('consulta-confirmada')==='true'&&['general','entrevista','estadisticas'].includes(topic)&&(topic!=='estadisticas'||value('stats-confirm')==='true'));
   const blockIdentity=reason==='consulta'&&(topic==='empleo'||topic==='estadisticas'&&!ready);
-  function focusStep(target:number){requestAnimationFrame(()=>{const element=document.getElementById(['identificacion','motivo-seccion','informacion'][target-1]);element?.scrollIntoView?.({block:'start',behavior:'auto'});element?.querySelector<HTMLElement>('h2')?.focus({preventScroll:true});});}
+  function focusStep(target:number){requestAnimationFrame(()=>{const element=document.getElementById(['identificacion','motivo-seccion','informacion'][target-1]);element?.scrollIntoView?.({block:'start',behavior:smoothScroll()});element?.querySelector<HTMLElement>('h2')?.focus({preventScroll:true});});}
   function focusField(id:string){
     const element=document.getElementById(id)||form.current?.querySelector<HTMLElement>(`[name="${id}"]`);
     const section=element?.closest<HTMLElement>('section.paper');
@@ -170,14 +173,14 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],m
     radio:(name,v)=>({value:v,checked:(name==='afectados-modalidad'?value(name)||'individual':value(name))===v,onChange:()=>changed(name,v),disabled:working||uploading,'aria-invalid':!!errors[name],'aria-errormessage':errors[name]?name+'-summary':undefined}),
   };
   return <>
-    {(working||uploading)&&<p role="status">Estamos revisando o guardando tus datos…</p>}
+    {(working||uploading)&&<p role="status" className="sr-only">Estamos revisando o guardando tus datos…</p>}
     <form id="formulario" data-audience="adult" autoComplete="off" noValidate ref={form} onSubmit={e=>e.preventDefault()} aria-busy={working||uploading} inert={working||uploading}>
-      <div className="error-summary" id="adult-errors" tabIndex={-1} role="alert" hidden={!Object.keys(errors).length}><p>Revisa estos campos para continuar:</p><ul>{Object.entries(errors).map(([id,message])=><li key={id} id={id+'-summary'}><a href={`#${id}`} onClick={e=>{e.preventDefault();focusField(id);}}>{message}</a></li>)}</ul></div>
-      {failure&&<p className="field-error" role="alert">{failure}</p>}
+      <div className="error-summary" id="adult-errors" tabIndex={-1} role="alert" hidden={!Object.keys(errors).length}><p>{Object.keys(errors).length===1?'Revisa este campo para continuar:':`Revisa estos ${Object.keys(errors).length} campos para continuar:`}</p><ul>{Object.entries(errors).map(([id,message])=><li key={id} id={id+'-summary'}><a href={`#${id}`} onClick={e=>{e.preventDefault();focusField(id);}}>{message}</a></li>)}</ul></div>
+      {failure&&<p className="field-error form-failure" role="alert">{failure}</p>}
       <AdultStepOne ctx={ctx} /><AdultStepTwo ctx={ctx} /><AdultStepThree ctx={ctx} />
       {step===3||full?<button type="button" className="btn btn-secondary remove-files" hidden={mediaEnabled||!attachments.length&&!errors.adjuntos} disabled={working||uploading} onClick={()=>{void clearFiles();}}>Quitar archivos seleccionados</button>:null}
-      <div className="adult-step-nav" id="adult-step-nav" hidden={full} aria-label="Navegación entre pasos"><button className="btn btn-secondary" id="adult-prev" type="button" hidden={step===1} onClick={()=>{void navigate(Math.max(1,step-1));}}>Volver</button><p aria-live="polite" id="adult-step-message">Los campos con * son obligatorios.</p><button className="btn btn-primary" id="adult-next" type="button" hidden={step===3} disabled={reason==='consulta'&&topic==='empleo'} onClick={()=>{void navigate(step+1);}}>Continuar <svg className="icon small" aria-hidden="true"><use href="#i-arrow" /></svg></button></div>
-      <div className="review-bar" hidden={!ready||!full&&step!==3}><div className="review-message"><span className="review-circle"><svg className="icon" aria-hidden="true"><use href="#i-check" /></svg></span><div><strong>Tu comunicación, antes de enviarla</strong><p>Revisa tus respuestas antes de enviar tu comunicación.</p></div></div><button className="btn btn-primary" id="revisar" disabled={mediaBusy} type="button" onClick={()=>{void review();}}>Revisar respuestas</button></div>
+      <div className="adult-step-nav" id="adult-step-nav" hidden={full} aria-label="Navegación entre pasos"><button className="btn btn-secondary" id="adult-prev" type="button" hidden={step===1} onClick={()=>{void navigate(Math.max(1,step-1));}}>Volver</button><p aria-live="polite" id="adult-step-message">{step<3?<>Siguiente: <strong>{stepNames[step]}</strong></>:'Último paso'}</p><button className="btn btn-primary" id="adult-next" type="button" hidden={step===3} aria-busy={working||undefined} disabled={reason==='consulta'&&topic==='empleo'} onClick={()=>{void navigate(step+1);}}>Continuar <svg className="icon small" aria-hidden="true"><use href="#i-arrow" /></svg></button></div>
+      <div className="review-bar" hidden={!ready||!full&&step!==3}><div className="review-message"><span className="review-circle"><svg className="icon" aria-hidden="true"><use href="#i-check" /></svg></span><div><strong>¿Todo listo?</strong><p>Verás un resumen antes de enviar. Aún podrás corregir.</p></div></div><button className="btn btn-primary" id="revisar" disabled={mediaBusy} aria-busy={working||undefined} type="button" onClick={()=>{void review();}}>Revisar respuestas</button></div>
     </form>
     {guidance&&<ConsultationGuidance ctx={ctx} />}
   </>;

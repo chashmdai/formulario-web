@@ -62,7 +62,7 @@ describe('Página NNA con API completa controlada',()=>{
     await userEvent.click(within(dialog).getByRole('button',{name:'Enviar comunicación'}));expect(await screen.findByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();
     expect(sends).toHaveLength(1);expect(sends[0].body).toEqual({campos:{'nna-region':'13','nna-primary-method':'unsafe','nna-story':'Relato sintético para enviar.'},personas:[],instituciones:[],adjuntos:[]});
     expect(screen.getByRole('button',{name:'Descargar comprobante de recepción'})).toBeTruthy();expect(screen.queryByRole('button',{name:'Descargar comprobante institucional'})).toBeNull();
-    expect(Object.keys(localStorage).sort()).toEqual(['siger:font-scale','siger:theme']);expect(Object.values(localStorage).join(' ')).not.toContain('NOMBRE');
+    expect(Object.keys(localStorage).filter(key=>!['siger:font-scale','siger:theme'].includes(key))).toEqual([]);expect(Object.values(localStorage).join(' ')).not.toContain('NOMBRE');
   });
   it('no confirma un envío fallido y reintenta exactamente la misma clave y captura',async()=>{
     failResponse=true;render(<NnaPage />);await fill();const dialog=await review();await userEvent.click(within(dialog).getByRole('button',{name:'Enviar comunicación'}));

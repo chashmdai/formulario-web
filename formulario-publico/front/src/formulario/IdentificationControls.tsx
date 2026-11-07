@@ -8,23 +8,24 @@ import { ApiError } from '../api';
 import { declarePerson, getPerson, identifyPerson, identifyForeignPerson, resetPerson } from './api';
 import type { Declarations, IdentificationRequest, IdentityField, IdentityView, Journey } from './api';
 import { formatRunNumber, pastedRun, runNumber, validRun } from './run';
+import { DOCUMENT_MAX_LENGTH, NAME_MAX_LENGTH, birthDateProblem, documentNumberProblem, isNameField, isUnderage, nameProblem, normalizeDocumentNumber, normalizeName, typingProblem } from './personalData';
 
 export interface IdentificationHandle { save: () => Promise<IdentityView | null> }
 interface Props {
   journey: Journey; session: Session | null; nna?: boolean; children?: ReactNode;
   identityRef?: Ref<IdentificationHandle>; onResolved?: (view: IdentityView | null) => void;
 }
-const metadata: {key: IdentityField; suffix: string; label: string; type?: string; help?: string}[] = [
+const metadata: {key: IdentityField; suffix: string; label: string; type?: string; help?: string; hint?: string}[] = [
   {key: 'primerNombre', suffix: 'names', label: 'Primer nombre'},
-  {key: 'segundoNombre', suffix: 'middle', label: 'Segundo nombre', help: 'Déjalo en blanco si no tienes un segundo nombre.'},
+  {key: 'segundoNombre', suffix: 'middle', label: 'Segundo nombre', hint: '(si corresponde)'},
   {key: 'primerApellido', suffix: 'first', label: 'Primer apellido'},
-  {key: 'segundoApellido', suffix: 'second', label: 'Segundo apellido'},
-  {key: 'fechaNacimiento', suffix: 'birth', label: 'Fecha de nacimiento', type: 'date', help: 'Puedes completar este dato si lo conoces (opcional).'},
-  {key: 'sexo', suffix: 'sex', label: 'Sexo registral', help: 'Este dato no define cómo prefieres que nos dirijamos a ti.'},
-  {key: 'nacionalidad', suffix: 'nationality', label: 'Nacionalidad', help: 'Busca y selecciona el país correspondiente a la nacionalidad que declaras.'},
+  {key: 'segundoApellido', suffix: 'second', label: 'Segundo apellido', hint: '(si corresponde)'},
+  {key: 'fechaNacimiento', suffix: 'birth', label: 'Fecha de nacimiento', type: 'date', hint: '(opcional)'},
+  {key: 'sexo', suffix: 'sex', label: 'Sexo registral', hint: '(opcional)', help: 'No define cómo prefieres que te llamemos.'},
+  {key: 'nacionalidad', suffix: 'nationality', label: 'Nacionalidad', help: 'Busca y selecciona un país.'},
   {key: 'tipoDocumento', suffix: 'document-kind', label: 'Tipo de documento de identificación'},
-  {key: 'numeroDocumento', suffix: 'document-number', label: 'Número del documento', help: 'Cópialo como aparece en tu documento; puede contener letras y distintos separadores.'},
-  {key: 'edad', suffix: 'age', label: 'Edad', type: 'number', help: 'Déjalo en blanco si no la sabes.'},
+  {key: 'numeroDocumento', suffix: 'document-number', label: 'Número del documento', help: 'Escríbelo tal como aparece en el documento.'},
+  {key: 'edad', suffix: 'age', label: 'Edad', type: 'number', hint: '(opcional)'},
 ];
 
 /** Estructura del mockup; solo muestra declaraciones propias o identidad CU de sesión. */
@@ -68,7 +69,37 @@ export function IdentificationControls({journey, session, nna = false, children,
     setFailure(error instanceof ApiError && error.status === 429 ? 'Espera unos minutos antes de volver a revisar el RUN.'
       : error instanceof ApiError && error.status === 401 ? cu ? 'La sesión expiró. Vuelve a iniciar sesión con ClaveÚnica.' : 'La sesión expiró. Vuelve al inicio para abrir un formulario.'
       : error instanceof ApiError && error.status === 409 ? 'Los datos cambiaron en otra ventana. Recarga el formulario antes de continuar.'
+      : error instanceof ApiError && error.status === 400 ? 'Algunos datos no tienen un formato válido. Revísalos e inténtalo nuevamente.'
       : 'No pudimos guardar o revisar tus datos. Inténtalo nuevamente.');
+  }
+  /** Mismas reglas que el servidor; el nombre estricto aplica solo a la persona adulta que presenta. */
+  function problemFor(key: string, value: string): string | null {
+    if (isNameField(key)) return nameProblem(key, value, !nna);
+    if (key === 'numeroDocumento') return documentNumberProblem(value);
+    if (key === 'fechaNacimiento') return birthDateProblem(value);
+    return null;
+  }
+  function canonical(key: string, value: string): string {
+    return isNameField(key) ? normalizeName(value) : key === 'numeroDocumento' ? normalizeDocumentNumber(value) : value;
+  }
+  function edit(key: IdentityField, value: string) {
+    setValues(old => ({...old, [key]: value}));
+    // Números o símbolos se informan al escribir o pegar, sin bloquear la pulsación. Un aviso de forma (dado al
+    // salir del campo) se mantiene hasta corregirlo; cualquier aviso desaparece apenas el valor es válido.
+    setErrors(old => {
+      const rest = Object.fromEntries(Object.entries(old).filter(([k]) => k !== key)), immediate = typingProblem(key, value);
+      if (immediate) return {...rest, [key]: immediate};
+      return old[key] && problemFor(key, value) === old[key] ? old : rest;
+    });
+  }
+  function leave(key: IdentityField, value: string) {
+    const clean = canonical(key, value);
+    if (clean !== value) setValues(old => ({...old, [key]: clean}));
+    const problem = problemFor(key, clean);
+    setErrors(old => {
+      const next = Object.fromEntries(Object.entries(old).filter(([k]) => k !== key));
+      return problem ? {...next, [key]: problem} : next;
+    });
   }
   async function ensureReset() {
     if (!resetNeeded.current) return;
@@ -174,13 +205,15 @@ export function IdentificationControls({journey, session, nna = false, children,
     if (busy || !restored) return null;
     const current = view?.estado === 'REVISADO' ? view : await review();
     if (!current || current.estado !== 'REVISADO') return null;
-    const input = {...(view ? values : current.valoresDeclarados)};
+    const input = Object.fromEntries(Object.entries(view ? values : current.valoresDeclarados).map(([key, value]) => [key, value === undefined ? value : canonical(key, value)])) as Declarations;
     if(foreign&&input.nacionalidad)input.nacionalidad=canonicalNationality(input.nacionalidad);
+    if (view) setValues(input);
     const problems: Record<string, string> = {};
     for (const key of current.camposObligatorios) if (!(input[key] || '').trim()) problems[key] = `Completa ${metadata.find(m => m.key === key)?.label || 'este campo'}.`;
     for (const [key, value] of Object.entries(input)) {
       if (!value) continue;
-      if (['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido'].includes(key) && (!/^[\p{L}\p{M} .'-]+$/u.test(value) || !/\p{L}/u.test(value))) problems[key] = 'Escribe solo letras y separadores de nombres.';
+      const problem = problemFor(key, value);
+      if (problem) problems[key] = problem;
       if(key==='nacionalidad'&&!validNationality(value))problems[key]='Selecciona un país o completa Otra / situación especial.';
       if (key === 'edad' && (!/^\d{1,2}$/.test(value) || Number(value) > 17)) problems[key] = 'Indica una edad entre 0 y 17 años, o deja el campo en blanco.';
     }
@@ -212,21 +245,28 @@ export function IdentificationControls({journey, session, nna = false, children,
     if (!next) { setNumero(''); setDv(''); void review(false); }
   }
   const verifiedNames: Declarations = identity ? {
-    primerNombre: identity.nombresComponentes?.[0], segundoNombre: identity.nombresComponentes?.slice(1).join(' '),
-    primerApellido: identity.apellidosComponentes?.[0], segundoApellido: identity.apellidosComponentes?.slice(1).join(' '),
+    primerNombre: identity.nombresComponentes?.[0], segundoNombre: identity.nombresComponentes?.slice(1).join(' ') || undefined,
+    primerApellido: identity.apellidosComponentes?.[0], segundoApellido: identity.apellidosComponentes?.slice(1).join(' ') || undefined,
   } : {};
   const sourceFor = (key: IdentityField) => identity && verifiedNames[key] !== undefined ? 'ClaveÚnica' : 'Declarado';
   const fields = metadata.filter(m => (nna ? !['fechaNacimiento', 'sexo'].includes(m.key) : m.key !== 'edad')
-    && ((identity && verifiedNames[m.key] !== undefined) || view?.camposFaltantes.includes(m.key)
-      || (manualCorrection && !['tipoDocumento','numeroDocumento'].includes(m.key))));
+    && !(identity && verifiedNames[m.key] !== undefined)
+    && (view?.camposFaltantes.includes(m.key) || (manualCorrection && !['tipoDocumento','numeroDocumento'].includes(m.key))));
   const displayedNumber = identity ? formatRunNumber(identity.runNumero || identity.run.split('-')[0]) : numero;
   const displayedDv = identity ? identity.runDv || identity.run.split('-')[1] : dv;
   const preservedRun = !cu && !!view?.runInformado && !numero && !dv;
-  const statusMarkup = <div className="manual-status" id={nna ? 'nna-lookup-status' : 'manual-status'} role="status" aria-live="polite" aria-atomic="true" hidden={!busy && !failure && (!view || (nna && !view.runInformado))}>
-      {busy ? 'Estamos revisando tus datos…' : failure || view?.mensaje}
+  /** Valores tal como los entrega la sesión ClaveÚnica; solo el RUN se presenta con separadores de miles. */
+  const verified: [string, string, string][] = identity ? [
+    ['RUN', `${displayedNumber}-${displayedDv}`, `${prefix}-run`],
+    ...metadata.filter(m => verifiedNames[m.key] !== undefined).map(m => [m.label, verifiedNames[m.key] as string, `${prefix}-${m.suffix}`] as [string, string, string]),
+    ...(!identity.nombresComponentes ? [['Nombres', identity.nombres, 'adult-cu-nombres'] as [string, string, string]] : []),
+    ...(!identity.apellidosComponentes ? [['Apellidos', identity.apellidos, 'adult-cu-apellidos'] as [string, string, string]] : []),
+  ] : [];
+  const statusMarkup = <div className={`manual-status${busy ? ' is-busy' : failure ? ' is-error' : view?.estado === 'REVISADO' ? ' is-done' : ''}`} id={nna ? 'nna-lookup-status' : 'manual-status'} role="status" aria-live="polite" aria-atomic="true" hidden={!busy && !failure && (!view || (nna && !view.runInformado))}>
+      {busy && <span className="ui-spinner inline-spinner" aria-hidden="true" />}{busy ? 'Estamos revisando tus datos…' : failure || view?.mensaje}
     </div>;
   const runControls = <div className="field">
-    <label htmlFor={`${prefix}-run`}>RUN{nna ? ' (RUT)' : ''}{nna ? <span className="muted-label"> (opcional)</span> : <span className="identity-source" id="source-run">{cu ? 'ClaveÚnica' : 'Declarado'}</span>}</label>
+    <label htmlFor={`${prefix}-run`}>RUN{nna ? ' (RUT)' : ''}{nna ? <span className="muted-label"> (opcional)</span> : <>{!cu && <span aria-hidden="true" className="required-mark"> *</span>}<span className="identity-source" id="source-run">{cu ? 'ClaveÚnica' : 'Declarado'}</span></>}</label>
     <div className="run-split">
       <div className="run-piece"><span className="run-piece-label" aria-hidden="true">Número</span>
         <input type="text" id={`${prefix}-run`} name={`${prefix}-run`} value={displayedNumber} onChange={e => changeRun('numero', e.target.value)} readOnly={cu} disabled={busy}
@@ -240,7 +280,7 @@ export function IdentificationControls({journey, session, nna = false, children,
       </div>
     </div>
     <p className="field-help" id={`${prefix}-run-help`}>{nna ? 'Es opcional. Escribe el número y el dígito verificador por separado, o continúa sin RUN.'
-      : cu ? 'Este RUN corresponde a tu ingreso con ClaveÚnica.' : 'Es obligatorio. Escribe el número y el dígito verificador en casillas separadas.'}</p>
+      : cu ? 'Desde tu ClaveÚnica.' : 'Escribe el número y el dígito verificador por separado.'}</p>
     <p className="field-error" hidden={!errors.run} id={`${prefix}-run-error`}>{errors.run}</p>
   </div>;
   return <>
@@ -248,47 +288,59 @@ export function IdentificationControls({journey, session, nna = false, children,
       <label className="radio-pill"><input type="radio" name="adult-identification" checked={!foreign} disabled={busy} onChange={()=>changeIdentification(false)} /> Tengo RUN chileno</label>
       <label className="radio-pill"><input type="radio" name="adult-identification" checked={foreign} disabled={busy} onChange={()=>changeIdentification(true)} /> Soy una persona extranjera sin RUN chileno</label>
     </div></fieldset>}
-    {foreign&&<p className="info-tip" role="status">Puedes utilizar esta vía aunque estés en situación migratoria irregular. Ingresa los antecedentes del documento que posees. Esta identificación es declarada, no autenticada ni verificada.</p>}
+    {foreign&&<p className="info-tip" role="status">Puedes usar esta opción aunque tu situación migratoria no esté regularizada. Ingresa los datos del documento que tengas.</p>}
     {nna && <fieldset className="fieldset run-choice"><legend>¿Conoces tu RUN (RUT)?</legend><div className="radio-row">
       <label className="radio-pill"><input type="radio" name="nna-knows-run" checked={knowsRun} onChange={() => changeKnowsRun(true)} disabled={busy} value="yes" /> Sí, quiero ingresarlo</label>
       <label className="radio-pill"><input type="radio" name="nna-knows-run" checked={!knowsRun} onChange={() => changeKnowsRun(false)} disabled={busy} value="no" /> No sé mi RUN / continuar sin RUN</label>
     </div></fieldset>}
     {preservedRun && <div className="field-help"><p>Ya informaste un RUN en este recorrido. No es necesario volver a ingresarlo.</p><button type="button" className="btn btn-secondary" disabled={busy} onClick={invalidate}>Corregir el RUN informado</button></div>}
-    <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={foreign || (nna && !knowsRun) || preservedRun}>
-      {runControls}
+    {identity && <section className="verified-identity" aria-labelledby={`${prefix}-verified-title`}>
+      <div className="verified-identity-head">
+        <span className="verified-lock" aria-hidden="true"><svg className="icon small"><use href="#i-lock" /></svg></span>
+        <div><h3 id={`${prefix}-verified-title`}>Datos verificados con ClaveÚnica</h3><p>No se pueden modificar en este formulario.</p></div>
+      </div>
+      <dl className="verified-list">{verified.map(([label, value, id]) => <div key={id}><dt>{label}</dt><dd id={id}>{value}</dd></div>)}</dl>
+    </section>}
+    <div className={nna ? undefined : 'identity-lookup-area'} id={nna ? 'nna-run-container' : 'adult-lookup-area'} hidden={foreign || (nna && !knowsRun) || preservedRun || !!identity}>
+      {!identity && runControls}
       {!cu && <div className="lookup-actions" id={nna ? undefined : 'manual-verify'}>
-        <button className="btn btn-secondary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" disabled={busy || !restored} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
+        <button className="btn btn-secondary" id={nna ? 'nna-verify' : 'verify-manual'} type="button" aria-busy={busy || undefined} disabled={busy || !restored} onClick={() => void review()}>{nna ? 'Revisar mi RUN' : 'Revisar RUN'}</button>
         {!nna && statusMarkup}
         {nna && <button className="btn btn-secondary" id="nna-skip-run" type="button" disabled={busy} onClick={() => changeKnowsRun(false)}>Continuar sin RUN</button>}
       </div>}
     </div>
     {(nna || cu || foreign || preservedRun) && statusMarkup}
-    {!nna && !cu && !foreign && view?.estado === 'REVISADO' && <div className="field-help">
-      <p>La revisión del RUN no acredita tu identidad. Completa únicamente los campos solicitados. Aquí solo se muestran los datos que tú declaras.</p>
-      {!manualCorrection && <button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>setManualCorrection(true)}>Aportar datos distintos o faltantes</button>}
-      {manualCorrection && <p role="status">Escribe solo los datos que quieras aportar o corregir. Se conservarán tu declaración y las diferencias con los antecedentes registrales.</p>}
-    </div>}
     {phase === 'ERROR' && <button className="btn btn-secondary" type="button" onClick={() => void (view?.estado === 'CONSULTANDO' ? refresh() : review())}>Volver a intentar</button>}
-    <div className={nna ? 'form-grid nna-basics' : 'identity-input-grid'} id={nna ? undefined : 'adult-personal-fields'} hidden={!fields.length && !children && !identity}>
+    <div className={nna ? 'form-grid nna-basics' : 'identity-input-grid'} id={nna ? undefined : 'adult-personal-fields'} hidden={!fields.length && !children}>
       {fields.map(m => {
         const id = `${prefix}-${m.suffix}`, readOnly = !!identity && verifiedNames[m.key] !== undefined;
         const required = !readOnly && !!view?.camposObligatorios.includes(m.key);
         const input = {id, name: id, value: readOnly ? verifiedNames[m.key] || '' : values[m.key] || '', required, readOnly, disabled: busy,
-          onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setValues(old => ({...old, [m.key]: e.target.value})),
+          onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => edit(m.key, e.target.value),
           'aria-invalid': !!errors[m.key], 'aria-describedby': `${id}-help ${id}-error`};
+        const name = isNameField(m.key);
+        const hint = required ? undefined : nna ? (['segundoApellido', 'segundoNombre'].includes(m.key) ? '(si corresponde)' : m.key === 'edad' ? '(opcional)' : undefined) : m.hint;
+        const underage = !nna && m.key === 'fechaNacimiento' && !errors.fechaNacimiento && isUnderage(values.fechaNacimiento || '');
         return <div className="field" data-identity-attr={m.suffix} key={m.key}>
-          <label htmlFor={id}>{m.label}{(['segundoApellido', 'edad'].includes(m.key) || (nna && m.key === 'segundoNombre')) && <span className="muted-label"> {m.key === 'edad' ? '(opcional)' : '(si corresponde)'}</span>}
+          <label htmlFor={id}>{m.label}{hint && !readOnly && <span className="muted-label"> {hint}</span>}
             {required && <span aria-hidden="true" className="required-mark"> *</span>}{!nna && <span className="identity-source" id={`source-${m.suffix}`}>{sourceFor(m.key)}</span>}</label>
-          {m.key === 'nacionalidad' ? <NationalitySelect id={id} name={id} value={values.nacionalidad||''} required={required} disabled={busy} aria-invalid={!!errors.nacionalidad} aria-describedby={id+'-help '+id+'-error'} onValueChange={value=>setValues(old=>({...old,nacionalidad:value}))}/> : m.key === 'tipoDocumento' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Selecciona un tipo de documento</option><option value="PASAPORTE">Pasaporte</option><option value="IDENTIDAD_EXTRANJERA">Documento de identidad extranjero</option><option value="OTRO">Otro documento de identificación</option></ReadableSelect></div> : m.key === 'sexo' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></ReadableSelect></div>
-            : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : ['nacionalidad','numeroDocumento'].includes(m.key)?120:500} {...(m.key === 'edad' ? {min: 0, max: 17, inputMode: 'numeric' as const} : {})} {...(['primerNombre','segundoNombre','primerApellido','segundoApellido'].includes(m.key) ? {'data-name-part': true} : {})} />}
-          <p className="field-help" id={`${id}-help`}>{m.help}</p><p className="field-error" id={`${id}-error`} hidden={!errors[m.key]}>{errors[m.key]}</p>
+          {m.key === 'nacionalidad' ? <NationalitySelect id={id} name={id} value={values.nacionalidad||''} required={required} disabled={busy} aria-invalid={!!errors.nacionalidad} aria-describedby={id+'-help '+id+'-error'} onValueChange={value=>edit('nacionalidad', value)}/> : m.key === 'tipoDocumento' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Selecciona un tipo de documento</option><option value="PASAPORTE">Pasaporte</option><option value="IDENTIDAD_EXTRANJERA">Documento de identidad extranjero</option><option value="OTRO">Otro documento de identificación</option></ReadableSelect></div> : m.key === 'sexo' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></ReadableSelect></div>
+            : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : m.key === 'numeroDocumento' ? DOCUMENT_MAX_LENGTH : name ? NAME_MAX_LENGTH : 500}
+              onBlur={readOnly ? undefined : e => leave(m.key, e.target.value)}
+              {...(m.key === 'edad' ? {min: 0, max: 17, inputMode: 'numeric' as const} : {})}
+              {...(m.key === 'fechaNacimiento' ? {max: new Date().toISOString().slice(0, 10)} : {})}
+              {...(name ? {'data-name-part': true, autoCapitalize: 'words', spellCheck: false} : {})}
+              {...(m.key === 'numeroDocumento' ? {autoCapitalize: 'characters', spellCheck: false} : {})} />}
+          {m.help && <p className="field-help" id={`${id}-help`}>{m.help}</p>}<p className="field-error" id={`${id}-error`} hidden={!errors[m.key]} aria-live="polite">{errors[m.key]}</p>
+          {underage && <p className="field-note" role="status">Si tienes menos de 18 años, también puedes usar el formulario para niñas, niños y adolescentes.</p>}
         </div>;
       })}
-      {identity && !identity.nombresComponentes && <div className="field"><label htmlFor="adult-cu-nombres">Nombres</label><input id="adult-cu-nombres" value={identity.nombres} readOnly /></div>}
-      {identity && !identity.apellidosComponentes && <div className="field"><label htmlFor="adult-cu-apellidos">Apellidos</label><input id="adult-cu-apellidos" value={identity.apellidos} readOnly /></div>}
       {children}
     </div>
-    {!nna && <p className="field-help" id="adult-source-help">{cu ? 'Los datos de tu ingreso con ClaveÚnica no se pueden editar aquí.'
-      : foreign ? 'Tu nacionalidad, documento y nombres quedan registrados como antecedentes declarados por ti.' : 'Informar un RUN no reemplaza la verificación de identidad con ClaveÚnica.'}</p>}
+    {!nna && !cu && !foreign && view?.estado === 'REVISADO' && <div className="field-help correction-help">
+      {!manualCorrection && <>{!fields.length && <p>No necesitas completar más datos de identificación.</p>}
+        <button type="button" className="btn btn-secondary btn-small" disabled={busy} onClick={()=>setManualCorrection(true)}>Aportar datos distintos o faltantes</button></>}
+      {manualCorrection && <p role="status">Escribe solo lo que quieras corregir o agregar. Guardaremos tu versión junto con los datos originales.</p>}
+    </div>}
   </>;
 }

@@ -46,7 +46,7 @@ export default function NnaPage() {
       const restored=j.estado==='RECIBIDO'?await getJourneySubmission(j.id):null;
       const restoredFiles=restored?[]:await listAttachments(j.id);
       if(active){setJourney(j);setSession(s);setAvailable(c.nna);setMediaEnabled(c.multimedia===true);setReceipt(restored);setInitialFiles(restoredFiles);setFatal('');}
-    }).catch(()=>{if(active)setFatal('No pudimos abrir tu formulario. Inténtalo nuevamente.');}).finally(()=>{if(active)setLoading(false);});
+    }).catch(e=>{if(active)setFatal(e instanceof ApiError&&e.status===429?'Se iniciaron muchos formularios desde esta conexión en la última hora. Espera unos minutos e inténtalo nuevamente.':'No pudimos abrir tu formulario. Inténtalo nuevamente.');}).finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
   },[retry]);
   async function send() {

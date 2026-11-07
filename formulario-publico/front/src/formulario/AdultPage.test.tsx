@@ -40,7 +40,7 @@ beforeEach(()=>{
 afterEach(()=>{if(vi.isFakeTimers()){vi.clearAllTimers();vi.useRealTimers();}vi.restoreAllMocks();window.history.replaceState({},'','/');localStorage.clear();});
 async function fill(){
   if(!exists){const privacy=await screen.findByRole('dialog');await userEvent.click(within(privacy).getByRole('radio',{name:/^Acepto/}));await userEvent.click(within(privacy).getByRole('button',{name:'Continuar'}));}
-  if(cu){await screen.findByDisplayValue('NOMBRE');await waitFor(()=>expect((byId('adult-run') as HTMLInputElement).disabled).toBe(false));}else{
+  if(cu){await screen.findByRole('region',{name:'Datos verificados con ClaveÚnica'});await waitFor(()=>expect(document.querySelector('#manual-status.is-busy')).toBeNull());}else{
     await userEvent.type(await screen.findByRole('textbox',{name:/^RUN/}),'12345678');await userEvent.type(screen.getByRole('textbox',{name:'Dígito verificador del RUN'}),'5');await userEvent.click(screen.getByRole('button',{name:'Revisar RUN'}));
     await userEvent.type(await screen.findByRole('textbox',{name:/^Primer nombre/}),'NOMBRE');await userEvent.type(screen.getByRole('textbox',{name:/^Primer apellido/}),'APELLIDO');
   }
@@ -50,7 +50,7 @@ async function fill(){
 describe('Cierre de adulto con API controlada',()=>{
   it('exige aviso antes de identificar, revisa sin alterar el relato y recibe custodia sin folio inventado',async()=>{
     render(<StrictMode><AdultPage /></StrictMode>);await screen.findByRole('dialog');expect(screen.queryByRole('textbox',{name:/^RUN/})).toBeNull();const review=await fill();expect(within(review).getByText('no',{exact:true})).toBeTruthy();expect(posts).toHaveLength(0);
-    await userEvent.click(within(review).getByRole('button',{name:'Enviar comunicación'}));await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(posts).toHaveLength(1);expect(posts[0].body).toEqual({campos:{motivo:'consulta',tema:'general','consulta-confirmada':'true','consulta-general-detalle':'no','adult-region':'13'},personas:[],instituciones:[],adjuntos:[]});expect(screen.queryByRole('button',{name:'Descargar comprobante institucional'})).toBeNull();expect(Object.keys(localStorage).sort()).toEqual(['siger:font-scale','siger:theme']);
+    await userEvent.click(within(review).getByRole('button',{name:'Enviar comunicación'}));await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(posts).toHaveLength(1);expect(posts[0].body).toEqual({campos:{motivo:'consulta',tema:'general','consulta-confirmada':'true','consulta-general-detalle':'no','adult-region':'13'},personas:[],instituciones:[],adjuntos:[]});expect(screen.queryByRole('button',{name:'Descargar comprobante institucional'})).toBeNull();expect(Object.keys(localStorage).filter(key=>!['siger:font-scale','siger:theme'].includes(key))).toEqual([]);
   });
   it('retoma CU desde el callback raíz y envía referencias sin autoafirmar identidad en el cuerpo',async()=>{
     exists=true;cu=true;render(<Entry />);const review=await fill();expect(within(review).getByText('NOMBRE CU')).toBeTruthy();expect(screen.getByRole('button',{name:'Cerrar sesión'})).toBeTruthy();await userEvent.click(within(review).getByRole('button',{name:'Enviar comunicación'}));await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(JSON.stringify(posts[0].body)).not.toContain('NOMBRE CU');expect(vi.mocked(fetch).mock.calls.some(([url,init])=>String(url)==='/api/formulario/recorridos'&&init?.method==='POST')).toBe(false);
@@ -68,7 +68,7 @@ describe('Cierre de adulto con API controlada',()=>{
     exists=true;received={id:'33333333-3333-4333-8333-333333333333',estado:'PENDIENTE_REGISTRO_SIGER',custodia:proof,registro:null};render(<AdultPage />);await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(posts).toHaveLength(0);expect(screen.queryByRole('textbox',{name:/Primer nombre/})).toBeNull();
   });
   it('si la sesión CU termina retira el formulario y exige autenticación de nuevo',async()=>{
-    exists=true;cu=true;render(<AdultPage mode="cu" />);await screen.findByDisplayValue('NOMBRE');loggedOut=true;fireEvent(window,new Event('focus'));await screen.findByRole('heading',{name:'Ingresa con tu ClaveÚnica'});await waitFor(()=>expect(screen.queryByDisplayValue('NOMBRE')).toBeNull());expect(posts).toHaveLength(0);
+    exists=true;cu=true;render(<AdultPage mode="cu" />);await screen.findByRole('region',{name:'Datos verificados con ClaveÚnica'});loggedOut=true;fireEvent(window,new Event('focus'));await screen.findByRole('heading',{name:'Ingresa con tu ClaveÚnica'});await waitFor(()=>expect(screen.queryByRole('region',{name:'Datos verificados con ClaveÚnica'})).toBeNull());expect(posts).toHaveLength(0);
   });
   it('una sesión CU sin recorrido vigente vuelve a la portada institucional',async()=>{
     cu=true;exists=false;render(<Entry/>);
