@@ -1,5 +1,7 @@
 # Checkpoint operativo — RC1 público y continuidad con SIGER
 
+> **Actualización del 07/11:** [formulario adulto y límite antiabuso por ciudadano](ACTUALIZACION_ANTIABUSO_PRODUCCION_2026-11-07.md): imagen `sha256:5dd5c011…`, commit `c16d135`.
+>
 > **Actualización posterior del 04/11:** [favicon desplegado y nueva imagen de aplicación](ACTUALIZACION_FAVICON_PRODUCCION_2026-11-04.md). Las referencias de artefactos del corte inicial que siguen se conservan como evidencia de publicación; para la imagen activa consultar esa actualización. Recepción habilitada, PULL cerrado y pendientes externos sin cambios.
 
 Estado ejecutado el 04/11/2026, America/Santiago. **Comenzar aquí al retomar este mismo chat. No repetir el despliegue ni crear otro entorno.** Repositorio `chashmdai/formulario-web`, rama `release/formulario-produccion-2026-11`, referencia anterior `6d47760c`. Main y la rama histórica de certificación no se modificaron.
