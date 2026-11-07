@@ -1,6 +1,14 @@
 {
     admin off
     auto_https off
+    # Origen real del ciudadano: CF-Connecting-IP lo fija el borde de Cloudflare y solo se acepta si el par TCP
+    # inmediato es el proxy autorizado (cloudflared en el anfitrión, visto como la puerta de enlace de la red salida).
+    # Sin FORM_TRUSTED_PROXIES no se confía en ningún par: cada solicitud usa su dirección TCP.
+    servers {
+        trusted_proxies static {$FORM_TRUSTED_PROXIES:127.0.0.1/32}
+        trusted_proxies_strict
+        client_ip_headers CF-Connecting-IP
+    }
     # Evitar que errores de transporte registren query OAuth/cabeceras de sesión.
     log default {
         output discard
@@ -10,6 +18,8 @@
     reverse_proxy https://app:8443 {
         header_up Host {$FORM_HOSTNAME}
         header_up -Forwarded
+        # Cabecera interna sobrescrita en cada solicitud: un valor enviado por el cliente nunca llega al backend.
+        header_up X-Ddn-Client-Ip {client_ip}
         header_up X-Forwarded-Host {$FORM_HOSTNAME}
         header_up X-Forwarded-Proto https
         header_up X-Forwarded-Port 443

@@ -44,6 +44,9 @@ siger.claveunica.logout-uri=https://formulario.defensorianinez.gob.cl/logout
 siger.claveunica.id-token-algorithm=HS256
 siger.claveunica.callback-approved=true
 PISEE_SRCEI_ENABLED=false
+# Origen antiabuso por ciudadano: solo la cabecera interna fijada por el servicio proxy de este proyecto.
+formulario.origen.cabecera=X-Ddn-Client-Ip
+formulario.origen.proxies-confiables=proxy
 # Correo y notificaciones corresponden a SIGER; no son requisitos del Formulario.
 formulario.adjuntos.clamav-host=antivirus
 formulario.adjuntos.clamav-port=3310

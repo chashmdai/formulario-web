@@ -14,8 +14,8 @@ import static cl.nexbyte.siger.formulario.IdentificacionCiudadana.*;
 @RestController @RequestMapping("/api/formulario")
 public class FormularioController {
     private static final String ACTUAL=FormularioController.class.getName()+".actual";
-    private final ObjectProvider<RecorridosJdbc> service;
-    public FormularioController(ObjectProvider<RecorridosJdbc> service){this.service=service;}
+    private final ObjectProvider<RecorridosJdbc> service;private final cl.nexbyte.siger.config.OrigenCliente origen;
+    public FormularioController(ObjectProvider<RecorridosJdbc> service,cl.nexbyte.siger.config.OrigenCliente origen){this.service=service;this.origen=origen;}
     public record Capacidades(boolean disponible,String avisoAdulto,String avisoNna){}
     public record Inicio(Tipo tipo,boolean aceptaCanalDigital,String avisoVersion){}
     public record Identificacion(Rol rol,String runNumero,String runDv){@Override public String toString(){return "IdentificacionFormulario[protegida]";}}
@@ -29,7 +29,7 @@ public class FormularioController {
         var s=service.getIfAvailable();return respuesta(s==null?new Capacidades(false,"",""):new Capacidades(true,s.aviso(Tipo.ADULTO_DECLARADO),s.aviso(Tipo.NNA)));
     }
     @PostMapping("/recorridos") ResponseEntity<RecorridosJdbc.Recorrido> iniciar(@RequestBody Inicio body,HttpServletRequest request) {
-        var result=enabled(request).iniciar(body.tipo(),body.aceptaCanalDigital(),body.avisoVersion(),SesionIngreso.iniciar(request),request.getRemoteAddr());
+        var result=enabled(request).iniciar(body.tipo(),body.aceptaCanalDigital(),body.avisoVersion(),SesionIngreso.iniciar(request),origen.de(request));
         request.getSession().setAttribute(ACTUAL,result.id());return respuesta(result);
     }
     @GetMapping("/actual") ResponseEntity<RecorridosJdbc.Recorrido> actual(HttpServletRequest request) {
@@ -48,10 +48,10 @@ public class FormularioController {
     @PostMapping("/recorridos/{id}/personas/{persona}/identificacion") ResponseEntity<Vista> identificar(@PathVariable UUID id,@PathVariable String persona,@RequestBody Identificacion body,HttpServletRequest request,Authentication auth) {
         AutenticacionCiudadana identity=auth!=null&&auth.getPrincipal() instanceof IdentidadVerificada value
             &&auth.getDetails() instanceof EvidenciaAutenticacion proof&&proof.corresponde(value)?new AutenticacionCiudadana(value,proof):null;
-        return respuesta(enabled(request).identificar(id,persona,body.rol(),body.runNumero(),body.runDv(),SesionIngreso.actual(request),request.getRemoteAddr(),identity));
+        return respuesta(enabled(request).identificar(id,persona,body.rol(),body.runNumero(),body.runDv(),SesionIngreso.actual(request),origen.de(request),identity));
     }
     @PostMapping("/recorridos/{id}/identificacion-extranjera") ResponseEntity<Vista> extranjera(@PathVariable UUID id,HttpServletRequest request) {
-        return respuesta(enabled(request).identificarExtranjera(id,SesionIngreso.actual(request),request.getRemoteAddr()));
+        return respuesta(enabled(request).identificarExtranjera(id,SesionIngreso.actual(request),origen.de(request)));
     }
     @PostMapping("/recorridos/{id}/personas/{persona}/declaracion") ResponseEntity<Vista> declarar(@PathVariable UUID id,@PathVariable String persona,@RequestBody Declaracion body,HttpServletRequest request) {
         return respuesta(enabled(request).declarar(id,persona,body.atributos(),SesionIngreso.actual(request),Boolean.TRUE.equals(body.corregirRegistrales())));
