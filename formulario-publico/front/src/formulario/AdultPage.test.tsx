@@ -68,7 +68,9 @@ describe('Cierre de adulto con API controlada',()=>{
     exists=true;received={id:'33333333-3333-4333-8333-333333333333',estado:'PENDIENTE_REGISTRO_SIGER',custodia:proof,registro:null};render(<AdultPage />);await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(posts).toHaveLength(0);expect(screen.queryByRole('textbox',{name:/Primer nombre/})).toBeNull();
   });
   it('si la sesión CU termina retira el formulario y exige autenticación de nuevo',async()=>{
-    exists=true;cu=true;render(<AdultPage mode="cu" />);await screen.findByRole('region',{name:'Datos verificados con ClaveÚnica'});loggedOut=true;fireEvent(window,new Event('focus'));await screen.findByRole('heading',{name:'Ingresa con tu ClaveÚnica'});await waitFor(()=>expect(screen.queryByRole('region',{name:'Datos verificados con ClaveÚnica'})).toBeNull());expect(posts).toHaveLength(0);
+    exists=true;cu=true;render(<AdultPage mode="cu" />);await screen.findByRole('region',{name:'Datos verificados con ClaveÚnica'});loggedOut=true;
+    // El listener de foco se registra en un efecto posterior al render: repetir el evento hasta que esté activo.
+    await waitFor(()=>{fireEvent(window,new Event('focus'));expect(screen.getByRole('heading',{name:'Ingresa con tu ClaveÚnica'})).toBeTruthy();});await waitFor(()=>expect(screen.queryByRole('region',{name:'Datos verificados con ClaveÚnica'})).toBeNull());expect(posts).toHaveLength(0);
   });
   it('una sesión CU sin recorrido vigente vuelve a la portada institucional',async()=>{
     cu=true;exists=false;render(<Entry/>);
