@@ -8,11 +8,15 @@ function system(matches: Record<string, boolean>) {
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); delete document.documentElement.dataset.theme; });
 
 describe('preferencias visuales', () => {
-  it('sigue el modo oscuro del sistema sin guardar una elección que la persona no hizo', () => {
+  it('usa el modo claro por defecto aunque el sistema esté en modo oscuro, sin guardar una elección', () => {
     system({'(prefers-color-scheme: dark)': true});
     const {result} = renderHook(() => usePreferences(false));
-    expect(result.current.theme).toBe('dark');expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(result.current.theme).toBe('light');expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem('siger:theme')).toBeNull();
+  });
+  it('respeta el modo oscuro solo cuando la persona lo eligió y guardó', () => {
+    localStorage.setItem('siger:theme', 'dark');system({});
+    expect(renderHook(() => usePreferences(false)).result.current.theme).toBe('dark');
   });
   it('prioriza alto contraste del sistema y respeta una elección explícita posterior', () => {
     system({'(prefers-contrast: more)': true, '(prefers-color-scheme: dark)': true});
