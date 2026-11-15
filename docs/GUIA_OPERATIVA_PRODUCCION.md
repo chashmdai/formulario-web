@@ -218,7 +218,7 @@ findmnt -no SOURCE,FSTYPE,OPTIONS "$E"; findmnt -no SOURCE /srv; df -h "$E"
 
 ```bash
 sudo python3 "$F" plan --legado "$R" --destino /srv/formulario --limite-gib 40 | sudo tee "$W/plan.json" >/dev/null
-sudo python3 -c 'import json;d=json.load(open("/root/reinstalacion-formulario/plan.json"));print("bloqueos",d["bloqueos"]);print("identidad",d["piseeIdentidad"]);print("flyway",d["baseDatos"]["flyway"]);print("GiB requeridos %.2f libres %.2f limite %.2f"%tuple(x/2**30 for x in (d["bytesRequeridos"],d["bytesLibres"],d["limiteBytes"])));print("no migrado",d["noMigradoPermaneceEnOrigen"]);[print(m) for m in d["montajes"] if m["clase"] in (None,"release","efimero")]'
+sudo python3 -c 'import json;d=json.load(open("/root/reinstalacion-formulario/plan.json"));print("bloqueos",d["bloqueos"]);print("identidad",d["piseeIdentidad"]);print("flyway",d["baseDatos"]["flyway"]);print("GiB requeridos %.2f libres %.2f limite %.2f"%tuple(x/2**30 for x in (d["bytesRequeridos"],d["bytesLibres"],d["limiteBytes"])));print("no migrado",d["noMigradoPermaneceEnOrigen"]);print("proxyTls",d["proxyTls"]);[print(m) for m in d["montajes"] if m["clase"] in (None,"release","efimero")]'
 ```
 
 **Esperado:**
@@ -226,6 +226,7 @@ sudo python3 -c 'import json;d=json.load(open("/root/reinstalacion-formulario/pl
 - `bloqueos []`. Un bloqueo «Montaje no clasificado …» (p. ej. por el `compose.origin-ca.yml` real) **detiene el proceso**: informar al equipo de desarrollo; no usar `--ignorar-montaje` (es solo para laboratorio).
 - `identidad` = hash de 3.6. Si es `None` o distinto (p. ej. `PISEE_PRIVATE_DIR` fuera de `$R/pisee`), **detenerse e informar**.
 - `flyway 12`.
+- `proxyTls` con `verificado: True` y `caSalud` = `pki/proxy/origin-ca.crt` si el origen tiene CA de origen (en DDN-UBUNTU sí), si no `pki/proxy/ca.crt`. Un bloqueo «… no verifica pki/proxy/server.crt …» **detiene el proceso**: el proxy nuevo no quedaría sano; no cambiar certificados para sortearlo, informar al equipo de desarrollo. → R6 parcial.
 - GiB requeridos ≤ mín(libres, 40). → R2.
 - `no migrado` lista lo que permanece solo en el origen (p. ej. `release`, `software`, `updates`, `ipc`).
 

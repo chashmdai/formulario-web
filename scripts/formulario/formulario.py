@@ -30,6 +30,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import socket
+import ssl
 import stat
 import subprocess
 import sys
@@ -43,6 +44,9 @@ INFRA = {'compose.yml': 'infra/formulario/compose.yml', 'Caddyfile': 'infra/ubun
          'mysql.cnf': 'infra/ubuntu/mysql.cnf', 'clamd.conf': 'infra/ubuntu/clamd.conf',
          'formulario.service': 'infra/formulario/formulario.service'}
 PISEE_PEM = 'pisee/runtime/certsX509-institucional/public.pem'
+# CA con la que el healthcheck del proxy (infra/formulario/compose.yml) verifica pki/proxy/server.crt:
+# la PRIMERA que exista, en este orden. Debe coincidir con el `test` de ese healthcheck.
+PROXY_CA_SALUD = ('origin-ca.crt', 'ca.crt')
 GIB = 2 ** 30
 ESCRITORES = ['proxy', 'app', 'pisee']
 ORDEN_ARRANQUE = ['mysql', 'antivirus', 'inspector', 'pisee', 'app', 'proxy']
@@ -304,6 +308,56 @@ def huellas(sql):
     return resultado
 
 
+def handshake_tls(cert, key, ca, hostname):
+    """Handshake TLS completo en memoria (sin red): servidor con cert+key, cliente que verifica cadena,
+    vigencia y nombre contra `ca`, con las reglas de curl/OpenSSL (cadena parcial sí, X509_STRICT no).
+    Lanza ssl.SSLError (p. ej. SSLCertVerificationError) o ValueError si no se completa."""
+    servidor = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    servidor.load_cert_chain(str(cert), str(key), password=lambda: b'')  # nunca solicita contraseña
+    cliente = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # CERT_REQUIRED y check_hostname
+    cliente.verify_flags = (cliente.verify_flags | ssl.VERIFY_X509_PARTIAL_CHAIN) & ~ssl.VERIFY_X509_STRICT
+    cliente.load_verify_locations(cafile=str(ca))
+    c_in, c_out, s_in, s_out = (ssl.MemoryBIO() for _ in range(4))
+    lados = {'cliente': cliente.wrap_bio(c_in, c_out, server_hostname=hostname),
+             'servidor': servidor.wrap_bio(s_in, s_out, server_side=True)}
+    listos = set()
+    for _ in range(16):
+        for nombre, extremo in lados.items():
+            if nombre not in listos:
+                try:
+                    extremo.do_handshake()
+                    listos.add(nombre)
+                except ssl.SSLWantReadError:
+                    pass
+        s_in.write(c_out.read())
+        c_in.write(s_out.read())
+        if len(listos) == 2:
+            return
+    raise ValueError('handshake TLS incompleto')
+
+
+def tls_proxy(archivos, hostname):
+    """Reproduce, sobre la vista efectiva que se migra, el healthcheck del proxy de infra/formulario/compose.yml:
+    la CA elegida según PROXY_CA_SALUD debe verificar pki/proxy/server.crt para FORM_HOSTNAME. Bloquea si no."""
+    cert, key = archivos.get('pki/proxy/server.crt'), archivos.get('pki/proxy/server.key')
+    ca = next((n for n in PROXY_CA_SALUD if 'pki/proxy/' + n in archivos), None)
+    informe = {'caSalud': ca and 'pki/proxy/' + ca, 'hostname': hostname, 'verificado': False}
+    if not cert or not key:
+        return informe, ['Proxy sin pki/proxy/server.crt o pki/proxy/server.key']
+    if not ca:
+        return informe, ['Proxy sin CA para su healthcheck (' + ' ni '.join('pki/proxy/' + n for n in PROXY_CA_SALUD) + ')']
+    if not hostname:
+        return informe, ['FORM_HOSTNAME ausente: no se puede verificar el certificado del proxy']
+    try:
+        handshake_tls(cert, key, archivos['pki/proxy/' + ca], hostname)
+    except (ssl.SSLError, OSError, ValueError) as error:
+        motivo = getattr(error, 'verify_message', None) or getattr(error, 'reason', None) or type(error).__name__
+        return informe, [f'pki/proxy/{ca} no verifica pki/proxy/server.crt para {hostname} ({motivo}): '
+                         'el healthcheck del proxy de la instalación nueva fallaría']
+    informe.update(verificado=True, caSha256=sha256(archivos['pki/proxy/' + ca]))
+    return informe, []
+
+
 def plan(a):
     inv = inventario_legado(a.legado, a.ignorar_montaje)
     archivos, _ = expandir(inv['entradas'])
@@ -316,11 +370,14 @@ def plan(a):
     bloqueos = list(inv['bloqueos'])
     if requerido > min(libre, limite):
         bloqueos.append('Espacio insuficiente dentro del límite configurado')
+    # Antes de interrumpir nada (transicion ejecuta plan primero): el proxy nuevo debe poder quedar sano.
+    proxy_tls, bloqueos_tls = tls_proxy(archivos, inv['env'].get('FORM_HOSTNAME'))
+    bloqueos += bloqueos_tls
     identidad = inv['raiz'] / 'pisee/runtime/certsX509-institucional/public.pem'
     return {'proyectoAnterior': inv['proyecto'], 'montajes': inv['montajes'], 'bloqueos': bloqueos,
             'noMigradoPermaneceEnOrigen': inv['noMigrado'], 'archivosPreservados': len(archivos),
             'bytesPreservados': datos, 'baseDatos': db, 'bytesRequeridos': requerido, 'bytesLibres': libre,
-            'limiteBytes': limite, 'imagenes': inv['imagenes'],
+            'limiteBytes': limite, 'imagenes': inv['imagenes'], 'proxyTls': proxy_tls,
             'piseeIdentidad': sha256(identidad) if identidad.is_file() else None}
 
 

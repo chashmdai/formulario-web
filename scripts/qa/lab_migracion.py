@@ -89,10 +89,15 @@ class Lab:
             f'PISEE_NODE_CONFIG={L}/pisee/config-produccion.json', f'PISEE_STATE_DIR={L}/pisee/state',
             'PISEE_SUBNET=10.203.74.0/29', 'PISEE_NODE_IPV4=10.203.74.2', 'PISEE_BACKEND_IPV4=10.203.74.3',
             'FORM_TRUSTED_PROXIES=127.0.0.1/32', 'FORM_HEALTH_PATH=/acceso-temporal/salud', f'LAB_STUB_IMAGE={STUB_IMAGE}', f'LAB_STUB={self.env["LAB_STUB"]}', ''])
-        overlay_ca = f'services:\n  proxy:\n    volumes: ["{L}/pki/origen/origin-ca.crt:/run/pki/origin-ca.crt:ro"]\n'
+        # Como en DDN-UBUNTU: server.crt del proxy lo emite una CA de ORIGEN distinta de la CA interna (ca.crt,
+        # confianza hacia app) y con el MISMO CN; el overlay real solo cambia el healthcheck del proxy (sin montajes).
+        overlay_ca = ('services:\n  proxy:\n    healthcheck:\n      test: ["CMD-SHELL", "curl --fail --silent --cacert '
+                      '/run/pki/origin-ca.crt --output /dev/null https://$$FORM_HOSTNAME:8443${FORM_HEALTH_PATH:-/api/session}"]\n')
+        origin_ext = ('basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n'
+                      f'extendedKeyUsage=serverAuth\nsubjectAltName=DNS:{HOST},DNS:localhost\n')
         files = {
             'acceso-temporal.pw': password, 'acceso-temporal.hash': encoded, 'props': props,
-            'compose.env': compose_env, 'origin.yml': overlay_ca,
+            'compose.env': compose_env, 'origin.yml': overlay_ca, 'origin.ext': origin_ext,
             'pisee.json': json.dumps({'servidores': {'interno': {'seguridad': {'ipPermitidas': ['127.0.0.1', '10.203.74.3']}}},
                                       'log': {'nivel': 'error', 'ruta': '/dev/null'}, 'credencialSintetica': 'LAB'}),
             'installation.json': json.dumps({'project': LEGADO, 'hostname': HOST, 'port': port, 'backendIp': '10.203.74.3'}),
@@ -111,19 +116,23 @@ sed -i '/^formulario.acceso-temporal.habilitado=/d;/^formulario.acceso-temporal.
 cat $S/props >> config/application.properties; chmod 0400 config/application.properties
 printf 'SINTETICO-CU-ID' > cu/siger.claveunica.client-id; printf 'SINTETICO-CU-SECRETO-0123456789abcdef0123456789' > cu/siger.claveunica.client-secret
 chown 1000:1000 cu/*; chmod 0400 cu/*
-mkdir -p pisee/runtime/certsX509-institucional pisee/runtime/assets pisee/runtime/conversiones pisee/state pki/origen
+mkdir -p pisee/runtime/certsX509-institucional pisee/runtime/assets pisee/runtime/conversiones pisee/state
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=PISEE-LAB -keyout /tmp/k.pem -out pisee/runtime/certsX509-institucional/public.pem 2>/dev/null
 head -c 2048 /dev/urandom > pisee/runtime/NodoV2; echo '{{}}' > pisee/runtime/assets/a.json; echo '{{}}' > pisee/runtime/conversiones/c.json
 echo '{{"estado":"sintetico"}}' > pisee/state/estado.json
 install -m 0400 $S/pisee.json pisee/config-produccion.json
 chown -R 1000:1000 pisee
-cp pki/proxy/ca.crt pki/proxy/origin-ca.crt; openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=ORIGEN-LAB -keyout /tmp/o.pem -out pki/origen/origin-ca.crt 2>/dev/null
-chown -R 1000:1000 pki/origen pki/proxy/origin-ca.crt; chmod 0400 pki/proxy/origin-ca.crt pki/origen/origin-ca.crt
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj '/CN=Formulario Origin CA privada' -keyout /tmp/o.pem -out pki/proxy/origin-ca.crt -addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign,cRLSign 2>/dev/null
+openssl req -new -key pki/proxy/server.key -subj /CN={HOST} -out /tmp/o.csr 2>/dev/null
+openssl x509 -req -sha256 -days 30 -in /tmp/o.csr -CA pki/proxy/origin-ca.crt -CAkey /tmp/o.pem -set_serial 1 -extfile $S/origin.ext -out pki/proxy/server.crt 2>/dev/null; rm -f /tmp/o.pem /tmp/o.csr
+if openssl verify -CAfile pki/proxy/ca.crt pki/proxy/server.crt >/dev/null 2>&1; then echo 'LAB: ca.crt no debe verificar server.crt' >&2; exit 1; fi
+openssl verify -CAfile pki/proxy/origin-ca.crt pki/proxy/server.crt >/dev/null
+chown 1000:1000 pki/proxy/origin-ca.crt pki/proxy/server.crt; chmod 0664 pki/proxy/origin-ca.crt; chmod 0400 pki/proxy/server.crt
 mkdir -p authorization store/objects store/chunks store/incoming store/derived; echo '{{"aprobacion":"sintetica"}}' > authorization/signing-status.json
 for i in 1 2 3; do head -c 65536 /dev/urandom > store/objects/$(cat /proc/sys/kernel/random/uuid); done; chown -R 1000:1000 store; chmod 0700 store/*
 install -m 0400 $S/compose.env compose.env; install -m 0400 $S/origin.yml compose.origin-ca.yml; install -m 0400 $S/installation.json installation.json
 mkdir -p release software; echo historico > release/LEEME; echo binario > software/manifest.json
-cp pki/proxy/ca.crt {self.w}/ca.pem; chmod 0644 {self.w}/ca.pem''')
+cp pki/proxy/origin-ca.crt {self.w}/ca.pem; chmod 0644 {self.w}/ca.pem''')
         # Imagen ANTERIOR: JAR del commit desplegado (V12) con la sonda de salud de la imagen actual.
         ctx = self.w / 'imagen-anterior'
         ctx.mkdir(exist_ok=True)
@@ -275,7 +284,7 @@ def main():
         lab.esperar_puerto(P)
         R['nuevaAccesoTemporal'] = lab.acceso_temporal(P, password)
         R['nuevaOrigenCa'] = lab.root(f'sha256sum {lab.w}/srv/formulario/pki/proxy/origin-ca.crt '
-                                      f'{lab.legado}/pki/origen/origin-ca.crt | cut -c1-64 | uniq | wc -l').stdout.decode().strip() == '1'
+                                      f'{lab.legado}/pki/proxy/origin-ca.crt | cut -c1-64 | uniq | wc -l').stdout.decode().strip() == '1'
         R['nuevaPiseeIps'] = json.loads(lab.root(f'cat {lab.w}/srv/formulario/pisee/config.json').stdout)['servidores']['interno']['seguridad']['ipPermitidas']
         R['nuevaCredencialPiseeIntacta'] = 'credencialSintetica' in lab.root(f'cat {lab.w}/srv/formulario/pisee/config.json').stdout.decode()
         R['nuevaControlCas'] = lab.root(f'docker exec $(docker ps -q --filter label=com.docker.compose.project=formulario-lab '

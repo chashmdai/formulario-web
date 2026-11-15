@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Herramienta única formulario.py sin Docker real: clasificación de montajes, vista efectiva,
-formato de respaldo (GPG real), entorno generado e invariante de nodo PISEE único."""
+formato de respaldo (GPG real), entorno generado, invariante de nodo PISEE único y CA del
+healthcheck del proxy (PKI real con openssl, healthcheck real con sh + curl)."""
 import argparse
 import hashlib
 import importlib.util
@@ -8,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import ssl
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -432,6 +435,215 @@ class ServiciosObligatoriosTest(unittest.TestCase):
         self.assertEqual(f.problemas_servicios(sin_pisee, True), [])
         self.assertIn('Nodo PISEE activo durante la validación', f.problemas_servicios(self.sanos, True))
         self.assertTrue(f.problemas_servicios({k: v for k, v in sin_pisee.items() if k != 'inspector'}, True))
+
+
+HOST = 'formulario.defensorianinez.gob.cl'
+
+
+@unittest.skipUnless(shutil.which('openssl'), 'openssl requerido')
+class TlsProxyTest(unittest.TestCase):
+    """Regresión DDN-UBUNTU 15/11/2026: en producción pki/proxy/server.crt lo emite origin-ca.crt y
+    pki/proxy/ca.crt es la CA interna (confianza hacia app), ambas con el MISMO CN. El healthcheck del
+    Compose nuevo usaba ca.crt y el proxy nunca quedaba sano; `plan` no lo detectaba."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.base = Path(self.temp.name)
+        self.interna = self.ca('interna')
+        self.origen = self.ca('origen')
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def openssl(self, *args):
+        subprocess.run(['openssl', *args], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def ca(self, nombre):
+        d = self.base / nombre
+        d.mkdir()
+        self.openssl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', '30',
+                     '-subj', '/CN=Formulario Origin CA privada', '-keyout', str(d / 'ca.key'), '-out', str(d / 'ca.crt'),
+                     '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign')
+        return d
+
+    def servidor(self, ca, nombre, sans=f'DNS:{HOST},DNS:localhost'):
+        d = self.base / nombre
+        d.mkdir()
+        (d / 'ext').write_text('basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\n'
+                               f'extendedKeyUsage=serverAuth\nsubjectAltName={sans}\n')
+        self.openssl('req', '-new', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-subj', f'/CN={HOST}',
+                     '-keyout', str(d / 'server.key'), '-out', str(d / 'server.csr'))
+        self.openssl('x509', '-req', '-in', str(d / 'server.csr'), '-CA', str(ca / 'ca.crt'), '-CAkey', str(ca / 'ca.key'),
+                     '-set_serial', '1', '-days', '30', '-extfile', str(d / 'ext'), '-out', str(d / 'server.crt'))
+        return d
+
+    def pki(self, servidor, ca=True, origen=None):
+        archivos = {'pki/proxy/server.crt': servidor / 'server.crt', 'pki/proxy/server.key': servidor / 'server.key'}
+        if ca:
+            archivos['pki/proxy/ca.crt'] = self.interna / 'ca.crt'
+        if origen:
+            archivos['pki/proxy/origin-ca.crt'] = origen / 'ca.crt'
+        return archivos
+
+    def test_layout_productivo_origin_ca_firma_server_y_ca_interna_no(self):
+        archivos = self.pki(self.servidor(self.origen, 's'), origen=self.origen)
+        informe, bloqueos = f.tls_proxy(archivos, HOST)
+        self.assertEqual(bloqueos, [])
+        self.assertEqual(informe['caSalud'], 'pki/proxy/origin-ca.crt')
+        self.assertTrue(informe['verificado'])
+        # El healthcheck anterior (siempre ca.crt) falla con este mismo material: es el defecto corregido.
+        with self.assertRaises(ssl.SSLCertVerificationError):
+            f.handshake_tls(archivos['pki/proxy/server.crt'], archivos['pki/proxy/server.key'], self.interna / 'ca.crt', HOST)
+
+    def test_sin_origin_ca_se_usa_ca_crt(self):
+        informe, bloqueos = f.tls_proxy(self.pki(self.servidor(self.interna, 's')), HOST)
+        self.assertEqual(bloqueos, [])
+        self.assertEqual(informe['caSalud'], 'pki/proxy/ca.crt')
+
+    def test_ca_seleccionada_incompatible_bloquea(self):
+        # Sin origin-ca.crt, server.crt emitido por otra CA con el mismo CN.
+        informe, bloqueos = f.tls_proxy(self.pki(self.servidor(self.origen, 's')), HOST)
+        self.assertFalse(informe['verificado'])
+        self.assertEqual(len(bloqueos), 1)
+        self.assertIn('pki/proxy/ca.crt no verifica pki/proxy/server.crt', bloqueos[0])
+        # origin-ca.crt presente tiene prioridad: si no emitió server.crt, también bloquea (no se cae a ca.crt).
+        _, bloqueos = f.tls_proxy(self.pki(self.servidor(self.interna, 's2'), origen=self.origen), HOST)
+        self.assertIn('pki/proxy/origin-ca.crt no verifica', bloqueos[0])
+
+    def test_nombre_clave_o_material_ausente_bloquean(self):
+        ajeno = self.servidor(self.origen, 'ajeno', sans='DNS:otro.example')
+        self.assertTrue(f.tls_proxy(self.pki(ajeno, origen=self.origen), HOST)[1])
+        mezclado = self.pki(self.servidor(self.origen, 's'), origen=self.origen)
+        mezclado['pki/proxy/server.key'] = self.servidor(self.origen, 'otra') / 'server.key'  # clave que no corresponde
+        self.assertTrue(f.tls_proxy(mezclado, HOST)[1])
+        sin_ca = self.pki(self.servidor(self.interna, 's3'), ca=False)
+        self.assertIn('sin CA', f.tls_proxy(sin_ca, HOST)[1][0])
+        sin_key = {k: v for k, v in sin_ca.items() if not k.endswith('server.key')}
+        self.assertTrue(f.tls_proxy(sin_key, HOST)[1])
+        self.assertTrue(f.tls_proxy(self.pki(self.servidor(self.interna, 's4')), None)[1])
+
+    def plan_con(self, pki_dir):
+        inv = {'raiz': self.base, 'proyecto': 'legado', 'env': {'FORM_HOSTNAME': HOST}, 'meta': {},
+               'servicios': {'mysql': {'Id': 'm'}}, 'entradas': [('pki/proxy', pki_dir, 'proxy:/run/pki')],
+               'montajes': [], 'bloqueos': [], 'noMigrado': [], 'imagenes': {}}
+        a = argparse.Namespace(legado=str(self.base), destino=None, limite_gib=40, respaldo_local=True, ignorar_montaje=[])
+        with patch.object(f, 'inventario_legado', return_value=inv), \
+                patch.object(f, 'base_datos', return_value={'bytes': 0, 'conteos': {}, 'flyway': '12', 'huellas': {}}):
+            return f.plan(a)
+
+    def directorio_proxy(self, nombre, servidor, origen=None):
+        d = self.base / nombre
+        d.mkdir()
+        for archivo in ['server.crt', 'server.key']:
+            shutil.copy(servidor / archivo, d / archivo)
+        shutil.copy(self.interna / 'ca.crt', d / 'ca.crt')
+        if origen:
+            shutil.copy(origen / 'ca.crt', d / 'origin-ca.crt')
+        return d
+
+    def test_plan_informa_la_ca_y_bloquea_la_incompatibilidad(self):
+        bueno = self.plan_con(self.directorio_proxy('p-ok', self.servidor(self.origen, 's'), self.origen))
+        self.assertEqual(bueno['bloqueos'], [])
+        self.assertEqual(bueno['proxyTls']['caSalud'], 'pki/proxy/origin-ca.crt')
+        malo = self.plan_con(self.directorio_proxy('p-mal', self.servidor(self.origen, 's2')))
+        self.assertTrue(any('healthcheck del proxy' in b for b in malo['bloqueos']))
+
+    def test_transicion_no_interrumpe_con_ca_incompatible(self):
+        llamado = []
+        pki_dir = self.directorio_proxy('p-mal', self.servidor(self.origen, 's'))
+        plan_real = self.plan_con(pki_dir)
+        a = argparse.Namespace(legado='/srv/l', raiz='/srv/n', clave='k', respaldos='/e', unidad_legado='u.service',
+                               limite_gib=40, respaldo_local=True, ignorar_montaje=[], sin_systemd=False)
+        with patch.object(f, 'requiere_root'), patch.object(f, 'clave'), patch.object(f, 'plan', return_value=plan_real), \
+                patch.object(f, 'detener', side_effect=lambda ids: llamado.append('detener')), \
+                patch.object(f, 'respaldar_legado', side_effect=lambda *x, **k: llamado.append('respaldo')):
+            with self.assertRaisesRegex(f.Rechazo, 'healthcheck del proxy'):
+                f.transicion(a)
+        self.assertEqual(llamado, [])
+
+
+class HealthcheckProxyComposeTest(unittest.TestCase):
+    """El `test` real del healthcheck del proxy (infra/formulario/compose.yml) ejecutado con sh y curl
+    contra un servidor TLS local: misma regla que PROXY_CA_SALUD y verificación estricta."""
+
+    @staticmethod
+    def comando():
+        texto = (ROOT / 'infra/formulario/compose.yml').read_text()
+        proxy = texto.split('\n  proxy:\n', 1)[1].split('\n  inspector:\n', 1)[0]
+        linea = next(l for l in proxy.splitlines() if l.strip().startswith('test:'))
+        tipo, cmd = json.loads(linea.split('test:', 1)[1])
+        assert tipo == 'CMD-SHELL'
+        return cmd
+
+    def test_sin_modo_inseguro_y_mismo_orden_que_formulario(self):
+        cmd = self.comando()
+        for inseguro in [' -k ', '--insecure', '--no-verify', 'verify=0']:
+            self.assertNotIn(inseguro, cmd + ' ')
+        self.assertIn('--cacert', cmd)
+        posiciones = [cmd.index('/run/pki/' + n) for n in f.PROXY_CA_SALUD]
+        self.assertEqual(posiciones, sorted(posiciones))
+
+    @unittest.skipUnless(shutil.which('openssl') and shutil.which('curl') and shutil.which('sh'), 'openssl, curl y sh requeridos')
+    def test_ejecuta_el_healthcheck_con_ambas_ca_y_rechaza_la_incompatible(self):
+        import http.server
+        import threading
+        pk = TlsProxyTest('run')
+        pk.setUp()
+        self.addCleanup(pk.tearDown)
+
+        def probar(nombre, servidor, origen):
+            pki = pk.directorio_proxy(nombre, servidor, origen)
+            contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            contexto.load_cert_chain(str(pki / 'server.crt'), str(pki / 'server.key'))
+
+            class Salud(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(200 if self.path == '/acceso-temporal/salud' else 404)
+                    self.send_header('Content-Length', '0')  # sin él, curl ve EOF TLS sin close_notify (56)
+                    self.end_headers()
+
+                def log_message(self, *args):
+                    pass
+
+            httpd = http.server.HTTPServer(('127.0.0.1', 0), Salud)
+            httpd.socket = contexto.wrap_socket(httpd.socket, server_side=True)
+            hilo = threading.Thread(target=httpd.serve_forever, daemon=True)
+            hilo.start()
+            try:
+                # Interpolación de Compose: $$ -> $, ${FORM_HEALTH_PATH:-x} -> x; rutas y puerto del entorno de prueba.
+                cmd = (self.comando().replace('$$', '$').replace('${FORM_HEALTH_PATH:-/acceso-temporal/salud}',
+                                                                 '/acceso-temporal/salud')
+                       .replace('/run/pki', str(pki)).replace(':8443', f':{httpd.server_port}'))
+                r = subprocess.run(['sh', '-c', cmd], env={'PATH': os.environ['PATH'], 'FORM_HOSTNAME': 'localhost'},
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+                return r.returncode
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+
+        self.assertEqual(probar('hc-origen', pk.servidor(pk.origen, 'a'), pk.origen), 0)
+        self.assertEqual(probar('hc-interna', pk.servidor(pk.interna, 'b'), None), 0)
+        self.assertNotEqual(probar('hc-productivo-sin-origin', pk.servidor(pk.origen, 'c'), None), 0)
+        self.assertNotEqual(probar('hc-origin-incompatible', pk.servidor(pk.interna, 'd'), pk.origen), 0)
+
+
+
+class PaqueteReleaseTest(unittest.TestCase):
+    def test_docs_operativos_del_paquete_incluyen_los_que_enlazan(self):
+        """El paquete 7395a3f omitía GUIA_OPERATIVA_PRODUCCION.md aunque REINSTALACION la enlaza."""
+        import re
+        spec_p = importlib.util.spec_from_file_location('empaquetar', ROOT / 'scripts/linux/empaquetar-release.py')
+        paquete = importlib.util.module_from_spec(spec_p)
+        spec_p.loader.exec_module(paquete)
+        docs = {i for i in paquete.INCLUDE if i.startswith('docs/')}
+        self.assertIn('docs/GUIA_OPERATIVA_PRODUCCION.md', docs)
+        for doc in docs:
+            self.assertTrue((ROOT / doc).is_file(), doc)
+        # El procedimiento de reinstalación (y lo que enlaza) debe poder seguirse solo con el paquete.
+        for doc in ['docs/REINSTALACION_LIMPIA_FORMULARIO.md', 'docs/GUIA_OPERATIVA_PRODUCCION.md']:
+            for enlace in re.findall(r'\]\(([A-Z0-9_]+\.md)(?:#[^)]*)?\)', (ROOT / doc).read_text()):
+                self.assertIn('docs/' + enlace, docs, f'{doc} enlaza {enlace}, que no viaja en el paquete')
+
 
 if __name__ == '__main__':
     unittest.main()

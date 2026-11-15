@@ -6,7 +6,8 @@ la exporta con `docker save` y agrega los scripts e infraestructura versionados 
 
   release-<sha12>/
     imagen-app.tar.gz          imagen inmutable (docker load)
-    fuente/                    scripts/, infra/ubuntu/, docs/ACTUALIZACION_UBUNTU_PRODUCCION.md del commit
+    fuente/                    scripts/, infra/{formulario,ubuntu,sandbox,media}/ y los docs operativos del commit
+                               (REINSTALACION_LIMPIA_FORMULARIO, GUIA_OPERATIVA_PRODUCCION, ACTUALIZACION, INSTALACION)
     manifiesto.json            commit, ID de imagen, digests base, versión de esquema Flyway
     SHA256SUMS                 sha256sum -c SHA256SUMS
 
@@ -26,8 +27,9 @@ import tarfile
 import tempfile
 
 REPO = Path(__file__).resolve().parents[2]
+# Los documentos operativos enlazados entre sí deben viajar juntos (lo comprueba scripts/qa/test_formulario.py).
 INCLUDE = ['scripts', 'infra/formulario', 'infra/ubuntu', 'infra/sandbox', 'infra/media', 'docs/REINSTALACION_LIMPIA_FORMULARIO.md',
-           'docs/ACTUALIZACION_UBUNTU_PRODUCCION.md',
+           'docs/GUIA_OPERATIVA_PRODUCCION.md', 'docs/ACTUALIZACION_UBUNTU_PRODUCCION.md',
            'docs/INSTALACION_UBUNTU_DOCKER.md', 'README.md']
 
 
