@@ -51,6 +51,12 @@ class RecorridosJdbcTest {
         }
         return new ResultadoSrcei(status,attrs,clock.instant(),ref);
     }
+    /** Misma respuesta con una fecha registral de menor de edad: un adulto registral se deriva fuera del recorrido NNA. */
+    private ResultadoSrcei menor(ResultadoSrcei base){
+        var attrs=new HashMap<>(base.atributos());var date=attrs.get("fechaNacimiento");
+        attrs.put("fechaNacimiento",new ResultadoSrcei.Atributo("2012-03-04",date.codigo(),date.fuente(),date.nivel(),date.observadoEn(),date.evidencia()));
+        return new ResultadoSrcei(base.estado(),attrs,base.consultadoEn(),base.evidencia());
+    }
     @Test void completoNoRevelaDatosNiInfiereComponentesYPersisteSinReconsultar(){
         var journey=iniciar(Tipo.ADULTO_DECLARADO);var view=identificar(journey.id());
         assertFalse(view.autenticada());assertTrue(view.runInformado());assertTrue(view.camposObligatorios().isEmpty());
@@ -132,6 +138,7 @@ class RecorridosJdbcTest {
         service.identificar(id,"presentador-nna",Rol.PRESENTADOR,null,null,session,"127.0.0.1",null);
         assertEquals(0,queries.get());
         service.reiniciarPersona(id,"presentador-nna",session);
+        provider=r->menor(resultado(ResultadoSrcei.Estado.COMPLETO));
         var view=service.identificar(id,"presentador-nna",Rol.PRESENTADOR,"12345678","5",session,"127.0.0.1",null);
         assertEquals(1,queries.get());assertFalse(view.autenticada());assertTrue(view.camposObligatorios().isEmpty());
     }

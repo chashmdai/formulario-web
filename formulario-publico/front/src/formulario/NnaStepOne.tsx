@@ -24,7 +24,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}</div>
 {" "}<div className="paper-body">
-{" "}<IdentificationControls journey={ctx.journey} session={ctx.session} nna identityRef={ctx.identityRef}>
+{" "}<IdentificationControls journey={ctx.journey} session={ctx.session} nna identityRef={ctx.identityRef} onDerived={ctx.onDerived}>
 {geo}
 </IdentificationControls>{" "}{" "}{" "}<div className="nna-help-identity" id="nna-identity-help-panel">
 <p id="nna-assistance-policy"><strong>¿Necesitas ayuda para completar tus datos?</strong> Puedes pedir apoyo a alguien de confianza. Para continuar necesitamos tu primer nombre, primer apellido y región.</p>

@@ -46,7 +46,7 @@ export default function AdultPage({initialJourney,initialSession,mode='manual'}:
   useEffect(()=>{
     let active=true;document.title='Formulario para personas adultas | Defensoría de la Niñez';
     // La sesión consultada al abrir el sitio se reutiliza en la primera carga; un reintento vuelve a consultarla.
-    void Promise.all([initialSession&&retry===0?Promise.resolve(initialSession):getSession(),getReceptionCapabilities(),initialJourney?Promise.resolve(initialJourney):getCurrentJourney().catch(e=>{if(!(e instanceof ApiError)||e.status!==404)throw e;return null;})]).then(async([s,c,j])=>{
+    void Promise.all([initialSession&&retry===0?Promise.resolve(initialSession):getSession(),getReceptionCapabilities(),initialJourney?Promise.resolve(initialJourney):getCurrentJourney().catch(e=>{if(!(e instanceof ApiError)||(e.status!==404&&e.status!==410))throw e;return null;})]).then(async([s,c,j])=>{
       if(!j||j.tipo!==kind){if(active){setSession(s);setAvailable(c.adultos);setMediaEnabled(c.multimedia===true);setPrivacy(true);setLoading(false);}return;}
       if(!j.aceptaCanal)throw new ApiError(409);
       const restored=j.estado==='RECIBIDO'?await getJourneySubmission(j.id):null;

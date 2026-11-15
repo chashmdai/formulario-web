@@ -38,6 +38,8 @@ public final class RecepcionFormularioJdbc {
         if(id==null||journey==null||datos==null)throw new FalloTecnico(400);sesion(session);
         String hash=CanonFormulario.huella("SOLICITUD",List.of(journey,session,datos),mapper);
         var previous=previa(id,journey,session,hash);if(previous!=null)return previous;
+        // Un cumpleaños durante el recorrido deriva antes de custodiar: la recepción NNA exige edad registral menor de 18.
+        recorridos.exigirVigenciaNna(journey,session);
         var verifiedFiles=adjuntos.prepararRecepcion(journey,session);
         try{return db.transaction(()->{
             var route=recorridos.bloquearBorrador(journey,session);
@@ -49,6 +51,7 @@ public final class RecepcionFormularioJdbc {
             var selected=new HashSet<String>();selected.add(route.tipo()==Tipo.NNA?"presentador-nna":"presentador-adulto");canonical.personas().forEach(p->selected.add(p.personaId()));
             var receivedAt=clock.instant();
             var people=recorridos.personasInternas(journey,session,selected);
+            recorridos.rechazarAdultoRegistral(journey,route.tipo(),people);
             if (!datosRegistralesPermitidos && people.stream().anyMatch(p ->
                 java.util.stream.Stream.concat(p.atributos().values().stream(),p.discrepancias().values().stream())
                     .anyMatch(v -> v.fuente()==Fuente.SRCEI))) throw new FalloTecnico(403);
@@ -65,7 +68,10 @@ public final class RecepcionFormularioJdbc {
             recorridos.recibida(journey,session);db.event("FORMULARIO_COMPLETO",id.toString(),"CUSTODIA_CONFIRMADA");
             return new Estado(id,"PENDIENTE_REGISTRO_SIGER",proof,null);
         });}catch(DuplicateKeyException conflict){var winner=previa(id,journey,session,hash);if(winner==null)throw new FalloTecnico(409);return winner;}
-        catch(FalloTecnico conflict){if(conflict.status==409){var winner=previa(id,journey,session,hash);if(winner!=null)return winner;}throw conflict;}
+        catch(FalloTecnico conflict){
+            // Cumpleaños alcanzado mientras se esperaba el lock: la custodia se revirtió; se deriva en transacción propia.
+            if(conflict.status==RecorridosJdbc.DERIVADO_ADULTO){recorridos.exigirVigenciaNna(journey,session);throw new FalloTecnico(409);}
+            if(conflict.status==409){var winner=previa(id,journey,session,hash);if(winner!=null)return winner;}throw conflict;}
     }
     private Estado previa(UUID id,UUID journey,String session,String hash){
         var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE id=?",id.toString());if(rows.isEmpty())return null;var row=rows.getFirst();

@@ -20,7 +20,7 @@ public class RecepcionFormularioController {
     private static <T>ResponseEntity<T> ok(T value){return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(value);}
     @GetMapping("/recepcion/capacidades") ResponseEntity<Map<String,Boolean>> capacidades(){var s=service.getIfAvailable();return ok(Map.of("nna",s!=null&&s.disponible(),"adultos",s!=null&&s.adultosDisponibles(),"multimedia",s!=null&&s.multimediaDisponible()));}
     @PostMapping("/recorridos/{id}/comunicaciones") ResponseEntity<RecepcionFormularioJdbc.Estado> recibir(@PathVariable UUID id,@RequestHeader("Idempotency-Key") UUID key,@RequestBody DatosFormulario datos,HttpServletRequest request){
-        return ok(enabled(request).recibir(key,id,SesionIngreso.actual(request),datos));
+        var s=enabled(request);return ok(FormularioController.derivacion(request,id,()->s.recibir(key,id,SesionIngreso.actual(request),datos)));
     }
     @GetMapping("/comunicaciones/{id}") ResponseEntity<RecepcionFormularioJdbc.Estado> consultar(@PathVariable UUID id,HttpServletRequest request){return ok(enabled(request).consultar(id,SesionIngreso.actual(request)));}
     /** Solo la sesión propietaria; proyección pública derivada del documento custodiado, sin almacenamiento adicional. */

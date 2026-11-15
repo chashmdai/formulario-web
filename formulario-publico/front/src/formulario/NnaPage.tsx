@@ -3,7 +3,7 @@ import {ReceiptPanel} from '../ui/ReceiptPanel';
 import {downloadEvidence} from '../comprobante/evidence';
 import {ExitDialog} from '../ui/ExitDialog';
 import {useUnsavedChanges} from '../ui/useUnsavedChanges';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@fontsource/cabin/400.css';
 import '@fontsource/cabin/500.css';
 import '@fontsource/cabin/600.css';
@@ -20,6 +20,7 @@ import type { NnaReview } from './ReviewNna';
 import { attachmentPort, enterNna, getJourneySubmission, getReceptionCapabilities, getSubmission, listAttachments, submitNna } from './submission';
 import type { CompleteCapture, SubmissionState } from './submission';
 import { usePreferences } from './preferences';
+import { isAdultDerivation, redirectToAdult } from './derivation';
 import '../prototipo/prototipo.css';
 import '../prototipo/inicio.css';
 import '../ui/experience.css';
@@ -38,6 +39,9 @@ export default function NnaPage({initialSession}:{initialSession?:Session}={}) {
   const allowLeave=useUnsavedChanges(dirty&&!receipt);
   const preferences=usePreferences(full);
   const files=useMemo(()=>journey?attachmentPort(journey.id):null,[journey]);
+  const derived=useRef(false);
+  /** Edad registral adulta: directo al aviso de privacidad adulto, sin advertencias ni datos del recorrido NNA. */
+  const derive=useCallback(()=>{if(derived.current)return;derived.current=true;allowLeave();setReview(null);redirectToAdult();},[allowLeave]);
   useEffect(()=>{let active=true;
     document.title='Formulario para niños, niñas y adolescentes | Defensoría de la Niñez';
     // La sesión consultada al abrir el sitio se reutiliza en la primera carga; un reintento vuelve a consultarla.
@@ -45,7 +49,7 @@ export default function NnaPage({initialSession}:{initialSession?:Session}={}) {
       const restored=j.estado==='RECIBIDO'?await getJourneySubmission(j.id):null;
       const restoredFiles=restored?[]:await listAttachments(j.id);
       if(active){setJourney(j);setSession(s);setAvailable(c.nna);setMediaEnabled(c.multimedia===true);setReceipt(restored);setInitialFiles(restoredFiles);setFatal('');}
-    }).catch(e=>{if(active)setFatal(e instanceof ApiError&&e.status===429?'Se iniciaron muchos formularios desde esta conexión en la última hora. Espera unos minutos e inténtalo nuevamente.':'No pudimos abrir tu formulario. Inténtalo nuevamente.');}).finally(()=>{if(active)setLoading(false);});
+    }).catch(e=>{if(isAdultDerivation(e)){derive();return;}if(active)setFatal(e instanceof ApiError&&e.status===429?'Se iniciaron muchos formularios desde esta conexión en la última hora. Espera unos minutos e inténtalo nuevamente.':'No pudimos abrir tu formulario. Inténtalo nuevamente.');}).finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
   },[retry]); // initialSession solo siembra la primera carga; no es dependencia del efecto.
   async function send() {
@@ -54,7 +58,7 @@ export default function NnaPage({initialSession}:{initialSession?:Session}={}) {
     if(!attempt.current)attempt.current={key:crypto.randomUUID(),body:{campos:review.campos,personas:[],instituciones:[],adjuntos:review.attachments.map(f=>f.id)}};
     sending.current=true;setBusy(true);setLocked(true);setError('');
     try {setReceipt(await submitNna(journey.id,attempt.current.key,attempt.current.body));setReview(null);}
-    catch(e){setError(e instanceof ApiError&&e.status===401?'Tu sesión terminó. No podemos confirmar la recepción desde esta sesión.':'No pudimos confirmar la recepción. Comprueba el estado o reintenta el mismo envío para evitar duplicados.');}
+    catch(e){if(isAdultDerivation(e)){derive();return;}setError(e instanceof ApiError&&e.status===401?'Tu sesión terminó. No podemos confirmar la recepción desde esta sesión.':'No pudimos confirmar la recepción. Comprueba el estado o reintenta el mismo envío para evitar duplicados.');}
     finally{sending.current=false;setBusy(false);}
   }
   async function check() {
@@ -76,7 +80,7 @@ export default function NnaPage({initialSession}:{initialSession?:Session}={}) {
           {fatal&&<div className="paper"><div className="paper-body"><p role="alert">{fatal}</p><button type="button" className="btn btn-primary" onClick={()=>{setLoading(true);setFatal('');setRetry(v=>v+1);}}>Reintentar</button></div></div>}
           {journey&&files&&!fatal&&!loading&&!receipt&&<div>
             {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
-            <NnaFlow mediaEnabled={mediaEnabled} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(campos,identity,attachments)=>{setError('');setReview({campos,identity,attachments});}} />
+            <NnaFlow onDerived={derive} mediaEnabled={mediaEnabled} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(campos,identity,attachments)=>{setError('');setReview({campos,identity,attachments});}} />
           </div>}
           {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={downloadEvidence} onCheck={check} />}
         </main>

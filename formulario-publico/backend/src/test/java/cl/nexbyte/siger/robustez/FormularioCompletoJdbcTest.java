@@ -211,6 +211,54 @@ class FormularioCompletoJdbcTest {
         var received=service.recibir(UUID.randomUUID(),route.id(),session,datos());assertFalse(mapper.writeValueAsString(received).contains("PRIVADO"));
         var p=service.reclamar(1).getFirst().entrega().comunicacion().personas().getFirst();assertFalse(p.autenticada());assertEquals(Fuente.SRCEI,p.atributos().get("nombres").fuente());assertEquals(evidence,p.atributos().get("nombres").evidencia());assertEquals(Fuente.DECLARACION_CIUDADANA,p.atributos().get("primerApellido").fuente());
     }
+    private ResultadoSrcei registroConNacimiento(String birth){
+        var evidence=UUID.randomUUID();
+        return new ResultadoSrcei(ResultadoSrcei.Estado.COMPLETO,Map.of("runNumero",new ResultadoSrcei.Atributo("12345678",null,"SRCEI","CONTRASTADO_EN_FUENTE",now.get(),evidence),
+            "runDv",new ResultadoSrcei.Atributo("5",null,"SRCEI","CONTRASTADO_EN_FUENTE",now.get(),evidence),"nombres",new ResultadoSrcei.Atributo("NOMBRE REGISTRAL PRIVADO",null,"SRCEI","CONTRASTADO_EN_FUENTE",now.get(),evidence),
+            "primerApellido",new ResultadoSrcei.Atributo("APELLIDO REGISTRAL",null,"SRCEI","CONTRASTADO_EN_FUENTE",now.get(),evidence),
+            "fechaNacimiento",new ResultadoSrcei.Atributo(birth,null,"SRCEI","CONTRASTADO_EN_FUENTE",now.get(),evidence)),now.get(),evidence);
+    }
+    @Test void cumpleanosAntesDeEnviarDerivaSinCustodiarNiDejarReintentar()throws Exception {
+        // 2026-10-24 00:00 en Chile = 03:00 UTC. El recorrido se abre 3 horas antes, todavía con 17 años.
+        now.set(Instant.parse("2026-10-24T00:00:00Z"));
+        var journeyService=new RecorridosJdbc(db,mapper,r->registroConNacimiento("2008-10-24"),r->true,clock,new byte[32],"ADULTO_LAB_1","NNA_LAB_1");
+        var receiver=new RecepcionFormularioJdbc(db,journeyService,new AdjuntosFormulario(db,journeyService,b->true),mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"publico",signer.getPrivate(),Map.of("publico",signer.getPublic()),Map.of("institucion",institution.getPublic()),clock,true);
+        var route=journeyService.iniciar(Tipo.NNA,false,"NNA_LAB_1",session,"127.0.0.1").id();
+        assertEquals("REVISADO",journeyService.identificar(route,"presentador-nna",Rol.PRESENTADOR,"12345678","5",session,"127.0.0.1",null).estado());
+        now.set(Instant.parse("2026-10-24T03:00:00Z"));var key=UUID.randomUUID();
+        assertEquals(410,assertThrows(FalloTecnico.class,()->receiver.recibir(key,route,session,datos())).status);
+        // Reintentar la misma clave, otra clave o manipular el recorrido invalidado nunca crea una comunicación.
+        assertEquals(404,assertThrows(FalloTecnico.class,()->receiver.recibir(key,route,session,datos())).status);
+        assertEquals(404,assertThrows(FalloTecnico.class,()->receiver.recibir(UUID.randomUUID(),route,session,datos())).status);
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",Integer.class,route.toString()));
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person WHERE journey_id=?",Integer.class,route.toString()));
+        assertEquals("CANCELADO",db.sql.queryForObject("SELECT state FROM citizen_journey WHERE id=?",String.class,route.toString()));
+    }
+    @Test void reinicioAntesDelCumpleanosYEnvioSinRunTambienDeriva()throws Exception {
+        now.set(Instant.parse("2026-10-24T00:00:00Z"));
+        var journeyService=new RecorridosJdbc(db,mapper,r->registroConNacimiento("2008-10-24"),r->true,clock,new byte[32],"ADULTO_LAB_1","NNA_LAB_1");
+        var receiver=new RecepcionFormularioJdbc(db,journeyService,new AdjuntosFormulario(db,journeyService,b->true),mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"publico",signer.getPrivate(),Map.of("publico",signer.getPublic()),Map.of("institucion",institution.getPublic()),clock,true);
+        var route=journeyService.iniciar(Tipo.NNA,false,"NNA_LAB_1",session,"127.0.0.1").id();
+        journeyService.identificar(route,"presentador-nna",Rol.PRESENTADOR,"12345678","5",session,"127.0.0.1",null);journeyService.reiniciarPersona(route,"presentador-nna",session);
+        journeyService.identificar(route,"presentador-nna",Rol.PRESENTADOR,null,null,session,"127.0.0.1",null);
+        journeyService.declarar(route,"presentador-nna",Map.of("primerNombre","NOMBRE","primerApellido","APELLIDO"),session);
+        now.set(Instant.parse("2026-10-24T03:00:00Z"));
+        assertEquals(410,assertThrows(FalloTecnico.class,()->receiver.recibir(UUID.randomUUID(),route,session,datos())).status);
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",Integer.class,route.toString()));
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_identity_history WHERE journey_id=?",Integer.class,route.toString()));
+    }
+    @Test void recorridoNnaDerivadoNoAdmiteAdjuntosNiEnvio()throws Exception {
+        var journeyService=new RecorridosJdbc(db,mapper,r->registroConNacimiento("1999-12-31"),r->true,clock,new byte[32],"ADULTO_LAB_1","NNA_LAB_1");
+        var attachments=new AdjuntosFormulario(db,journeyService,b->true);
+        var receiver=new RecepcionFormularioJdbc(db,journeyService,attachments,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"publico",signer.getPrivate(),Map.of("publico",signer.getPublic()),Map.of("institucion",institution.getPublic()),clock,true);
+        var route=journeyService.iniciar(Tipo.NNA,false,"NNA_LAB_1",session,"127.0.0.1").id();
+        attachments.reemplazar(route,session,List.of(texto("previo.txt","Adjunto sintético del recorrido NNA")));
+        assertEquals(410,assertThrows(FalloTecnico.class,()->journeyService.identificar(route,"presentador-nna",Rol.PRESENTADOR,"12345678","5",session,"127.0.0.1",null)).status);
+        assertEquals(404,assertThrows(FalloTecnico.class,()->attachments.reemplazar(route,session,List.of(texto("nuevo.txt","Otro adjunto")))).status);
+        assertEquals(404,assertThrows(FalloTecnico.class,()->attachments.listar(route,session)).status);
+        assertEquals(404,assertThrows(FalloTecnico.class,()->receiver.recibir(UUID.randomUUID(),route,session,datos())).status);
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",Integer.class,route.toString()));
+    }
     @Test void firmaInstitucionalValidaConHuellasAjenasNoConstituyeAck(){
         var received=enviar();var r=service.reclamar(1).getFirst();
         var wrong=new ComprobanteInstitucional.Contenido("1.1","SIGER_DDN","COMUNICACION_REGISTRADA",received.id(),UUID.randomUUID(),1,"COM-1",now.get(),"FORMULARIO_WEB_NNA","0".repeat(64),r.entrega().huellaProcedencia());

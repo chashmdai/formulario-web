@@ -15,6 +15,9 @@ import static cl.nexbyte.siger.formulario.IdentificacionCiudadana.*;
 public final class RecorridosJdbc {
     public record Recorrido(UUID id,Tipo tipo,String avisoVersion,boolean aceptaCanal,String estado,Instant venceEn) {}
     private record Reserva(UUID lease,Persona persona,RunConsulta run,boolean consultar) {}
+    /** Señal sin datos: el recorrido NNA se invalidó porque la fuente registral acredita mayoría de edad. */
+    public static final int DERIVADO_ADULTO=410;
+    private static final String PRESENTADOR_NNA="presentador-nna";
     private java.util.function.BooleanSupplier admision=()->true;
     public RecorridosJdbc admision(java.util.function.BooleanSupplier guard){this.admision=Objects.requireNonNull(guard);return this;}
     private void capacidad(){if(!admision.getAsBoolean())throw new FalloTecnico(507);}
@@ -64,6 +67,64 @@ public final class RecorridosJdbc {
             accepted instanceof Boolean b?b:((Number)accepted).intValue()!=0,row.get("state").toString(),Instant.ofEpochMilli(((Number)row.get("expires_ms")).longValue()));
     }
     private static void editable(Map<String,Object> journey) {if(!"BORRADOR".equals(journey.get("state")))throw new FalloTecnico(409);}
+    private boolean derivable(Tipo kind,Persona p) {
+        return kind==Tipo.NNA&&p!=null&&p.rol()==Rol.PRESENTADOR&&PRESENTADOR_NNA.equals(p.id())&&mayorDeEdadRegistral(p,clock);
+    }
+    /**
+     * Invalida el recorrido NNA dentro de la transacción que ya bloquea su fila: retira la identificación y sus
+     * antecedentes registrales y lo deja cancelado. Ninguna operación posterior lo encuentra; las cargas multimedia
+     * pendientes siguen el ciclo de retirada de los recorridos cancelados. No crea ni prepara un recorrido adulto.
+     */
+    private void derivar(UUID journey) {
+        db.sql.update("DELETE FROM citizen_person WHERE journey_id=?",journey.toString());
+        db.sql.update("DELETE FROM citizen_identity_history WHERE journey_id=?",journey.toString());
+        if(db.sql.update("UPDATE citizen_journey SET state='CANCELADO' WHERE id=? AND state='BORRADOR' AND kind='NNA'",journey.toString())!=1)throw new FalloTecnico(409);
+        db.event("RECORRIDO",journey.toString(),"NNA_DERIVADO_ADULTO_REGISTRAL");
+    }
+    /**
+     * Revalida la edad registral ya obtenida (el cumpleaños puede ocurrir durante el recorrido). Si corresponde, deriva
+     * y responde {@link #DERIVADO_ADULTO}. Sin efecto en recorridos adultos o sin antecedentes SRCEI.
+     */
+    public void exigirVigenciaNna(UUID journey,String session) {
+        var kind=consultar(journey,session).tipo();if(kind!=Tipo.NNA)return;
+        boolean derived=Boolean.TRUE.equals(db.transaction(()->{
+            var row=fila(journey,session,true);if(!"BORRADOR".equals(row.get("state"))||!presentadorAdulto(journey,kind))return false;
+            derivar(journey);return true;
+        }));
+        if(derived)throw new FalloTecnico(DERIVADO_ADULTO);
+    }
+    /**
+     * Bajo el lock del recorrido: la identificación vigente del presentador NNA o una retirada por reinicio acredita
+     * mayoría de edad. Reiniciar la identidad o continuar sin RUN no oculta un antecedente registral ya obtenido.
+     */
+    private boolean presentadorAdulto(UUID journey,Tipo kind) {
+        if(kind!=Tipo.NNA)return false;
+        for(var row:db.sql.queryForList("SELECT body,query_state FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),PRESENTADOR_NNA))
+            if("REVISADO".equals(row.get("query_state"))&&derivable(kind,leer(row.get("body").toString())))return true;
+        for(var body:db.sql.queryForList("SELECT body FROM citizen_identity_history WHERE journey_id=? AND person_id=?",String.class,journey.toString(),PRESENTADOR_NNA))
+            if(derivable(kind,leer(body)))return true;
+        return false;
+    }
+    /**
+     * Defensa dentro de la transacción de custodia (que bloquea el recorrido): responde {@link #DERIVADO_ADULTO} para
+     * revertirla; quien llama deriva después en una transacción propia mediante {@link #exigirVigenciaNna}.
+     */
+    void rechazarAdultoRegistral(UUID journey,Tipo kind,List<Persona> people) {
+        if(people.stream().anyMatch(p->derivable(kind,p))||presentadorAdulto(journey,kind))throw new FalloTecnico(DERIVADO_ADULTO);
+    }
+    /** La fecha registral solo se atribuye al presentador si la respuesta contrasta explícitamente el RUN consultado. */
+    private static boolean runContrastado(ResultadoSrcei result,RunConsulta run) {
+        if(result==null||run==null)return false;
+        var number=result.atributos().get("runNumero");var digit=result.atributos().get("runDv");
+        return number!=null&&digit!=null&&"SRCEI".equals(number.fuente())&&"SRCEI".equals(digit.fuente())
+            &&run.numero().equals(number.valor())&&run.dv().equalsIgnoreCase(Objects.toString(digit.valor(),""));
+    }
+    /** Sin contraste explícito del RUN, la fecha de nacimiento del presentador NNA no se conserva ni decide la derivación. */
+    private static ResultadoSrcei sinFechaNoContrastada(ResultadoSrcei result,RunConsulta run) {
+        if(result==null||runContrastado(result,run)||!result.atributos().containsKey("fechaNacimiento"))return result;
+        var attrs=new HashMap<>(result.atributos());attrs.remove("fechaNacimiento");
+        return new ResultadoSrcei(result.estado(),attrs,result.consultadoEn(),result.evidencia(),result.motivo());
+    }
     private static void validarSession(String s) {if(s==null||!s.matches("[a-f0-9]{64}"))throw new FalloTecnico(401);}
     private static void validarPersona(String id,Rol role,Tipo kind) {
         if(id==null||role==null)throw new FalloTecnico(400);
@@ -77,6 +138,7 @@ public final class RecorridosJdbc {
         if(rows.isEmpty())throw new FalloTecnico(404);return leer(rows.getFirst().get("body").toString());
     }
     public Vista persona(UUID journey,String person,String session) {
+        if(PRESENTADOR_NNA.equals(person))exigirVigenciaNna(journey,session);
         fila(journey,session,false);
         var rows=db.sql.queryForList("SELECT body,query_state,lease_until_ms FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
         if(rows.isEmpty())throw new FalloTecnico(404);
@@ -110,15 +172,18 @@ public final class RecorridosJdbc {
     }
     /** Reinicio explícito por cambio de RUN: conserva historial privado y las cuotas consumidas. */
     public void reiniciarPersona(UUID journey,String person,String session) {
-        db.transaction(()->{
+        boolean derived=Boolean.TRUE.equals(db.transaction(()->{
             var row=fila(journey,session,true);editable(row);
+            // Un cumpleaños ya ocurrido no se elude retirando la identificación antes de revalidarla.
+            if(PRESENTADOR_NNA.equals(person)&&presentadorAdulto(journey,Tipo.valueOf(row.get("kind").toString()))){derivar(journey);return true;}
             var existing=db.sql.queryForList("SELECT body,query_state FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
-            if(existing.isEmpty())return null;
+            if(existing.isEmpty())return false;
             db.sql.update("INSERT INTO citizen_identity_history(id,journey_id,person_id,body,query_state,retired_ms) VALUES(?,?,?,?,?,?)",
                 UUID.randomUUID().toString(),journey.toString(),person,existing.getFirst().get("body").toString(),existing.getFirst().get("query_state").toString(),clock.millis());
             db.sql.update("DELETE FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
-            return null;
-        });
+            return false;
+        }));
+        if(derived)throw new FalloTecnico(DERIVADO_ADULTO);
     }
 
     /** Único identificador hasta reinicio explícito; corregir un formato inválido no consume consulta. */
@@ -141,6 +206,7 @@ public final class RecorridosJdbc {
         // Se reserva en una transacción corta. Nunca se sostiene un lock durante la llamada gubernamental.
         capacidad();var reservation=db.transaction(()->{
             var row=fila(journey,session,true);editable(row);
+            if(PRESENTADOR_NNA.equals(person)&&presentadorAdulto(journey,head.tipo())){derivar(journey);return new Reserva(null,null,null,false);}
             var existing=db.sql.queryForList("SELECT body,query_state,lease_until_ms FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
             if(!existing.isEmpty()) {
                 var old=leer(existing.getFirst().get("body").toString());
@@ -161,6 +227,7 @@ public final class RecorridosJdbc {
             if(previa!=null) {
                 // Mismo RUN ya consultado con éxito en este recorrido: se reutiliza sin reconsultar ni consumir cuota.
                 var resumed=reanudar(initial,previa);
+                if(derivable(head.tipo(),resumed)){derivar(journey);return new Reserva(null,null,null,false);}
                 db.sql.update("INSERT INTO citizen_person(journey_id,person_id,role,body,query_state,query_lease,lease_until_ms) VALUES(?,?,?,?,'REVISADO',NULL,0)",
                     journey.toString(),person,role.name(),mapper.writeValueAsString(resumed));
                 return new Reserva(null,resumed,null,false);
@@ -175,6 +242,7 @@ public final class RecorridosJdbc {
             if(finalRun!=null)db.sql.update("UPDATE citizen_journey SET query_count=query_count+1 WHERE id=?",journey.toString());
             return new Reserva(lease,initial,finalRun,query);
         });
+        if(reservation.persona()==null)throw new FalloTecnico(DERIVADO_ADULTO);
         if(!reservation.consultar())return vista(reservation.persona());
         ResultadoSrcei result;
         try {
@@ -187,15 +255,23 @@ public final class RecorridosJdbc {
         } catch(RuntimeException unavailable) {
             result=ResultadoSrcei.fallo(ResultadoSrcei.Estado.INDISPONIBLE,clock.instant(),UUID.randomUUID());
         }
-        var finalResult=result;
-        return db.transaction(()->{
+        var finalResult=head.tipo()==Tipo.NNA&&role==Rol.PRESENTADOR?sinFechaNoContrastada(result,reservation.run()):result;
+        var outcome=db.transaction(()->{
             fila(journey,session,true);
             var resolved=crear(person,role,finalRun,finalIdentity,finalResult,clock);
+            if(derivable(head.tipo(),resolved)) {
+                // Solo quien sostiene la reserva vigente deriva; los antecedentes registrales no llegan a persistirse.
+                if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person WHERE journey_id=? AND person_id=? AND query_state='CONSULTANDO' AND query_lease=?",
+                    Integer.class,journey.toString(),person,reservation.lease().toString())!=1)throw new FalloTecnico(409);
+                derivar(journey);return (Vista)null;
+            }
             int changed=db.sql.update("UPDATE citizen_person SET body=?,query_state='REVISADO',query_lease=NULL,lease_until_ms=0 WHERE journey_id=? AND person_id=? AND query_state='CONSULTANDO' AND query_lease=?",
                 mapper.writeValueAsString(resolved),journey.toString(),person,reservation.lease().toString());
             if(changed!=1)throw new FalloTecnico(409);
             return vista(resolved);
         });
+        if(outcome==null)throw new FalloTecnico(DERIVADO_ADULTO);
+        return outcome;
     }
     /** Identidad extranjera declarada: finalidad exclusiva del presentador adulto, sin llamada registral. */
     public Vista identificarExtranjera(UUID journey,String session,String address) {
@@ -218,7 +294,8 @@ public final class RecorridosJdbc {
     }
     /** Completa solo campos faltantes o ya declarados; los antecedentes de CU o SRCEI no se sustituyen. */
     public Vista declarar(UUID journey,String person,Map<String,String> values,String session) {
-        capacidad();return db.transaction(()->{
+        capacidad();if(PRESENTADOR_NNA.equals(person))exigirVigenciaNna(journey,session);
+        return db.transaction(()->{
             var row=fila(journey,session,true);editable(row);
             var busy=db.sql.queryForList("SELECT query_state FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
             if(busy.isEmpty())throw new FalloTecnico(404);

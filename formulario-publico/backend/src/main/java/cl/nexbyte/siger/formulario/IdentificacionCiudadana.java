@@ -192,6 +192,28 @@ public final class IdentificacionCiudadana {
             &&(util(p.atributos().get("primerApellido"))||util(p.atributos().get("apellidos")));
     }
     private static boolean srceiUtil(Valor value){return util(value)&&value.fuente()==Fuente.SRCEI;}
+    /** Calendario civil aplicable: la edad se calcula con la fecha local de Chile, no con la del servidor. */
+    public static final ZoneId ZONA_CHILE = ZoneId.of("America/Santiago");
+    private static final java.util.regex.Pattern FECHA_REGISTRAL = java.util.regex.Pattern.compile("[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}");
+    /**
+     * Mayoría de edad acreditada exclusivamente por la fecha de nacimiento SRCEI de una consulta exitosa del RUN de la
+     * propia persona. Nunca usa edades o fechas declaradas: ante dato ausente, truncado, futuro o inverosímil responde
+     * {@code false} y el recorrido se mantiene. Un nacimiento el 29 de febrero cumple años el 1 de marzo en años no
+     * bisiestos (criterio conservador: se mantiene el recorrido protector hasta completar el año).
+     */
+    public static boolean mayorDeEdadRegistral(Persona p, Clock clock) {
+        if (p == null || p.runNumero() == null || !p.modulo11() || p.consultaRef() == null
+            || (p.estadoConsulta() != ResultadoSrcei.Estado.COMPLETO && p.estadoConsulta() != ResultadoSrcei.Estado.PARCIAL)) return false;
+        var value = p.atributos().get("fechaNacimiento");
+        if (value == null || value.fuente() != Fuente.SRCEI) value = p.discrepancias().get("fechaNacimiento");
+        if (value == null || value.fuente() != Fuente.SRCEI || !"CONTRASTADO_EN_FUENTE".equals(value.nivel()) || value.codigo() != null
+            || value.valor() == null || !FECHA_REGISTRAL.matcher(value.valor()).matches()) return false;
+        LocalDate birth;
+        try { birth = LocalDate.parse(value.valor()); } catch (DateTimeException invalid) { return false; }
+        var today = LocalDate.ofInstant(clock.instant(), ZONA_CHILE);
+        if (birth.isAfter(today) || birth.isBefore(today.minusYears(130))) return false;
+        return Period.between(birth, today).getYears() >= 18;
+    }
     /**
      * Reidentificación con el mismo RUN dentro del recorrido: reincorpora los antecedentes SRCEI ya obtenidos, para que un
      * reinicio seguido de una consulta fallida no los convierta en campos faltantes declarables. No reconsulta.

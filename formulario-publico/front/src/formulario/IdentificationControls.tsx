@@ -8,6 +8,7 @@ import { ApiError } from '../api';
 import { declarePerson, getPerson, identifyPerson, identifyForeignPerson, resetPerson } from './api';
 import type { Declarations, IdentificationRequest, IdentityField, IdentityView, Journey } from './api';
 import { formatRunNumber, pastedRun, runNumber, validRun } from './run';
+import { isAdultDerivation } from './derivation';
 import { DOCUMENT_MAX_LENGTH, NAME_MAX_LENGTH, birthDateProblem, documentNumberProblem, isNameField, isUnderage, nameProblem, normalizeDocumentNumber, normalizeName, typingProblem } from './personalData';
 
 /**
@@ -18,6 +19,8 @@ export interface IdentificationHandle { save: (options?: {reuse?: boolean}) => P
 interface Props {
   journey: Journey; session: Session | null; nna?: boolean; children?: ReactNode;
   identityRef?: Ref<IdentificationHandle>; onResolved?: (view: IdentityView | null) => void;
+  /** Solo NNA: el servidor invalidó el recorrido por edad registral; el contenedor redirige sin avisos. */
+  onDerived?: () => void;
 }
 const metadata: {key: IdentityField; suffix: string; label: string; type?: string; help?: string; hint?: string}[] = [
   {key: 'primerNombre', suffix: 'names', label: 'Primer nombre'},
@@ -33,7 +36,7 @@ const metadata: {key: IdentityField; suffix: string; label: string; type?: strin
 ];
 
 /** Estructura del mockup; solo muestra declaraciones propias o identidad CU de sesión. */
-function IdentificationControlsView({journey, session, nna = false, children, identityRef, onResolved}: Props) {
+function IdentificationControlsView({journey, session, nna = false, children, identityRef, onResolved, onDerived}: Props) {
   const prefix = nna ? 'nna' : 'adult';
   const person = nna ? 'presentador-nna' : 'presentador-adulto';
   const cu = journey.tipo === 'ADULTO_CU';
@@ -56,6 +59,8 @@ function IdentificationControlsView({journey, session, nna = false, children, id
   const resetPending = useRef<Promise<void> | null>(null);
   const onResolvedRef = useRef(onResolved);
   useEffect(() => { onResolvedRef.current = onResolved; }, [onResolved]);
+  const onDerivedRef = useRef(onDerived);
+  useEffect(() => { onDerivedRef.current = onDerived; }, [onDerived]);
   useEffect(() => () => { generation.current++; networkRequest.current?.cancel?.(); }, []);
   const busy = phase === 'CONSULTANDO';
 
@@ -68,6 +73,8 @@ function IdentificationControlsView({journey, session, nna = false, children, id
     onResolvedRef.current?.(next);
   }
   function fail(error: unknown) {
+    // Derivación por edad registral: sin mensaje ni pantalla intermedia; el formulario queda bloqueado hasta redirigir.
+    if (nna && isAdultDerivation(error) && onDerivedRef.current) { setPhase('CONSULTANDO'); setFailure(''); onDerivedRef.current(); return; }
     setPhase('ERROR');
     setFailure(error instanceof ApiError && error.status === 429 ? 'Espera unos minutos antes de volver a revisar el RUN.'
       : error instanceof ApiError && error.status === 401 ? cu ? 'La sesión expiró. Vuelve a iniciar sesión con ClaveÚnica.' : 'La sesión expiró. Vuelve al inicio para abrir un formulario.'
