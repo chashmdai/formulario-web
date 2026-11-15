@@ -22,6 +22,7 @@ import argparse
 import datetime
 import gzip
 import hashlib
+import http.client
 import io
 import ipaddress
 import json
@@ -88,13 +89,29 @@ MONTAJES = {
 }
 # Cambian legítimamente durante la operación: no se exige igualdad tras restaurar/arrancar.
 MUTABLES = ('store/', 'acceso-temporal/', 'pisee/state/', 'pisee/config.json', 'registro/', 'clamav/')
-# Recepción, integración, PISEE y retiradas cerrados durante la validación (variables > properties).
+# Validación (variables > properties): recepción, PISEE y retiradas cerradas. La integración NO se cierra por
+# propiedad: con PULL persistido abierto (operation_control.pull_enabled=1) la aplicación no arrancaría
+# («Controles persistidos incompatibles…») y los controles CAS del origen no se tocan. En su lugar
+# FORMULARIO_VALIDACION_CERRADA activa ValidacionCerradaFilter (503 en /integracion/** y /operacion/**, con o sin
+# credencial) y el proxy de validación bloquea las mismas rutas (Caddyfile.validacion).
 CERRADO = {
     'PUBLICO_RECEPCION_HABILITADA': 'false', 'FORMULARIO_RECEPCION_HABILITADA': 'false',
-    'PUBLICO_INTEGRACION_HABILITADA': 'false', 'PUBLICO_NNA_HABILITADO': 'false', 'PISEE_SRCEI_ENABLED': 'false',
+    'PUBLICO_NNA_HABILITADO': 'false', 'PISEE_SRCEI_ENABLED': 'false',
     'CICLOVIDA_ONLINEHABILITADO': 'false', 'CICLOVIDA_ELIMINACION_HABILITADA': 'false',
-    'FORMULARIO_MINIMIZACIONBORRADORES_HABILITADA': 'false',
+    'FORMULARIO_MINIMIZACIONBORRADORES_HABILITADA': 'false', 'FORMULARIO_VALIDACION_CERRADA': 'true',
 }
+# Rutas que la validación debe rechazar en el proxy y en la aplicación (reclamar, ACK, fallos, custodia, CAS).
+RUTAS_CERRADAS_VALIDACION = [
+    ('POST', '/integracion/v3/formulario-completo/entregas/reclamar'), ('POST', '/integracion/v3/entregas/reclamar'),
+    ('POST', '/integracion/v2/entregas/00000000-0000-0000-0000-000000000001/confirmacion'),
+    ('GET', '/integracion/v1/comunicaciones/pendientes'), ('GET', '/INTEGRACION/v3/custodia/candidatos'),
+    ('PUT', '/operacion/v1/control')]
+CABECERA_VALIDACION = 'x-formulario-validacion'  # la emite ValidacionCerradaFilter (aplicación)
+ANCLA_CADDY = '        respond @private "Servicio no disponible" 503\n'
+BLOQUE_CADDY_VALIDACION = (
+    '        # Validación cerrada (formulario.py): integración y operación inaccesibles, con o sin credencial válida.\n'
+    '        @validacion path /integracion /integracion/* /operacion /operacion/*\n'
+    '        respond @validacion "Validación cerrada" 503\n')
 SOLO_LAB = 'SOLO LAB: destino de montaje de stubs que no se migra (nunca en producción)'
 # Tablas cuyo contenido no puede perderse al volver al origen: ciudadanía, custodia, integración y control.
 TABLAS_HUELLA = ['citizen_journey', 'citizen_person', 'citizen_identity_history', 'citizen_attachment',
@@ -292,7 +309,31 @@ def base_datos(mysql_id):
     version = sql('SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1')
     bytes_db = int(sql("SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables "
                        "WHERE table_schema='formulario_publico'") or 0)
-    return {'conteos': conteos, 'flyway': version, 'bytes': bytes_db, 'huellas': huellas(sql)}
+    aceptar, pull = (sql('SELECT accept_new, pull_enabled FROM operation_control WHERE id=1').split() + ['', ''])[:2]
+    return {'conteos': conteos, 'flyway': version, 'bytes': bytes_db, 'huellas': huellas(sql),
+            'controles': {'aceptarNuevos': aceptar == '1', 'recuperar': pull == '1'}}
+
+
+def propiedad(texto, clave, defecto):
+    """Valor booleano de una clave de application.properties (sin leer ni devolver otros valores)."""
+    for linea in texto.splitlines():
+        if linea.strip().startswith(clave) and '=' in linea and linea.split('=', 1)[0].strip() == clave:
+            return linea.split('=', 1)[1].strip().lower() == 'true'
+    return defecto
+
+
+def arranque_validacion(properties, controles):
+    """Regla de arranque de JdbcRecepcionConfiguration.controles bajo el entorno CERRADO: la validación debe
+    poder arrancar con los controles CAS del origen tal como están (sin cambiarlos)."""
+    texto = Path(properties).read_text() if properties else ''
+    entorno = {k.lower().replace('_', '.'): v == 'true' for k, v in CERRADO.items()}
+    integracion = entorno.get('publico.integracion.habilitada', propiedad(texto, 'publico.integracion.habilitada', True))
+    custodia = propiedad(texto, 'publico.recepcion.custodia-durable-autorizada', False)
+    informe = {'integracion': integracion, 'custodiaDurable': custodia, **controles}
+    if controles['aceptarNuevos'] and not integracion and not custodia or controles['recuperar'] and not integracion:
+        return informe, ['La validación no arrancaría con los controles CAS persistidos (aceptarNuevos/recuperar) '
+                         'y la integración cerrada']
+    return informe, []
 
 
 def huellas(sql):
@@ -373,11 +414,14 @@ def plan(a):
     # Antes de interrumpir nada (transicion ejecuta plan primero): el proxy nuevo debe poder quedar sano.
     proxy_tls, bloqueos_tls = tls_proxy(archivos, inv['env'].get('FORM_HOSTNAME'))
     bloqueos += bloqueos_tls
+    # Ídem para la aplicación: la validación cerrada debe arrancar con los controles CAS del origen.
+    validacion, bloqueos_validacion = arranque_validacion(archivos.get('config/application.properties'), db['controles'])
+    bloqueos += bloqueos_validacion
     identidad = inv['raiz'] / 'pisee/runtime/certsX509-institucional/public.pem'
     return {'proyectoAnterior': inv['proyecto'], 'montajes': inv['montajes'], 'bloqueos': bloqueos,
             'noMigradoPermaneceEnOrigen': inv['noMigrado'], 'archivosPreservados': len(archivos),
             'bytesPreservados': datos, 'baseDatos': db, 'bytesRequeridos': requerido, 'bytesLibres': libre,
-            'limiteBytes': limite, 'imagenes': inv['imagenes'], 'proxyTls': proxy_tls,
+            'limiteBytes': limite, 'imagenes': inv['imagenes'], 'proxyTls': proxy_tls, 'arranqueValidacion': validacion,
             'piseeIdentidad': sha256(identidad) if identidad.is_file() else None}
 
 
@@ -647,10 +691,20 @@ def generar_env(raiz, manifiesto, a):
     return valores
 
 
+def caddyfile_validacion(texto):
+    """Caddyfile productivo + bloqueo de /integracion y /operacion justo tras el bloqueo @private (antes de todo
+    `handle`, por lo que ninguna solicitud de esas rutas llega a la aplicación). Ancla ausente o repetida: rechazo."""
+    if texto.count(ANCLA_CADDY) != 1:
+        raise Rechazo('Caddyfile sin el bloqueo @private esperado: no se puede derivar el proxy de validación')
+    return texto.replace(ANCLA_CADDY, ANCLA_CADDY + BLOQUE_CADDY_VALIDACION)
+
+
 def generar_validacion(raiz):
+    escribir(raiz / 'infra/Caddyfile.validacion', caddyfile_validacion((raiz / 'infra/Caddyfile').read_text()), 0o644)
     entorno = ''.join(f'      {k}: "{v}"\n' for k, v in CERRADO.items())
     escribir(raiz / 'infra/validacion.yml',
-             '# Validación: puerto alternativo, sin nodo PISEE, recepción/integración/retiradas cerradas.\n'
+             '# Validación: puerto alternativo, sin nodo PISEE, recepción/retiradas cerradas, integración y operación\n'
+             '# inaccesibles (proxy y aplicación); controles CAS del origen sin cambios.\n'
              'services:\n'
              '  app:\n'
              '    depends_on: !reset\n'
@@ -659,7 +713,71 @@ def generar_validacion(raiz):
              '      inspector: {condition: service_healthy}\n'
              '    environment:\n' + entorno +
              '  proxy:\n'
-             '    ports: !override ["127.0.0.1:${FORM_VALIDACION_PORT}:8443"]\n', 0o644)
+             '    ports: !override ["127.0.0.1:${FORM_VALIDACION_PORT}:8443"]\n'
+             '    volumes: !override\n'
+             '      - ${FORMULARIO_RAIZ}/infra/Caddyfile.validacion:/etc/caddy/Caddyfile:ro\n'
+             '      - ${FORMULARIO_RAIZ}/pki/proxy:/run/pki:ro\n', 0o644)
+
+
+def sondear_proxy_validacion(raiz, hostname, puerto, rutas=RUTAS_CERRADAS_VALIDACION, salud='/acceso-temporal/salud',
+                             direccion='127.0.0.1'):
+    """Por el puerto de validación publicado: la salud responde 200 y cada ruta cerrada 503 SIN la cabecera de la
+    aplicación (lo respondió el proxy: la solicitud no llegó a la app). TLS estricto con la CA del healthcheck."""
+    ca = next((raiz / 'pki/proxy' / n for n in PROXY_CA_SALUD if (raiz / 'pki/proxy' / n).is_file()), None)
+    if not ca:
+        return {}, ['Sin CA del proxy para sondear la validación']
+    contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    contexto.verify_flags = (contexto.verify_flags | ssl.VERIFY_X509_PARTIAL_CHAIN) & ~ssl.VERIFY_X509_STRICT
+    contexto.load_verify_locations(cafile=str(ca))
+    resultados, problemas = {}, []
+
+    def pedir(metodo, ruta):
+        conn = http.client.HTTPSConnection(hostname, int(puerto), context=contexto, timeout=20)
+        conn.sock = contexto.wrap_socket(socket.create_connection((direccion, int(puerto)), timeout=20), server_hostname=hostname)
+        try:
+            conn.request(metodo, ruta, body=b'{}' if metodo != 'GET' else None,
+                         headers={'Host': hostname, 'Content-Type': 'application/json'})
+            r = conn.getresponse()
+            r.read(4096)
+            return r.status, (r.getheader(CABECERA_VALIDACION) or '')
+        finally:
+            conn.close()
+    try:
+        estado, _ = pedir('GET', salud)
+        resultados['GET ' + salud] = estado
+        if estado != 200:
+            problemas.append(f'Proxy de validación sin salud ({estado})')
+        for metodo, ruta in rutas:
+            estado, cabecera = pedir(metodo, ruta)
+            resultados[f'{metodo} {ruta}'] = estado
+            if estado != 503 or cabecera:
+                problemas.append(f'Proxy de validación no bloquea {metodo} {ruta} ({estado}{", llegó a la app" if cabecera else ""})')
+    except (OSError, ssl.SSLError) as error:
+        problemas.append(f'Proxy de validación inaccesible: {type(error).__name__}')
+    return resultados, problemas
+
+
+def app_en_validacion(contenedor):
+    """La validación cerrada nunca debe quedar en producción: SIGER no podría reclamar ni confirmar."""
+    return bool(contenedor) and 'FORMULARIO_VALIDACION_CERRADA=true' in (contenedor.get('Config', {}).get('Env') or [])
+
+
+def sondear_app_validacion(proxy_id, rutas=RUTAS_CERRADAS_VALIDACION):
+    """Directo a la aplicación (desde el contenedor proxy, sin pasar por Caddy): cada ruta cerrada debe responder
+    503 con la cabecera de ValidacionCerradaFilter. Nunca envía credenciales."""
+    resultados, problemas = {}, []
+    for metodo, ruta in rutas:
+        salida = run(['docker', 'exec', proxy_id, 'curl', '--silent', '--show-error', '--max-time', '15', '--output', '/dev/null',
+                      '--dump-header', '-', '--cacert', '/run/pki/ca.crt', '--request', metodo, '--header',
+                      'Content-Type: application/json', *(['--data', '{}'] if metodo != 'GET' else []),
+                      'https://app:8443' + ruta], check=False)
+        lineas = [l.strip() for l in salida.splitlines() if l.strip()]
+        estado = next((int(l.split()[1]) for l in lineas if l.upper().startswith('HTTP/') and len(l.split()) > 1), None)
+        cerrada = any(l.lower().startswith(CABECERA_VALIDACION + ':') and l.split(':', 1)[1].strip() == 'cerrada' for l in lineas)
+        resultados[f'{metodo} {ruta}'] = estado
+        if estado != 503 or not cerrada:
+            problemas.append(f'La aplicación de validación no cierra {metodo} {ruta} ({estado})')
+    return resultados, problemas
 
 
 def instalar_infra(raiz):
@@ -845,8 +963,18 @@ def verificar(a):
     if 'pisee' in salud:
         if nodos_pisee_en_conflicto(n.env['PISEE_IDENTIDAD'], n.proyecto):
             problemas.append('Dos nodos PISEE activos con la misma identidad')
+    if not validacion and app_en_validacion(n.contenedor('app')):
+        problemas.append('La aplicación productiva conserva FORMULARIO_VALIDACION_CERRADA (integración cerrada)')
+    cierre = None
+    if validacion and not problemas_servicios(salud, validacion):
+        # Integración y operación inaccesibles en las dos capas (proxy y aplicación); controles CAS intactos.
+        proxy_r, proxy_p = sondear_proxy_validacion(n.raiz, n.env['FORM_HOSTNAME'], n.env['FORM_VALIDACION_PORT'],
+                                                    salud=n.env.get('FORM_HEALTH_PATH', '/acceso-temporal/salud'))
+        app_r, app_p = sondear_app_validacion(n.contenedor('proxy')['Id'])
+        cierre = {'proxy': proxy_r, 'app': app_r}
+        problemas += proxy_p + app_p
     return {'proyecto': n.proyecto, 'modo': 'validacion' if validacion else 'produccion', 'problemas': problemas,
-            'conteos': conteos, 'salud': salud, 'puertaSalida': puerta, 'ok': not problemas}
+            'conteos': conteos, 'salud': salud, 'puertaSalida': puerta, 'cierreValidacion': cierre, 'ok': not problemas}
 
 
 # ----------------------------------------------------------------------------- transición y reversión

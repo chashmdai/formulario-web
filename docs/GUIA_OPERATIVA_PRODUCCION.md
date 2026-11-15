@@ -218,7 +218,7 @@ findmnt -no SOURCE,FSTYPE,OPTIONS "$E"; findmnt -no SOURCE /srv; df -h "$E"
 
 ```bash
 sudo python3 "$F" plan --legado "$R" --destino /srv/formulario --limite-gib 40 | sudo tee "$W/plan.json" >/dev/null
-sudo python3 -c 'import json;d=json.load(open("/root/reinstalacion-formulario/plan.json"));print("bloqueos",d["bloqueos"]);print("identidad",d["piseeIdentidad"]);print("flyway",d["baseDatos"]["flyway"]);print("GiB requeridos %.2f libres %.2f limite %.2f"%tuple(x/2**30 for x in (d["bytesRequeridos"],d["bytesLibres"],d["limiteBytes"])));print("no migrado",d["noMigradoPermaneceEnOrigen"]);print("proxyTls",d["proxyTls"]);[print(m) for m in d["montajes"] if m["clase"] in (None,"release","efimero")]'
+sudo python3 -c 'import json;d=json.load(open("/root/reinstalacion-formulario/plan.json"));print("bloqueos",d["bloqueos"]);print("identidad",d["piseeIdentidad"]);print("flyway",d["baseDatos"]["flyway"]);print("GiB requeridos %.2f libres %.2f limite %.2f"%tuple(x/2**30 for x in (d["bytesRequeridos"],d["bytesLibres"],d["limiteBytes"])));print("no migrado",d["noMigradoPermaneceEnOrigen"]);print("proxyTls",d["proxyTls"]);print("arranqueValidacion",d["arranqueValidacion"]);[print(m) for m in d["montajes"] if m["clase"] in (None,"release","efimero")]'
 ```
 
 **Esperado:**
@@ -227,6 +227,7 @@ sudo python3 -c 'import json;d=json.load(open("/root/reinstalacion-formulario/pl
 - `identidad` = hash de 3.6. Si es `None` o distinto (p. ej. `PISEE_PRIVATE_DIR` fuera de `$R/pisee`), **detenerse e informar**.
 - `flyway 12`.
 - `proxyTls` con `verificado: True` y `caSalud` = `pki/proxy/origin-ca.crt` si el origen tiene CA de origen (en DDN-UBUNTU sí), si no `pki/proxy/ca.crt`. Un bloqueo «… no verifica pki/proxy/server.crt …» **detiene el proceso**: el proxy nuevo no quedaría sano; no cambiar certificados para sortearlo, informar al equipo de desarrollo. → R6 parcial.
+- `arranqueValidacion` sin bloqueo (muestra `aceptarNuevos`/`recuperar` del origen, que **no** se cambian). Un bloqueo «La validación no arrancaría…» **detiene el proceso**.
 - GiB requeridos ≤ mín(libres, 40). → R2.
 - `no migrado` lista lo que permanece solo en el origen (p. ej. `release`, `software`, `updates`, `ipc`).
 
@@ -273,7 +274,7 @@ sudo curl -sS --cacert "$R/pki/proxy/origin-ca.crt" --resolve "‹HOSTNAME›:�
 
 `--resolve` conecta a `127.0.0.1` conservando el hostname del certificado (SNI y validación de nombre intactos). No usar `-k`/`--insecure` ni sustituir el hostname por una IP.
 
-**Esperado:** `"modo": "validacion"`, `"pisee": "no iniciado"`; `verificar` con `"ok": true`, `"problemas": []`, `salud` `healthy` en `mysql`, `antivirus`, `inspector`, `app` y `proxy` (sin `pisee`) y `puertaSalida` = primera IP de `ENS_SAL` (→ R4 parcial); `curl` → `{"status":"UP"}`.
+**Esperado:** `"modo": "validacion"`, `"pisee": "no iniciado"`; `verificar` con `"ok": true`, `"problemas": []`, `cierreValidacion` con `503` en cada ruta de `proxy` y de `app` (integración y operación cerradas sin enviar credenciales), `salud` `healthy` en `mysql`, `antivirus`, `inspector`, `app` y `proxy` (sin `pisee`) y `puertaSalida` = primera IP de `ENS_SAL` (→ R4 parcial); `curl` → `{"status":"UP"}`.
 
 Componentes reales (R6), sin datos personales:
 

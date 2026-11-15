@@ -440,6 +440,14 @@ class ServiciosObligatoriosTest(unittest.TestCase):
 HOST = 'formulario.defensorianinez.gob.cl'
 
 
+import http.server as _http_server
+
+
+class ServidorSilencioso(_http_server.HTTPServer):
+    def handle_error(self, request, client_address):
+        pass  # el cliente cierra la conexión TLS al terminar
+
+
 @unittest.skipUnless(shutil.which('openssl'), 'openssl requerido')
 class TlsProxyTest(unittest.TestCase):
     """Regresión DDN-UBUNTU 15/11/2026: en producción pki/proxy/server.crt lo emite origin-ca.crt y
@@ -528,7 +536,8 @@ class TlsProxyTest(unittest.TestCase):
                'montajes': [], 'bloqueos': [], 'noMigrado': [], 'imagenes': {}}
         a = argparse.Namespace(legado=str(self.base), destino=None, limite_gib=40, respaldo_local=True, ignorar_montaje=[])
         with patch.object(f, 'inventario_legado', return_value=inv), \
-                patch.object(f, 'base_datos', return_value={'bytes': 0, 'conteos': {}, 'flyway': '12', 'huellas': {}}):
+                patch.object(f, 'base_datos', return_value={'bytes': 0, 'conteos': {}, 'flyway': '12', 'huellas': {},
+                                                            'controles': {'aceptarNuevos': True, 'recuperar': True}}):
             return f.plan(a)
 
     def directorio_proxy(self, nombre, servidor, origen=None):
@@ -605,7 +614,7 @@ class HealthcheckProxyComposeTest(unittest.TestCase):
                 def log_message(self, *args):
                     pass
 
-            httpd = http.server.HTTPServer(('127.0.0.1', 0), Salud)
+            httpd = ServidorSilencioso(('127.0.0.1', 0), Salud)
             httpd.socket = contexto.wrap_socket(httpd.socket, server_side=True)
             hilo = threading.Thread(target=httpd.serve_forever, daemon=True)
             hilo.start()
@@ -627,6 +636,199 @@ class HealthcheckProxyComposeTest(unittest.TestCase):
         self.assertNotEqual(probar('hc-origin-incompatible', pk.servidor(pk.interna, 'd'), pk.origen), 0)
 
 
+
+
+PROPS_PRODUCCION = ('publico.recepcion.habilitada=true\nformulario.recepcion.habilitada=true\n'
+                    'publico.integracion.habilitada=true\npublico.recepcion.custodia-durable-autorizada=true\n')
+
+
+class ValidacionConPullTest(unittest.TestCase):
+    """Regresión DDN-UBUNTU 15/11/2026: con operation_control.pull_enabled=1 la validación (que cerraba la
+    integración por propiedad) no arrancaba. Ahora conserva la integración y cierra /integracion y /operacion."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.base = Path(self.temp.name)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def props(self, texto):
+        p = self.base / 'application.properties'
+        p.write_text(texto)
+        return p
+
+    def test_entorno_de_validacion_no_cierra_integracion_y_activa_el_filtro(self):
+        self.assertNotIn('PUBLICO_INTEGRACION_HABILITADA', f.CERRADO)
+        self.assertEqual(f.CERRADO['FORMULARIO_VALIDACION_CERRADA'], 'true')
+        for clave in ['PUBLICO_RECEPCION_HABILITADA', 'FORMULARIO_RECEPCION_HABILITADA', 'PUBLICO_NNA_HABILITADO',
+                      'PISEE_SRCEI_ENABLED', 'CICLOVIDA_ONLINEHABILITADO', 'CICLOVIDA_ELIMINACION_HABILITADA']:
+            self.assertEqual(f.CERRADO[clave], 'false', clave)
+
+    def test_arranque_con_pull_abierto_y_cerrado(self):
+        props = self.props(PROPS_PRODUCCION)
+        for aceptar, pull in [(True, True), (True, False), (False, True), (False, False)]:
+            informe, bloqueos = f.arranque_validacion(props, {'aceptarNuevos': aceptar, 'recuperar': pull})
+            self.assertEqual(bloqueos, [], (aceptar, pull))
+            self.assertTrue(informe['integracion'])
+
+    def test_integracion_cerrada_en_properties_con_pull_abierto_bloquea_el_plan(self):
+        props = self.props(PROPS_PRODUCCION.replace('publico.integracion.habilitada=true', 'publico.integracion.habilitada=false'))
+        self.assertTrue(f.arranque_validacion(props, {'aceptarNuevos': False, 'recuperar': True})[1])
+        self.assertEqual(f.arranque_validacion(props, {'aceptarNuevos': True, 'recuperar': False})[1], [])  # custodia autorizada
+        # Con la regla anterior (integración cerrada por entorno) la validación productiva no arrancaba:
+        with patch.dict(f.CERRADO, {'PUBLICO_INTEGRACION_HABILITADA': 'false'}):
+            self.assertTrue(f.arranque_validacion(self.props(PROPS_PRODUCCION), {'aceptarNuevos': True, 'recuperar': True})[1])
+
+    def test_caddyfile_de_validacion_bloquea_antes_de_todo_handle(self):
+        original = (ROOT / 'infra/ubuntu/Caddyfile.production').read_text()
+        texto = f.caddyfile_validacion(original)
+        bloque = texto.index('@validacion path /integracion /integracion/* /operacion /operacion/*')
+        self.assertLess(texto.index('respond @private'), bloque)
+        self.assertLess(bloque, texto.index('respond @validacion "Validación cerrada" 503'))
+        self.assertLess(texto.index('respond @validacion'), texto.index('handle @bloque'))
+        self.assertEqual(texto.replace(f.BLOQUE_CADDY_VALIDACION, ''), original)  # nada más cambia
+        with self.assertRaises(f.Rechazo):
+            f.caddyfile_validacion(original.replace(f.ANCLA_CADDY, ''))
+
+    def test_validacion_yml_monta_el_caddyfile_de_validacion(self):
+        infra = self.base / 'infra'
+        infra.mkdir()
+        (infra / 'Caddyfile').write_text((ROOT / 'infra/ubuntu/Caddyfile.production').read_text())
+        f.generar_validacion(self.base)
+        yml = (infra / 'validacion.yml').read_text()
+        self.assertIn('FORMULARIO_VALIDACION_CERRADA: "true"', yml)
+        self.assertNotIn('PUBLICO_INTEGRACION_HABILITADA', yml)
+        self.assertIn('volumes: !override', yml)
+        self.assertIn('${FORMULARIO_RAIZ}/infra/Caddyfile.validacion:/etc/caddy/Caddyfile:ro', yml)
+        self.assertIn('${FORMULARIO_RAIZ}/pki/proxy:/run/pki:ro', yml)
+        self.assertIn('respond @validacion', (infra / 'Caddyfile.validacion').read_text())
+
+    def test_produccion_rechaza_la_marca_de_validacion(self):
+        self.assertTrue(f.app_en_validacion({'Config': {'Env': ['A=1', 'FORMULARIO_VALIDACION_CERRADA=true']}}))
+        self.assertFalse(f.app_en_validacion({'Config': {'Env': ['PUBLICO_INTEGRACION_HABILITADA=true']}}))
+        self.assertFalse(f.app_en_validacion(None))
+
+    def test_sonda_directa_a_la_app_exige_503_con_cabecera(self):
+        cerrada = 'HTTP/1.1 503 \r\nx-formulario-validacion: cerrada\r\ncache-control: no-store\r\n\r\n'
+        with patch.object(f, 'run', return_value=cerrada):
+            self.assertEqual(f.sondear_app_validacion('p')[1], [])
+        for respuesta in ['HTTP/1.1 401 \r\n\r\n', 'HTTP/1.1 503 \r\n\r\n', 'HTTP/1.1 200 \r\n\r\n', '']:
+            with patch.object(f, 'run', return_value=respuesta):
+                self.assertEqual(len(f.sondear_app_validacion('p')[1]), len(f.RUTAS_CERRADAS_VALIDACION), respuesta)
+        llamadas = []
+        with patch.object(f, 'run', side_effect=lambda args, **k: llamadas.append(args) or cerrada):
+            f.sondear_app_validacion('p')
+        self.assertFalse(any('Authorization' in ' '.join(a) for a in llamadas))  # nunca envía credenciales
+
+
+@unittest.skipUnless(shutil.which('openssl'), 'openssl requerido')
+class SondaProxyValidacionTest(unittest.TestCase):
+    """Sonda HTTP real (TLS estricto) contra servidores que emulan el proxy de validación."""
+
+    def servidor(self, responder):
+        import http.server
+        import threading
+        pk = TlsProxyTest('run')
+        pk.setUp()
+        self.addCleanup(pk.tearDown)
+        raiz = pk.base / 'raiz'
+        (raiz / 'pki').mkdir(parents=True)
+        pki = pk.directorio_proxy('raiz/pki/proxy', pk.servidor(pk.origen, 's'), pk.origen)
+        contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        contexto.load_cert_chain(str(pki / 'server.crt'), str(pki / 'server.key'))
+
+        class Manejador(http.server.BaseHTTPRequestHandler):
+            def responder(self):
+                n = int(self.headers.get('Content-Length') or 0)
+                self.rfile.read(n)
+                estado, cabeceras = responder(self.command, self.path)
+                self.send_response(estado)
+                for k, v in cabeceras.items():
+                    self.send_header(k, v)
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+            do_GET = do_POST = do_PUT = responder
+
+            def log_message(self, *args):
+                pass
+
+        httpd = ServidorSilencioso(('127.0.0.1', 0), Manejador)
+        httpd.socket = contexto.wrap_socket(httpd.socket, server_side=True)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        return raiz, httpd.server_port
+
+    @staticmethod
+    def caddy(metodo, ruta):
+        cerrada = ruta.lower().startswith(('/integracion', '/operacion'))
+        return (503, {}) if cerrada else (200, {})
+
+    def test_proxy_que_bloquea_pasa(self):
+        raiz, puerto = self.servidor(self.caddy)
+        resultados, problemas = f.sondear_proxy_validacion(raiz, HOST, puerto)
+        self.assertEqual(problemas, [])
+        self.assertEqual(resultados['POST /integracion/v3/formulario-completo/entregas/reclamar'], 503)
+
+    def test_proxy_que_deja_pasar_integracion_falla(self):
+        # Sin bloqueo en el proxy: la solicitud llega a la app (503 CON cabecera) o a un backend abierto (200/401).
+        for respuesta in [(503, {'X-Formulario-Validacion': 'cerrada'}), (401, {}), (200, {})]:
+            raiz, puerto = self.servidor(lambda m, r, x=respuesta: x if r.lower().startswith('/integracion') else (200, {}))
+            problemas = f.sondear_proxy_validacion(raiz, HOST, puerto)[1]
+            self.assertTrue(any('/integracion' in p for p in problemas), respuesta)
+
+    def test_proxy_sin_salud_o_inaccesible_falla(self):
+        raiz, puerto = self.servidor(lambda m, r: (502, {}))
+        self.assertIn('sin salud', ' '.join(f.sondear_proxy_validacion(raiz, HOST, puerto)[1]))
+        self.assertIn('inaccesible', ' '.join(f.sondear_proxy_validacion(raiz, HOST, 1)[1]))
+
+
+@unittest.skipUnless(os.environ.get('FORMULARIO_PROXY_IMAGE') and shutil.which('docker') and shutil.which('openssl'),
+                     'FORMULARIO_PROXY_IMAGE (imagen Caddy del proxy), docker y openssl requeridos')
+class CaddyValidacionHttpTest(unittest.TestCase):
+    """Caddy REAL con el Caddyfile de validación derivado del productivo: /integracion y /operacion 503 incluso con
+    credencial; el resto se encamina al backend (502 aquí: sin app)."""
+
+    def test_caddy_real_bloquea_integracion_y_operacion(self):
+        pk = TlsProxyTest('run')
+        pk.setUp()
+        self.addCleanup(pk.tearDown)
+        # FORM_HOSTNAME no puede ser 'localhost' (Caddy rechaza el host repetido en @wrongHost): hostname real + --resolve.
+        pki = pk.directorio_proxy('pki', pk.servidor(pk.origen, 's'), pk.origen)
+        for archivo in pki.iterdir():
+            archivo.chmod(0o644)
+        caddy = pk.base / 'Caddyfile'
+        caddy.write_text(f.caddyfile_validacion((ROOT / 'infra/ubuntu/Caddyfile.production').read_text()))
+        caddy.chmod(0o644)
+        rutas = [m + ' ' + r for m, r in f.RUTAS_CERRADAS_VALIDACION] + [
+            'GET /integracion', 'GET /integracion/', 'GET /Integracion/v1/comunicaciones/pendientes',
+            'GET /integracion%2Fv1/comunicaciones/pendientes', 'GET /operacion', 'GET /api/session']
+        guion = ('caddy run --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 & '
+                 'for i in $(seq 50); do curl -s -o /dev/null --cacert /run/pki/origin-ca.crt https://localhost:8443/ && break; sleep 0.2; done; '
+                 + ' '.join(f'printf "%s|" {shlex_quote(r)}; curl -s -o /tmp/b -w "%{{http_code}}|" --cacert /run/pki/origin-ca.crt '
+                            f'-X {r.split()[0]} -H "Authorization: Bearer integracion-sintetica-validacion-cerrada-2026" '
+                            f'--path-as-is --resolve {HOST}:8443:127.0.0.1 https://{HOST}:8443{r.split()[1]}; head -c 40 /tmp/b; echo;' for r in rutas))
+        r = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--user', '0:0', '-e', f'FORM_HOSTNAME={HOST}',
+                            '-e', 'XDG_CONFIG_HOME=/tmp', '-e', 'XDG_DATA_HOME=/tmp',
+                            '-v', f'{caddy}:/etc/caddy/Caddyfile:ro', '-v', f'{pki}:/run/pki:ro',
+                            '--entrypoint', 'sh', os.environ['FORMULARIO_PROXY_IMAGE'], '-c', guion],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+        filas = dict(l.split('|', 1) for l in r.stdout.decode().splitlines() if '|' in l)
+        self.assertEqual(len(filas), len(rutas), r.stdout.decode() + r.stderr.decode())
+        for ruta, valor in filas.items():
+            estado, cuerpo = valor.split('|', 1)
+            if ruta == 'GET /api/session':
+                self.assertEqual(estado, '502', ruta)  # se encamina a la app (ausente): no bloqueado
+            else:
+                self.assertEqual(estado, '503', f'{ruta}: {valor}')
+                if '/operacion' not in ruta.lower():
+                    self.assertIn('Validaci', cuerpo, ruta)
+
+
+def shlex_quote(texto):
+    import shlex
+    return shlex.quote(texto)
 
 class PaqueteReleaseTest(unittest.TestCase):
     def test_docs_operativos_del_paquete_incluyen_los_que_enlazan(self):

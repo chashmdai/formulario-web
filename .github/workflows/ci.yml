@@ -90,5 +90,7 @@ jobs:
         run: |
           docker build -t formulario-proxy:ci infra/sandbox
           docker run --rm --network none -e FORM_HOSTNAME=formulario.defensorianinez.gob.cl -v "$PWD/infra/ubuntu/Caddyfile:/etc/caddy/Caddyfile:ro" --entrypoint caddy formulario-proxy:ci adapt --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+      - name: Proxy de validación real (Caddyfile productivo + cierre de /integracion y /operacion)
+        run: FORMULARIO_PROXY_IMAGE=formulario-proxy:ci python3 scripts/qa/test_formulario.py CaddyValidacionHttpTest
       - name: Construir React y backend; comprobar catálogos dentro del JAR
         run: docker build --build-arg SOURCE_REVISION="${{ github.sha }}" -t formulario-h1:ci .
