@@ -178,16 +178,15 @@ class RecorridosJdbcTest {
         service.declarar(id,"presentador-adulto",Map.of("sexo","F"),session);var p=service.personasInternas(id,session).getFirst();
         assertEquals(Fuente.DECLARACION_CIUDADANA,p.atributos().get("sexo").fuente());assertEquals("Z",p.discrepancias().get("sexo").codigo());
     }
-    @Test void correccionExplicitaConservaDiscrepanciasYNoReconsultaNiAutentica(){
+    @Test void antecedentesRegistralesNoSeSustituyenPorDeclaracionesNiSeReconsulta(){
         var id=iniciar(Tipo.ADULTO_DECLARADO).id();identificar(id);
         var original=service.personasInternas(id,session).getFirst();
-        assertThrows(IllegalArgumentException.class,()->service.declarar(id,"presentador-adulto",Map.of("primerNombre","DECLARADO"),session));
-        service.declarar(id,"presentador-adulto",Map.of("primerNombre","DECLARADO","primerApellido","DISTINTO"),session,true);
-        var corrected=service.personasInternas(id,session).getFirst();
-        assertFalse(corrected.autenticada());assertEquals(1,queries.get());
-        assertEquals(Fuente.DECLARACION_CIUDADANA,corrected.atributos().get("primerNombre").fuente());
-        assertEquals(original.atributos().get("nombres"),corrected.discrepancias().get("nombres"));
-        assertEquals("DECLARADO",service.persona(id,"presentador-adulto",session).valoresDeclarados().get("primerNombre"));
+        for(var attempt:List.of(Map.of("primerNombre","DECLARADO"),Map.of("primerNombre","DECLARADO","primerApellido","DISTINTO"),Map.of("segundoNombre","DECLARADO"),Map.of("primerNombre","")))
+            assertThrows(IllegalArgumentException.class,()->service.declarar(id,"presentador-adulto",attempt,session),attempt.toString());
+        var after=service.personasInternas(id,session).getFirst();
+        assertEquals(original.atributos(),after.atributos());assertEquals(original.discrepancias(),after.discrepancias());
+        assertFalse(after.autenticada());assertEquals(1,queries.get());
+        assertTrue(service.persona(id,"presentador-adulto",session).valoresDeclarados().isEmpty());
         assertFalse(mapper.writeValueAsString(service.persona(id,"presentador-adulto",session)).contains(original.atributos().get("nombres").valor()));
     }
     @Test void diezElementosDelAdaptadorNoAutorizanPersistirAtributosAjenosALaFinalidad()throws Exception{
@@ -243,6 +242,26 @@ class RecorridosJdbcTest {
         assertEquals(Set.of("primerNombre","primerApellido"),next.camposObligatorios());assertEquals(2,queries.get());
         assertEquals(2,db.sql.queryForObject("SELECT query_count FROM citizen_journey WHERE id=?",Integer.class,id.toString()));
         assertFalse(service.personasInternas(id,session).getFirst().atributos().containsKey("nombres"));
+    }
+    @Test void reinicioConMismoRunReutilizaAntecedentesSinReconsultarNiAbrirDeclaraciones(){
+        var id=iniciar(Tipo.ADULTO_DECLARADO).id();var first=identificar(id);
+        var original=service.personasInternas(id,session).getFirst();
+        // Una consulta posterior fallida o forzada no debe convertir los antecedentes obtenidos en campos declarables.
+        for(var status:List.of(ResultadoSrcei.Estado.TIMEOUT,ResultadoSrcei.Estado.VACIO)) {
+            service.reiniciarPersona(id,"presentador-adulto",session);
+            provider=r->resultado(status);
+            var view=identificar(id);
+            assertEquals(first,view);assertFalse(view.camposFaltantes().contains("primerNombre"));assertTrue(view.valoresDeclarados().isEmpty());
+            assertThrows(IllegalArgumentException.class,()->service.declarar(id,"presentador-adulto",Map.of("primerNombre","SUSTITUTO"),session));
+            var resumed=service.personasInternas(id,session).getFirst();
+            assertEquals(original.atributos().get("nombres"),resumed.atributos().get("nombres"));assertEquals(original.consultaRef(),resumed.consultaRef());
+            assertEquals(ResultadoSrcei.Estado.COMPLETO,resumed.estadoConsulta());
+        }
+        assertEquals(1,queries.get());assertEquals(1,db.sql.queryForObject("SELECT query_count FROM citizen_journey WHERE id=?",Integer.class,id.toString()));
+        // Un RUN distinto sí reconsulta y no hereda antecedentes ajenos.
+        service.reiniciarPersona(id,"presentador-adulto",session);provider=r->resultado(ResultadoSrcei.Estado.VACIO);
+        service.identificar(id,"presentador-adulto",Rol.PRESENTADOR,"11111111","1",session,"127.0.0.1",null);
+        assertFalse(service.personasInternas(id,session).getFirst().atributos().containsKey("nombres"));assertEquals(2,queries.get());
     }
     @Test void persistenciaSobreviveCerrarYAbrirConexionesSinMigrarNiLimpiar(){
         var id=iniciar(Tipo.ADULTO_DECLARADO).id();var before=identificar(id);

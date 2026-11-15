@@ -58,17 +58,28 @@ describe('Identificación ciudadana conectada al servidor', () => {
     await userEvent.type(surname, 'APELLIDO DECLARADO');await userEvent.click(screen.getByRole('button', {name: 'Guardar identificación'}));
     await waitFor(() => expect(declarePerson).toHaveBeenCalledWith(journey.id, 'presentador-adulto', {primerApellido: 'APELLIDO DECLARADO'}));
   });
-  it('la corrección abre campos vacíos y envía solo declaraciones sin reconsultar', async () => {
+  it('no ofrece aportar datos distintos ni reemplaza antecedentes cuando la consulta está completa', async () => {
     vi.mocked(identifyPerson).mockResolvedValue({...empty(), camposFaltantes: [], camposObligatorios: []});
     mount();await run();await userEvent.click(screen.getByRole('button', {name: 'Revisar RUN'}));
-    await userEvent.click(await screen.findByRole('button', {name:'Aportar datos distintos o faltantes'}));
-    const name=screen.getByRole('textbox', {name:/^Primer nombre/}) as HTMLInputElement;
-    expect(name.value).toBe('');
-    expect((screen.getByRole('textbox',{name:/^Primer apellido/}) as HTMLInputElement).value).toBe('');
-    await userEvent.type(name,'CORRECCION DECLARADA');
-    await userEvent.click(screen.getByRole('button',{name:'Guardar identificación'}));
-    await waitFor(()=>expect(declarePerson).toHaveBeenCalledWith(journey.id,'presentador-adulto',{primerNombre:'CORRECCION DECLARADA'},true));
+    expect(await screen.findByText('No necesitas completar más datos de identificación.')).toBeTruthy();
+    expect(screen.queryByRole('button', {name: /Aportar datos/})).toBeNull();
+    expect(screen.queryByRole('textbox', {name: /^Primer nombre/})).toBeNull();
+    expect(screen.queryByRole('textbox', {name: /^Primer apellido/})).toBeNull();
+    expect(screen.queryByText('Declarado', {selector: '[id^="source-"]:not(#source-run)'})).toBeNull();
+    await userEvent.click(screen.getByRole('button', {name: 'Guardar identificación'}));
+    await waitFor(() => expect(declarePerson).toHaveBeenCalledWith(journey.id, 'presentador-adulto', {}));
+    expect(vi.mocked(declarePerson).mock.calls.every(call => call.length === 3)).toBe(true);
     expect(identifyPerson).toHaveBeenCalledTimes(1);
+  });
+  it('los valores ya declarados siguen editables y solo se envían campos indicados por el servidor', async () => {
+    vi.mocked(identifyPerson).mockResolvedValue({...empty(), camposFaltantes: ['segundoApellido'], camposObligatorios: [], valoresDeclarados: {segundoApellido: 'MATERNO DECLARADO'}});
+    mount();await run();await userEvent.click(screen.getByRole('button', {name: 'Revisar RUN'}));
+    const surname = await screen.findByRole('textbox', {name: /^Segundo apellido/}) as HTMLInputElement;
+    expect(surname.value).toBe('MATERNO DECLARADO');
+    expect(screen.queryByRole('textbox', {name: /^Primer nombre/})).toBeNull();
+    await userEvent.clear(surname);await userEvent.type(surname, 'MATERNO EDITADO');
+    await userEvent.click(screen.getByRole('button', {name: 'Guardar identificación'}));
+    await waitFor(() => expect(declarePerson).toHaveBeenCalledWith(journey.id, 'presentador-adulto', {segundoApellido: 'MATERNO EDITADO'}));
   });
   it.each(['VACIO','ERROR'])('el fallback %s solicita datos sin afirmar existencia', async () => {
     vi.mocked(identifyPerson).mockResolvedValue(empty());

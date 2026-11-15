@@ -44,7 +44,6 @@ export function IdentificationControls({journey, session, nna = false, children,
   const [phase, setPhase] = useState<'INICIAL' | 'CONSULTANDO' | 'REVISADO' | 'ERROR'>(cu || nna ? 'CONSULTANDO' : 'INICIAL');
   const [failure, setFailure] = useState('');
   const [restored, setRestored] = useState(false);
-  const [manualCorrection, setManualCorrection] = useState(false);
   const lookup = useRef<Promise<IdentityView | null> | null>(null);
   const networkRequest = useRef<IdentificationRequest | null>(null);
   const backendExists = useRef(false);
@@ -111,7 +110,6 @@ export function IdentificationControls({journey, session, nna = false, children,
     networkRequest.current?.cancel?.(); networkRequest.current = null;
     if (view || backendExists.current) resetNeeded.current = true;
     generation.current++; setView(null); setValues({}); setErrors({}); setFailure(''); setPhase('INICIAL');
-    setManualCorrection(false);
     onResolvedRef.current?.(null);
     // Una sola invalidación por identidad existente, incluso si se siguen escribiendo dígitos.
     if (resetNeeded.current) void ensureReset().catch(() => { /* Se conserva el pendiente y se reintenta antes de consultar. */ });
@@ -226,8 +224,9 @@ export function IdentificationControls({journey, session, nna = false, children,
     const token = ++generation.current;
     setPhase('CONSULTANDO');
     try {
-      const allowed = Object.fromEntries((manualCorrection ? metadata.map(m=>m.key) : current.camposFaltantes).filter(k => input[k] !== undefined).map(k => [k, input[k]])) as Declarations;
-      const next = manualCorrection ? await declarePerson(journey.id, person, allowed, true) : await declarePerson(journey.id, person, allowed);
+      // Solo se envían los campos que el servidor indicó como faltantes o ya declarados por la persona.
+      const allowed = Object.fromEntries(current.camposFaltantes.filter(k => input[k] !== undefined).map(k => [k, input[k]])) as Declarations;
+      const next = await declarePerson(journey.id, person, allowed);
       if (token !== generation.current) return null;
       received(next); return next;
     } catch (error) { if (token === generation.current) fail(error); return null; }
@@ -248,10 +247,9 @@ export function IdentificationControls({journey, session, nna = false, children,
     primerNombre: identity.nombresComponentes?.[0], segundoNombre: identity.nombresComponentes?.slice(1).join(' ') || undefined,
     primerApellido: identity.apellidosComponentes?.[0], segundoApellido: identity.apellidosComponentes?.slice(1).join(' ') || undefined,
   } : {};
-  const sourceFor = (key: IdentityField) => identity && verifiedNames[key] !== undefined ? 'ClaveÚnica' : 'Declarado';
   const fields = metadata.filter(m => (nna ? !['fechaNacimiento', 'sexo'].includes(m.key) : m.key !== 'edad')
     && !(identity && verifiedNames[m.key] !== undefined)
-    && (view?.camposFaltantes.includes(m.key) || (manualCorrection && !['tipoDocumento','numeroDocumento'].includes(m.key))));
+    && !!view?.camposFaltantes.includes(m.key));
   const displayedNumber = identity ? formatRunNumber(identity.runNumero || identity.run.split('-')[0]) : numero;
   const displayedDv = identity ? identity.runDv || identity.run.split('-')[1] : dv;
   const preservedRun = !cu && !!view?.runInformado && !numero && !dv;
@@ -323,7 +321,7 @@ export function IdentificationControls({journey, session, nna = false, children,
         const underage = !nna && m.key === 'fechaNacimiento' && !errors.fechaNacimiento && isUnderage(values.fechaNacimiento || '');
         return <div className="field" data-identity-attr={m.suffix} key={m.key}>
           <label htmlFor={id}>{m.label}{hint && !readOnly && <span className="muted-label"> {hint}</span>}
-            {required && <span aria-hidden="true" className="required-mark"> *</span>}{!nna && <span className="identity-source" id={`source-${m.suffix}`}>{sourceFor(m.key)}</span>}</label>
+            {required && <span aria-hidden="true" className="required-mark"> *</span>}{!nna && <span className="identity-source" id={`source-${m.suffix}`}>Declarado</span>}</label>
           {m.key === 'nacionalidad' ? <NationalitySelect id={id} name={id} value={values.nacionalidad||''} required={required} disabled={busy} aria-invalid={!!errors.nacionalidad} aria-describedby={id+'-help '+id+'-error'} onValueChange={value=>edit('nacionalidad', value)}/> : m.key === 'tipoDocumento' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Selecciona un tipo de documento</option><option value="PASAPORTE">Pasaporte</option><option value="IDENTIDAD_EXTRANJERA">Documento de identidad extranjero</option><option value="OTRO">Otro documento de identificación</option></ReadableSelect></div> : m.key === 'sexo' ? <div className="select-wrap"><ReadableSelect {...input}><option value="">Sin dato informado</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="I">Indeterminado</option><option value="U">No hay información</option></ReadableSelect></div>
             : <input {...input} type={m.type || 'text'} maxLength={m.key === 'edad' ? 2 : m.key === 'numeroDocumento' ? DOCUMENT_MAX_LENGTH : name ? NAME_MAX_LENGTH : 500}
               onBlur={readOnly ? undefined : e => leave(m.key, e.target.value)}
@@ -337,10 +335,8 @@ export function IdentificationControls({journey, session, nna = false, children,
       })}
       {children}
     </div>
-    {!nna && !cu && !foreign && view?.estado === 'REVISADO' && <div className="field-help correction-help">
-      {!manualCorrection && <>{!fields.length && <p>No necesitas completar más datos de identificación.</p>}
-        <button type="button" className="btn btn-secondary btn-small" disabled={busy} onClick={()=>setManualCorrection(true)}>Aportar datos distintos o faltantes</button></>}
-      {manualCorrection && <p role="status">Escribe solo lo que quieras corregir o agregar. Guardaremos tu versión junto con los datos originales.</p>}
+    {!nna && !cu && !foreign && view?.estado === 'REVISADO' && !fields.length && <div className="field-help correction-help">
+      <p>No necesitas completar más datos de identificación.</p>
     </div>}
   </>;
 }

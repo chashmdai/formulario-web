@@ -26,6 +26,13 @@ describe('Cliente de identificación real', () => {
     mockFetch({...view, camposFaltantes: ['primerApellido'], camposObligatorios: ['primerApellido'], valoresDeclarados: {primerNombre: 'REGISTRAL SINTETICO'}});
     await expect(declarePerson('r', 'p', {primerApellido: 'PRUEBA'})).rejects.toMatchObject({status: 502});
   });
+  it('la declaración envía solo atributos, sin indicador de corrección registral', async () => {
+    const fetch = mockFetch(view);
+    // Un llamador antiguo que aún pase un cuarto argumento no puede activar la corrección.
+    await (declarePerson as unknown as (...args: unknown[]) => Promise<unknown>)('r', 'p', {primerNombre: 'NOMBRE'}, true);
+    const request = fetch.mock.calls.find(([url]) => String(url).endsWith('/declaracion'))!;
+    expect(JSON.parse(request[1]?.body as string)).toEqual({atributos: {primerNombre: 'NOMBRE'}});
+  });
   it('deduplica una identificación pendiente, sin repetir POST al montar dos veces', async () => {
     const fetch = mockFetch(view);
     const one = identifyPerson('r-deduplicado', 'presentador-adulto', 'PRESENTADOR');

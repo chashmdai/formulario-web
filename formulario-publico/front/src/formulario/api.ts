@@ -63,6 +63,7 @@ export function identifyPerson(journey: string, person: string, rol: PersonRole,
 export async function identifyForeignPerson(journey: string): Promise<IdentityView> {
   return publicView(await mutation<unknown>(root + '/recorridos/' + encodeURIComponent(journey) + '/identificacion-extranjera', 'POST'));
 }
-export async function declarePerson(journey: string, person: string, atributos: Declarations, corregirRegistrales = false): Promise<IdentityView> {
-  return publicView(await mutation<unknown>(`${path(journey, person)}/declaracion`, 'POST', {atributos, ...(corregirRegistrales ? {corregirRegistrales:true} : {})}));
+/** Solo completa campos faltantes o ya declarados; los antecedentes de otras fuentes no se sustituyen desde el cliente. */
+export async function declarePerson(journey: string, person: string, atributos: Declarations): Promise<IdentityView> {
+  return publicView(await mutation<unknown>(`${path(journey, person)}/declaracion`, 'POST', {atributos}));
 }

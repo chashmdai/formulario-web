@@ -21,13 +21,13 @@ function type(number='12345678',dv='5'){
 }
 const advance=async(ms=650)=>{await act(async()=>{await vi.advanceTimersByTimeAsync(ms);});};
 describe('RUN automático sin consultas en cada pulsación',()=>{
- it('permite una corrección declarada explícita sin revelar ni sobreescribir silenciosamente antecedentes',async()=>{
+ it('no permite activar una corrección registral ni sobreescribir antecedentes desde la interfaz',async()=>{
   vi.mocked(identifyPerson).mockResolvedValue({...empty(),camposFaltantes:[],camposObligatorios:[]});
   const {identityRef}=await mount();vi.useFakeTimers();type();await advance();
-  fireEvent.click(screen.getByRole('button',{name:'Aportar datos distintos o faltantes'}));
-  fireEvent.change(screen.getByRole('textbox',{name:/^Primer nombre/}),{target:{value:'DECLARADO'}});
+  expect(screen.queryByRole('button',{name:/Aportar datos/})).toBeNull();expect(screen.queryByRole('textbox',{name:/^Primer nombre/})).toBeNull();
   await act(async()=>{await identityRef.current!.save();});
-  expect(declarePerson).toHaveBeenLastCalledWith(journey.id,'presentador-adulto',{primerNombre:'DECLARADO'},true);
+  expect(declarePerson).toHaveBeenLastCalledWith(journey.id,'presentador-adulto',{});
+  expect(vi.mocked(declarePerson).mock.lastCall).toHaveLength(3);
   expect(identifyPerson).toHaveBeenCalledTimes(1);
  });
  it('espera RUN/DV válido y 650 ms estables; deduplica botón, renders y guardado',async()=>{

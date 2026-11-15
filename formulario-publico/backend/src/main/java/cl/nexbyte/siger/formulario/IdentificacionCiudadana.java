@@ -121,29 +121,41 @@ public final class IdentificacionCiudadana {
         // Los campos declarados siguen siendo editables, los recuperados nunca se exponen.
         missing.addAll(declared.keySet());
         var required=new HashSet<>(p.rol()==Rol.PRESENTADOR?Set.of("primerNombre","primerApellido"):Set.<String>of()); if(extranjera(p))required.addAll(DOCUMENTO_EXTRANJERO); required.retainAll(missing);
+        // Una declaración que desplazó un antecedente registral puede retirarse: declarar() lo restituye.
+        required.removeIf(key->srceiUtil(p.discrepancias().get(key))||key.equals("primerNombre")&&srceiUtil(p.discrepancias().get("nombres")));
         return new Vista(p.id(),"REVISADO",p.autenticada(),p.runNumero()!=null,Set.copyOf(missing),Set.copyOf(required),Map.copyOf(declared),
                 extranjera(p)?"Estos antecedentes son declarados y no autentican ni verifican tu identidad.":"Completa los datos solicitados. La revisión del RUN no acredita tu identidad.");
     }
+    /**
+     * Solo completa campos realmente faltantes o edita declaraciones propias previas. Los antecedentes obtenidos de
+     * ClaveÚnica o SRCEI nunca se sustituyen por declaraciones ciudadanas, cualquiera sea la petición recibida.
+     */
     public static Persona declarar(Persona p,Map<String,String> values,Clock clock) {
-        return declarar(p,values,clock,false);
-    }
-    public static Persona declarar(Persona p,Map<String,String> values,Clock clock,boolean corregirRegistrales) {
         if(values==null||values.size()>CAMPOS.size()||!CAMPOS.containsAll(values.keySet())) throw new IllegalArgumentException("Campos de identificación inválidos");
         var allowed=vista(p).camposFaltantes(); var attrs=new HashMap<>(p.atributos());var discrepancies=new HashMap<>(p.discrepancias());
-        if(corregirRegistrales) {
-            if(p.autenticada()||p.rol()!=Rol.PRESENTADOR||!p.id().equals("presentador-adulto"))throw new IllegalArgumentException("Corrección declarada exclusiva del presentador sin CU");
-            allowed=new HashSet<>(allowed);allowed.addAll(CAMPOS_BASE);allowed.add("nacionalidad");allowed.remove("edad");
-        }
         if(!allowed.containsAll(values.keySet())) throw new IllegalArgumentException("No sustituir antecedentes de otra fuente");
         for(var entry:values.entrySet()) {
             String key=entry.getKey(),value=entry.getValue()==null?"":entry.getValue().strip();
-            if(value.isEmpty()) { if(attrs.get(key)!=null && attrs.get(key).fuente()==Fuente.DECLARACION_CIUDADANA) attrs.remove(key); continue; }
+            var previous=attrs.get(key);
+            // Defensa en profundidad: un valor útil de otra fuente nunca es sustituible aunque figure como faltante.
+            if(previous!=null&&previous.fuente()!=Fuente.DECLARACION_CIUDADANA&&util(previous)) throw new IllegalArgumentException("No sustituir antecedentes de otra fuente");
+            if(value.isEmpty()) {
+                if(previous!=null && previous.fuente()==Fuente.DECLARACION_CIUDADANA) {
+                    attrs.remove(key);
+                    // Al retirar la declaración se restituye el antecedente registral que había desplazado.
+                    var original=discrepancies.get(key);
+                    if(original!=null&&original.fuente()==Fuente.SRCEI) attrs.put(key,discrepancies.remove(key));
+                }
+                continue;
+            }
             validar(key,value,clock,p.rol()==Rol.PRESENTADOR&&p.id().equals("presentador-adulto"));
-            if(corregirRegistrales && Set.of("primerNombre","segundoNombre").contains(key) && attrs.containsKey("nombres")
-                && attrs.get("nombres").fuente()==Fuente.SRCEI) discrepancies.put("nombres",attrs.remove("nombres"));
-            if(attrs.containsKey(key)&&attrs.get(key).fuente()==Fuente.SRCEI)discrepancies.put(key,attrs.get(key));
+            if(previous!=null&&previous.fuente()==Fuente.SRCEI)discrepancies.put(key,previous);
             put(attrs,key,value,null,Fuente.DECLARACION_CIUDADANA,clock.instant(),UUID.randomUUID());
         }
+        // Recorridos históricos: una corrección retirada por completo devuelve los nombres registrales agregados.
+        var nombres=discrepancies.get("nombres");
+        if(nombres!=null&&nombres.fuente()==Fuente.SRCEI&&!attrs.containsKey("nombres")&&!util(attrs.get("primerNombre"))&&!util(attrs.get("segundoNombre")))
+            attrs.put("nombres",discrepancies.remove("nombres"));
         return new Persona(p.id(),p.rol(),p.runNumero(),p.runDv(),p.modulo11(),p.autenticada(),p.estadoConsulta(),p.consultadaEn(),p.consultaRef(),attrs,discrepancies);
     }
     /** Palabras separadas por un espacio, guion o apóstrofo; el punto admite abreviaturas («Ma. José», «Jr.»). Igual que personalData.ts. */
@@ -178,6 +190,29 @@ public final class IdentificacionCiudadana {
     public static boolean completa(Persona p) {
         return (util(p.atributos().get("primerNombre"))||util(p.atributos().get("nombres")))
             &&(util(p.atributos().get("primerApellido"))||util(p.atributos().get("apellidos")));
+    }
+    private static boolean srceiUtil(Valor value){return util(value)&&value.fuente()==Fuente.SRCEI;}
+    /**
+     * Reidentificación con el mismo RUN dentro del recorrido: reincorpora los antecedentes SRCEI ya obtenidos, para que un
+     * reinicio seguido de una consulta fallida no los convierta en campos faltantes declarables. No reconsulta.
+     */
+    public static Persona reanudar(Persona nueva,Persona anterior) {
+        if(!Objects.equals(nueva.runNumero(),anterior.runNumero())||!Objects.equals(nueva.runDv(),anterior.runDv())||nueva.rol()!=anterior.rol()
+            ||nueva.autenticada()!=anterior.autenticada()) throw new IllegalArgumentException("Identificación distinta");
+        var registrales=new HashMap<String,Valor>();
+        anterior.discrepancias().forEach((key,value)->{if(value.fuente()==Fuente.SRCEI)registrales.put(key,value);});
+        anterior.atributos().forEach((key,value)->{if(value.fuente()==Fuente.SRCEI)registrales.put(key,value);});
+        var attrs=new HashMap<>(nueva.atributos());var discrepancies=new HashMap<>(nueva.discrepancias());
+        registrales.forEach((key,value)->{
+            if(!attrs.containsKey(key))attrs.put(key,value);
+            else if(!Objects.equals(attrs.get(key).valor(),value.valor()))discrepancies.put(key,value);
+        });
+        return new Persona(nueva.id(),nueva.rol(),nueva.runNumero(),nueva.runDv(),nueva.modulo11(),nueva.autenticada(),anterior.estadoConsulta(),
+            anterior.consultadaEn(),anterior.consultaRef(),attrs,discrepancies);
+    }
+    /** Hay antecedentes SRCEI aprovechables (en atributos o desplazados a discrepancias). */
+    public static boolean conRegistrales(Persona p) {
+        return p.atributos().values().stream().anyMatch(IdentificacionCiudadana::srceiUtil)||p.discrepancias().values().stream().anyMatch(IdentificacionCiudadana::srceiUtil);
     }
     private static boolean util(Valor value){return value!=null&&value.valor()!=null&&!value.valor().isBlank()&&!"Desconocido".equals(value.valor())&&!"U".equals(value.codigo());}
 }

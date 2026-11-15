@@ -98,6 +98,16 @@ public final class RecorridosJdbc {
         return vista(p);
     }
 
+    /** Identidad retirada más reciente de este recorrido con el mismo RUN y antecedentes SRCEI útiles. */
+    private Persona registralPrevia(UUID journey,Persona nueva) {
+        for(var body:db.sql.queryForList("SELECT body FROM citizen_identity_history WHERE journey_id=? AND person_id=? ORDER BY retired_ms DESC",
+                String.class,journey.toString(),nueva.id())) {
+            var old=leer(body);
+            if(old.rol()==nueva.rol()&&old.autenticada()==nueva.autenticada()&&Objects.equals(old.runNumero(),nueva.runNumero())
+                &&Objects.equals(old.runDv(),nueva.runDv())&&conRegistrales(old))return old;
+        }
+        return null;
+    }
     /** Reinicio explícito por cambio de RUN: conserva historial privado y las cuotas consumidas. */
     public void reiniciarPersona(UUID journey,String person,String session) {
         db.transaction(()->{
@@ -146,8 +156,16 @@ public final class RecorridosJdbc {
                 return new Reserva(null,old,null,false);
             }
             if(db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person WHERE journey_id=?",Integer.class,journey.toString())>=30)throw new FalloTecnico(429);
-            if(finalRun!=null&&((Number)row.get("query_count")).intValue()>=12)throw new FalloTecnico(429);
             var initial=crear(person,role,finalRun,finalIdentity,null,clock);
+            var previa=finalRun==null?null:registralPrevia(journey,initial);
+            if(previa!=null) {
+                // Mismo RUN ya consultado con éxito en este recorrido: se reutiliza sin reconsultar ni consumir cuota.
+                var resumed=reanudar(initial,previa);
+                db.sql.update("INSERT INTO citizen_person(journey_id,person_id,role,body,query_state,query_lease,lease_until_ms) VALUES(?,?,?,?,'REVISADO',NULL,0)",
+                    journey.toString(),person,role.name(),mapper.writeValueAsString(resumed));
+                return new Reserva(null,resumed,null,false);
+            }
+            if(finalRun!=null&&((Number)row.get("query_count")).intValue()>=12)throw new FalloTecnico(429);
             // La allowlist de RUN no autoriza búsquedas de terceros. El canal adulto no se exige a NNA.
             // Esta unidad solo tiene finalidad de identificación del propio presentador.
             boolean query=role==Rol.PRESENTADOR&&(head.tipo()==Tipo.NNA||head.aceptaCanal())&&finalRun!=null&&autorizado.test(finalRun);
@@ -198,16 +216,14 @@ public final class RecorridosJdbc {
             return vista(initial);
         });
     }
+    /** Completa solo campos faltantes o ya declarados; los antecedentes de CU o SRCEI no se sustituyen. */
     public Vista declarar(UUID journey,String person,Map<String,String> values,String session) {
-        return declarar(journey,person,values,session,false);
-    }
-    public Vista declarar(UUID journey,String person,Map<String,String> values,String session,boolean corregirRegistrales) {
         capacidad();return db.transaction(()->{
             var row=fila(journey,session,true);editable(row);
             var busy=db.sql.queryForList("SELECT query_state FROM citizen_person WHERE journey_id=? AND person_id=?",journey.toString(),person);
             if(busy.isEmpty())throw new FalloTecnico(404);
             if(!"REVISADO".equals(busy.getFirst().get("query_state")))throw new FalloTecnico(409);
-            var declared=IdentificacionCiudadana.declarar(interna(journey,person),values,clock,corregirRegistrales);
+            var declared=IdentificacionCiudadana.declarar(interna(journey,person),values,clock);
             db.sql.update("UPDATE citizen_person SET body=? WHERE journey_id=? AND person_id=?",mapper.writeValueAsString(declared),journey.toString(),person);
             return vista(declared);
         });

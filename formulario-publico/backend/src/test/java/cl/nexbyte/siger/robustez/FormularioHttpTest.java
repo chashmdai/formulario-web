@@ -58,6 +58,24 @@ class FormularioHttpTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.valoresDeclarados.primerApellido").value("DECLARADO"));
         assertEquals(1,QUERIES.get());
     }
+    @Test void peticionManipuladaNoActivaCorreccionRegistralNiSustituyeAntecedentes()throws Exception {
+        var session=new MockHttpSession();String id=iniciar(session,"ADULTO_DECLARADO");String path="/api/formulario/recorridos/"+id+"/personas/presentador-adulto";
+        mvc.perform(post(path+"/identificacion").secure(true).session(session).with(csrf()).contentType("application/json")
+            .content("{\"rol\":\"PRESENTADOR\",\"runNumero\":\"12345678\",\"runDv\":\"5\"}")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.camposFaltantes",org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItems("primerNombre","segundoNombre"))));
+        var before=db.sql.queryForObject("SELECT body FROM citizen_person WHERE journey_id=?",String.class,id);
+        for(var body:List.of("{\"atributos\":{\"primerNombre\":\"SUSTITUTO\"},\"corregirRegistrales\":true}",
+                "{\"atributos\":{\"segundoNombre\":\"SUSTITUTO\"},\"corregirRegistrales\":\"true\"}",
+                "{\"atributos\":{\"primerApellido\":\"DECLARADO\"},\"corregirRegistrales\":false}",
+                "{\"atributos\":{\"primerNombre\":\"SUSTITUTO\"}}","{\"atributos\":{\"primerNombre\":\"\"}}",
+                "{\"atributos\":{\"nombres\":\"SUSTITUTO\"}}","{\"atributos\":{\"primerApellido\":\"DECLARADO\"},\"atributos\":{\"primerNombre\":\"SUSTITUTO\"}}"))
+            mvc.perform(post(path+"/declaracion").secure(true).session(session).with(csrf()).contentType("application/json").content(body)).andExpect(status().isBadRequest());
+        assertEquals(before,db.sql.queryForObject("SELECT body FROM citizen_person WHERE journey_id=?",String.class,id));
+        var stored=mapper.readTree(before).path("atributos");
+        assertEquals("SRCEI",stored.path("nombres").path("fuente").asString());assertTrue(stored.path("primerNombre").isMissingNode());
+        var response=mvc.perform(get(path).secure(true).session(session)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertFalse(response.contains("REGISTRAL"));assertFalse(response.contains("SUSTITUTO"));assertEquals(1,QUERIES.get());
+    }
     @Test void nnaSinRunNoInvocaProveedorYActualDependeDeLaSesion()throws Exception {
         var session=new MockHttpSession();String id=iniciar(session,"NNA");String path="/api/formulario/recorridos/"+id+"/personas/presentador-nna";
         mvc.perform(post(path+"/identificacion").secure(true).session(session).with(csrf()).contentType("application/json").content("{\"rol\":\"PRESENTADOR\"}"))
