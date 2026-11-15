@@ -89,11 +89,15 @@ public final class IdentificacionCiudadana {
             put(attrs,"runDv",run.dv(),null,Fuente.DECLARACION_CIUDADANA,now,evidence);
         }
         var discrepancies = new HashMap<String,Valor>();
+        // Presentador NNA: si la fuente informa fecha de nacimiento, el RUN que la respuesta contrasta queda registrado con
+        // procedencia SRCEI (mismo valor declarado), para que la derivación por edad pueda demostrar la correspondencia.
+        boolean contrastarRun=cu==null&&presentadorNna(id,rol)&&resultado!=null&&resultado.atributos().containsKey("fechaNacimiento");
         if(resultado!=null) resultado.atributos().forEach((key,value)->{
             if(!REGISTRALES_PERMITIDOS.contains(key))return;
             var incoming=new Valor(value.valor(),value.codigo(),Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",value.observadoEn(),value.evidencia());
             if(attrs.containsKey(key)) {
                 if(!Objects.equals(attrs.get(key).valor(),incoming.valor())) discrepancies.put(key,incoming);
+                else if(contrastarRun&&RUN_REGISTRAL.contains(key)&&attrs.get(key).fuente()==Fuente.DECLARACION_CIUDADANA) attrs.put(key,incoming);
             } else attrs.put(key,incoming);
         });
         String number=cu!=null?cu.run().split("-")[0]:run==null?null:run.numero();
@@ -202,18 +206,36 @@ public final class IdentificacionCiudadana {
      * bisiestos (criterio conservador: se mantiene el recorrido protector hasta completar el año).
      */
     public static boolean mayorDeEdadRegistral(Persona p, Clock clock) {
-        if (p == null || p.runNumero() == null || !p.modulo11() || p.consultaRef() == null
+        if (p == null || p.runNumero() == null || p.runDv() == null || !p.modulo11() || p.consultaRef() == null || p.consultadaEn() == null
             || (p.estadoConsulta() != ResultadoSrcei.Estado.COMPLETO && p.estadoConsulta() != ResultadoSrcei.Estado.PARCIAL)) return false;
-        var value = p.atributos().get("fechaNacimiento");
-        if (value == null || value.fuente() != Fuente.SRCEI) value = p.discrepancias().get("fechaNacimiento");
-        if (value == null || value.fuente() != Fuente.SRCEI || !"CONTRASTADO_EN_FUENTE".equals(value.nivel()) || value.codigo() != null
-            || value.valor() == null || !FECHA_REGISTRAL.matcher(value.valor()).matches()) return false;
+        // RUN, dígito y fecha deben provenir de la misma respuesta SRCEI (evidencia = referencia de consulta) y el RUN
+        // contrastado debe ser el consultado. Un registro que no lo demuestra, incluido uno histórico, nunca deriva.
+        var number = contrastado(p, "runNumero"); var digit = contrastado(p, "runDv"); var value = contrastado(p, "fechaNacimiento");
+        if (number == null || digit == null || value == null || !p.runNumero().equals(number.valor()) || !p.runDv().equalsIgnoreCase(digit.valor())
+            || !FECHA_REGISTRAL.matcher(value.valor()).matches()) return false;
         LocalDate birth;
         try { birth = LocalDate.parse(value.valor()); } catch (DateTimeException invalid) { return false; }
         var today = LocalDate.ofInstant(clock.instant(), ZONA_CHILE);
         if (birth.isAfter(today) || birth.isBefore(today.minusYears(130))) return false;
         return Period.between(birth, today).getYears() >= 18;
     }
+    private static final Set<String> RUN_REGISTRAL = Set.of("runNumero", "runDv");
+    private static boolean presentadorNna(String id, Rol rol) { return rol == Rol.PRESENTADOR && "presentador-nna".equals(id); }
+    /**
+     * Antecedente SRCEI de la consulta vigente para {@code key}, buscado en atributos y discrepancias. Responde {@code null}
+     * si no existe, si alguno no está contrastado en fuente, trae código, pertenece a otra evidencia o si ambos difieren.
+     */
+    private static Valor contrastado(Persona p, String key) {
+        Valor found = null;
+        for (var value : Arrays.asList(p.atributos().get(key), p.discrepancias().get(key))) {
+            if (value == null || value.fuente() != Fuente.SRCEI) continue;
+            if (!"CONTRASTADO_EN_FUENTE".equals(value.nivel()) || value.codigo() != null || value.valor() == null
+                || !p.consultaRef().equals(value.evidencia()) || (found != null && !mismoValor(key, found.valor(), value.valor()))) return null;
+            found = value;
+        }
+        return found;
+    }
+    private static boolean mismoValor(String key, String a, String b) { return "runDv".equals(key) ? a.equalsIgnoreCase(b) : a.equals(b); }
     /**
      * Reidentificación con el mismo RUN dentro del recorrido: reincorpora los antecedentes SRCEI ya obtenidos, para que un
      * reinicio seguido de una consulta fallida no los convierta en campos faltantes declarables. No reconsulta.
@@ -221,6 +243,8 @@ public final class IdentificacionCiudadana {
     public static Persona reanudar(Persona nueva,Persona anterior) {
         if(!Objects.equals(nueva.runNumero(),anterior.runNumero())||!Objects.equals(nueva.runDv(),anterior.runDv())||nueva.rol()!=anterior.rol()
             ||nueva.autenticada()!=anterior.autenticada()) throw new IllegalArgumentException("Identificación distinta");
+        // La fusión conserva una sola copia por clave: un registro ambiguo no se reutiliza (perdería la copia en conflicto).
+        if(!registralesConsistentes(anterior)) throw new IllegalArgumentException("Antecedentes registrales ambiguos");
         var registrales=new HashMap<String,Valor>();
         anterior.discrepancias().forEach((key,value)->{if(value.fuente()==Fuente.SRCEI)registrales.put(key,value);});
         anterior.atributos().forEach((key,value)->{if(value.fuente()==Fuente.SRCEI)registrales.put(key,value);});
@@ -228,9 +252,19 @@ public final class IdentificacionCiudadana {
         registrales.forEach((key,value)->{
             if(!attrs.containsKey(key))attrs.put(key,value);
             else if(!Objects.equals(attrs.get(key).valor(),value.valor()))discrepancies.put(key,value);
+            // Conserva la procedencia SRCEI del RUN contrastado (ver crear); solo el presentador NNA la registra.
+            else if(presentadorNna(nueva.id(),nueva.rol())&&RUN_REGISTRAL.contains(key)&&attrs.get(key).fuente()==Fuente.DECLARACION_CIUDADANA)attrs.put(key,value);
         });
         return new Persona(nueva.id(),nueva.rol(),nueva.runNumero(),nueva.runDv(),nueva.modulo11(),nueva.autenticada(),anterior.estadoConsulta(),
             anterior.consultadaEn(),anterior.consultaRef(),attrs,discrepancies);
+    }
+    /** Ninguna clave tiene en atributos y discrepancias dos antecedentes SRCEI distintos (valor, evidencia o metadatos). */
+    public static boolean registralesConsistentes(Persona p) {
+        for(var entry:p.discrepancias().entrySet()) {
+            var kept=p.atributos().get(entry.getKey());
+            if(entry.getValue().fuente()==Fuente.SRCEI&&kept!=null&&kept.fuente()==Fuente.SRCEI&&!kept.equals(entry.getValue()))return false;
+        }
+        return true;
     }
     /** Hay antecedentes SRCEI aprovechables (en atributos o desplazados a discrepancias). */
     public static boolean conRegistrales(Persona p) {

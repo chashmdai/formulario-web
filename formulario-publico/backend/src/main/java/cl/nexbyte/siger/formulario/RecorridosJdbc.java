@@ -166,7 +166,7 @@ public final class RecorridosJdbc {
                 String.class,journey.toString(),nueva.id())) {
             var old=leer(body);
             if(old.rol()==nueva.rol()&&old.autenticada()==nueva.autenticada()&&Objects.equals(old.runNumero(),nueva.runNumero())
-                &&Objects.equals(old.runDv(),nueva.runDv())&&conRegistrales(old))return old;
+                &&Objects.equals(old.runDv(),nueva.runDv())&&conRegistrales(old)&&registralesConsistentes(old))return old;
         }
         return null;
     }

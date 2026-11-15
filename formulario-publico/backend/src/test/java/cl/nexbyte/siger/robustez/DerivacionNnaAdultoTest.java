@@ -158,11 +158,16 @@ class DerivacionNnaAdultoTest {
         var cu=new Valor("1990-01-01",null,Fuente.CLAVE_UNICA_USERINFO,"IDENTIDAD_AUTENTICADA",clock.instant(),UUID.randomUUID());
         for(var value:List.of(declared,cu))
             assertFalse(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,"12345678","5",true,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),UUID.randomUUID(),Map.of("fechaNacimiento",value),Map.of()),clock));
-        var srcei=new Valor("1990-01-01",null,Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",clock.instant(),UUID.randomUUID());
-        assertTrue(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,"12345678","5",true,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),UUID.randomUUID(),Map.of("fechaNacimiento",srcei),Map.of()),clock));
+        var ref=UUID.randomUUID();
+        var srcei=new Valor("1990-01-01",null,Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",clock.instant(),ref);
+        // La fecha SRCEI sola no basta: RUN y dígito deben venir contrastados en la misma consulta.
+        assertFalse(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,"12345678","5",true,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),ref,Map.of("fechaNacimiento",srcei),Map.of()),clock));
+        var run=Map.of("runNumero",new Valor("12345678",null,Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",clock.instant(),ref),
+            "runDv",new Valor("5",null,Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",clock.instant(),ref),"fechaNacimiento",srcei);
+        assertTrue(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,"12345678","5",true,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),ref,run,Map.of()),clock));
         // Sin RUN válido de la propia persona o sin referencia de consulta, el dato no se considera acreditado.
-        assertFalse(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,null,null,false,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),UUID.randomUUID(),Map.of("fechaNacimiento",srcei),Map.of()),clock));
-        assertFalse(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,"12345678","5",true,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),null,Map.of("fechaNacimiento",srcei),Map.of()),clock));
+        assertFalse(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,null,null,false,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),UUID.randomUUID(),run,Map.of()),clock));
+        assertFalse(mayorDeEdadRegistral(new Persona("presentador-nna",Rol.PRESENTADOR,"12345678","5",true,false,ResultadoSrcei.Estado.COMPLETO,clock.instant(),null,run,Map.of()),clock));
     }
     @Test void sinContrasteExplicitoDelRunLaFechaNoDecideNiSeConserva(){
         for(var run:Arrays.asList(null,"87654321")){
@@ -185,6 +190,48 @@ class DerivacionNnaAdultoTest {
         service.declarar(id,"presentador-nna",Map.of("primerNombre","NOMBRE","primerApellido","APELLIDO"),session);
         now.set(Instant.parse("2026-10-24T03:00:00Z"));
         assertEquals(410,assertThrows(FalloTecnico.class,()->service.declarar(id,"presentador-nna",Map.of("edad","17"),session)).status);invalidado(id);
+    }
+    /** Forma persistida antes de exigir la procedencia SRCEI del RUN: RUN declarado y fecha SRCEI de la consulta. */
+    private String historico(Persona p){
+        var attrs=new HashMap<>(p.atributos());
+        for(var key:List.of("runNumero","runDv"))attrs.put(key,new Valor(attrs.get(key).valor(),null,Fuente.DECLARACION_CIUDADANA,"DECLARADO_NO_CONTRASTADO",clock.instant(),UUID.randomUUID()));
+        attrs.put("fechaNacimiento",new Valor("2000-01-01",null,Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",clock.instant(),p.consultaRef()));
+        return mapper.writeValueAsString(new Persona(p.id(),p.rol(),p.runNumero(),p.runDv(),p.modulo11(),p.autenticada(),p.estadoConsulta(),p.consultadaEn(),p.consultaRef(),attrs,p.discrepancias()));
+    }
+    @Test void registrosHistoricosSinCorrespondenciaDemostrableNoDerivan(){
+        provider=r->registro(ResultadoSrcei.Estado.COMPLETO,"2008-10-24");var id=nna();identificar(id);
+        var stored=service.personasInternas(id,session).getFirst();
+        assertEquals(Fuente.SRCEI,stored.atributos().get("runNumero").fuente(),"Una consulta nueva registra el RUN contrastado");
+        db.sql.update("UPDATE citizen_person SET body=? WHERE journey_id=?",historico(stored),id.toString());
+        assertEquals("REVISADO",service.persona(id,"presentador-nna",session).estado());service.exigirVigenciaNna(id,session);
+        service.declarar(id,"presentador-nna",Map.of("segundoApellido","DECLARADO"),session);assertEquals("BORRADOR",estado(id));
+        // También en el historial de identidades retiradas.
+        service.reiniciarPersona(id,"presentador-nna",session);
+        db.sql.update("UPDATE citizen_identity_history SET body=? WHERE journey_id=?",historico(stored),id.toString());
+        service.identificar(id,"presentador-nna",Rol.PRESENTADOR,null,null,session,"127.0.0.1",null);
+        service.exigirVigenciaNna(id,session);assertEquals("BORRADOR",estado(id));
+        assertEquals(1,queries.get());
+    }
+    @Test void reanudarElMismoRunDesdeUnRegistroHistoricoNoDeriva(){
+        provider=r->registro(ResultadoSrcei.Estado.COMPLETO,"2008-10-24");var id=nna();identificar(id);
+        var stored=service.personasInternas(id,session).getFirst();service.reiniciarPersona(id,"presentador-nna",session);
+        db.sql.update("UPDATE citizen_identity_history SET body=? WHERE journey_id=?",historico(stored),id.toString());
+        // Mismo RUN: registralPrevia lo reanuda sin reconsultar; el RUN sigue declarado y no demuestra correspondencia.
+        assertEquals("REVISADO",identificar(id).estado());assertEquals(1,queries.get());assertEquals("BORRADOR",estado(id));
+        service.exigirVigenciaNna(id,session);assertEquals("BORRADOR",estado(id));
+    }
+    @Test void unRegistroHistoricoAmbiguoNoSeReanudaNiDeriva(){
+        provider=r->registro(ResultadoSrcei.Estado.COMPLETO,"2008-10-24");var id=nna();identificar(id);
+        var stored=service.personasInternas(id,session).getFirst();service.reiniciarPersona(id,"presentador-nna",session);
+        // Copia SRCEI de la misma consulta con fecha de adulto en conflicto con la de atributos.
+        var discrepancies=new HashMap<>(stored.discrepancias());
+        discrepancies.put("fechaNacimiento",new Valor("2000-01-01",null,Fuente.SRCEI,"CONTRASTADO_EN_FUENTE",clock.instant(),stored.consultaRef()));
+        var ambiguous=new Persona(stored.id(),stored.rol(),stored.runNumero(),stored.runDv(),stored.modulo11(),stored.autenticada(),stored.estadoConsulta(),
+            stored.consultadaEn(),stored.consultaRef(),stored.atributos(),discrepancies);
+        db.sql.update("UPDATE citizen_identity_history SET body=? WHERE journey_id=?",mapper.writeValueAsString(ambiguous),id.toString());
+        service.exigirVigenciaNna(id,session);assertEquals("BORRADOR",estado(id));
+        // No se reutiliza: se consulta de nuevo y decide la respuesta vigente (menor).
+        assertEquals("REVISADO",identificar(id).estado());assertEquals(2,queries.get());assertEquals("BORRADOR",estado(id));
     }
     @Test void recorridosAdultosNoSeDerivanNiSeInvalidan(){
         var id=service.iniciar(Tipo.ADULTO_DECLARADO,true,"ADULTO_LAB_1",session,"127.0.0.1").id();
