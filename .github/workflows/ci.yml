@@ -42,6 +42,7 @@ jobs:
           python3 scripts/qa/test_ubuntu_preflight.py
           python3 scripts/qa/test_simulacro_restauracion.py
           python3 scripts/qa/test_actualizacion_desde_anterior.py
+          python3 scripts/qa/test_formulario.py
 
   agente-windows:
     runs-on: windows-2022

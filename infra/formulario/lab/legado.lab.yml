@@ -1,0 +1,15 @@
+# SOLO LABORATORIO: emula la instalación ANTERIOR (infra/ubuntu/compose.yml + compose.production.yml)
+# con nodo PISEE, ClamAV e inspector simulados; identidad, redes fijas y montajes productivos intactos.
+services:
+  pisee:
+    image: ${LAB_STUB_IMAGE:?Imagen Python del laboratorio}
+    entrypoint: [python3, /lab/stub.py, pisee]
+    volumes: ["${LAB_STUB:?stub.py}:/lab/stub.py:ro"]
+  antivirus:
+    image: ${LAB_STUB_IMAGE}
+    entrypoint: [python3, /lab/stub.py, antivirus]
+    volumes: ["${LAB_STUB}:/lab/stub.py:ro"]
+  inspector:
+    image: ${LAB_STUB_IMAGE}
+    entrypoint: [python3, /lab/stub.py, inspector]
+    volumes: ["${LAB_STUB}:/lab/stub.py:ro"]

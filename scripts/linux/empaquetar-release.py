@@ -26,7 +26,8 @@ import tarfile
 import tempfile
 
 REPO = Path(__file__).resolve().parents[2]
-INCLUDE = ['scripts', 'infra/ubuntu', 'infra/sandbox', 'infra/media', 'docs/ACTUALIZACION_UBUNTU_PRODUCCION.md',
+INCLUDE = ['scripts', 'infra/formulario', 'infra/ubuntu', 'infra/sandbox', 'infra/media', 'docs/REINSTALACION_LIMPIA_FORMULARIO.md',
+           'docs/ACTUALIZACION_UBUNTU_PRODUCCION.md',
            'docs/INSTALACION_UBUNTU_DOCKER.md', 'README.md']
 
 

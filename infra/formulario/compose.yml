@@ -1,0 +1,199 @@
+# Instalación única del Formulario (layout simplificado). Generado y operado por
+# scripts/formulario/formulario.py: no editar a mano en la instalación.
+# Todas las rutas del anfitrión cuelgan de FORMULARIO_RAIZ; las rutas internas de los
+# contenedores son las mismas de la instalación anterior (configuración privada sin cambios).
+name: ${COMPOSE_PROJECT_NAME:?Proyecto}
+x-endurecido: &endurecido
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  logging: &logs {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+x-app: &app
+  <<: *endurecido
+  image: ${FORM_IMAGE:?Imagen de la aplicación por ID o digest}
+  mem_limit: 1536m
+  cpus: 2
+  pids_limit: 160
+  init: true
+  tmpfs: ["/tmp:size=384m,uid=1000,gid=1000,mode=0700"]
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:?Imagen MySQL por digest}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-root-password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ${FORMULARIO_RAIZ}/mysql/init:/docker-entrypoint-initdb.d:ro
+      - ${FORMULARIO_RAIZ}/pki/mysql:/run/pki:ro
+      - ${FORMULARIO_RAIZ}/mysql/root.cnf:/run/secrets/root.cnf:ro
+      - ${FORMULARIO_RAIZ}/mysql/health.cnf:/run/secrets/health.cnf:ro
+      - ${FORMULARIO_RAIZ}/secrets/mysql-root-password:/run/secrets/mysql-root-password:ro
+      - ${FORMULARIO_RAIZ}/infra/mysql.cnf:/etc/mysql/conf.d/formulario.cnf:ro
+    networks: [datos]
+    mem_limit: 1536m
+    cpus: 1.5
+    pids_limit: 120
+    healthcheck:
+      test: ["CMD", "mysql", "--defaults-extra-file=/run/secrets/health.cnf", "--execute", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 60s
+    logging: *logs
+  migrar:
+    <<: *app
+    profiles: [migracion]
+    restart: "no"
+    command: ["--migrate"]
+    environment:
+      MIGRATION_DB_URL: jdbc:mysql://mysql:3306/formulario_publico?sslMode=VERIFY_IDENTITY&connectTimeout=5000&socketTimeout=30000
+      MIGRATION_DB_USER: formulario_migrador
+      MIGRATION_DB_PASSWORD_FILE: /run/secrets/migration-password
+      JAVA_TOOL_OPTIONS: -Xmx384m -Djavax.net.ssl.trustStore=/run/pki/java-truststore -Djavax.net.ssl.trustStorePassword=changeit
+    volumes:
+      - ${FORMULARIO_RAIZ}/pki/app/java-truststore:/run/pki/java-truststore:ro
+      - ${FORMULARIO_RAIZ}/secrets/migration-password:/run/secrets/migration-password:ro
+    networks: [datos]
+    depends_on:
+      mysql: {condition: service_healthy}
+  app:
+    <<: *app
+    restart: unless-stopped
+    environment:
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/run/config/application.properties
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/,optional:configtree:/run/cu/
+      JAVA_TOOL_OPTIONS: -Xmx768m -XX:+ExitOnOutOfMemoryError -Djavax.net.ssl.trustStore=/run/pki/java-truststore -Djavax.net.ssl.trustStorePassword=changeit
+    volumes:
+      - ${FORMULARIO_RAIZ}/cu:/run/cu:ro
+      - ${FORMULARIO_RAIZ}/config/application.properties:/run/config/application.properties:ro
+      - ${FORMULARIO_RAIZ}/keys:/run/keys:ro
+      - ${FORMULARIO_RAIZ}/pki/app:/run/pki:ro
+      - ${FORMULARIO_RAIZ}/store:/var/lib/formulario
+      - ${FORMULARIO_RAIZ}/acceso-temporal:/var/lib/acceso-temporal
+      - ${FORMULARIO_RAIZ}/pisee/runtime/certsX509-institucional/public.pem:/run/pisee/public.pem:ro
+      - ${FORMULARIO_RAIZ}/ipc/inspector:/ipc/inspector
+      - ${FORMULARIO_RAIZ}/ipc/antivirus:/ipc/antivirus
+      - ${FORMULARIO_RAIZ}/infra/clamd.conf:/run/config/clamd.conf:ro
+      - ${FORMULARIO_RAIZ}/secrets/app-password:/run/secrets/publico.db.password:ro
+      - ${FORMULARIO_RAIZ}/secrets/keystore-password:/run/secrets/server.ssl.key-store-password:ro
+      - ${FORMULARIO_RAIZ}/secrets/operations-token:/run/secrets/operacion.token:ro
+      - ${FORMULARIO_RAIZ}/secrets/integration-token:/run/secrets/publico.integracion.token:ro
+    networks:
+      datos: {}
+      inspeccion: {}
+      salida: {}
+      pisee_privada: {ipv4_address: "${PISEE_BACKEND_IPV4:?IP del backend en la red PISEE}"}
+    depends_on:
+      mysql: {condition: service_healthy}
+      antivirus: {condition: service_healthy}
+      inspector: {condition: service_healthy}
+      pisee: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, java, -Xmx32m, -XX:ActiveProcessorCount=1, -cp, /app/healthcheck,
+             cl.nexbyte.siger.config.SaludHttp, "https://localhost:8443${FORM_HEALTH_PATH:-/acceso-temporal/salud}", /run/pki/ca.crt]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+  proxy:
+    <<: *endurecido
+    image: ${PROXY_IMAGE:?Imagen Caddy por ID o digest}
+    restart: unless-stopped
+    environment:
+      FORM_HOSTNAME: ${FORM_HOSTNAME:?Hostname público}
+      # Puerta de enlace FIJA de la red salida: el par por el que llega cloudflared del anfitrión.
+      FORM_TRUSTED_PROXIES: ${FORM_TRUSTED_PROXIES:?Calculado por formulario.py desde SALIDA_SUBNET}
+    ports: ["127.0.0.1:${FORM_HTTPS_PORT:?Puerto loopback}:8443"]
+    extra_hosts: ["${FORM_HOSTNAME}:127.0.0.1"]
+    volumes:
+      - ${FORMULARIO_RAIZ}/infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${FORMULARIO_RAIZ}/pki/proxy:/run/pki:ro
+    tmpfs: ["/config:uid=1000,gid=1000,mode=0700", "/data:uid=1000,gid=1000,mode=0700", "/tmp:uid=1000,gid=1000,mode=0700"]
+    networks: [salida]
+    mem_limit: 128m
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/pki/ca.crt --output /dev/null https://$$FORM_HOSTNAME:8443${FORM_HEALTH_PATH:-/acceso-temporal/salud}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      app: {condition: service_healthy}
+  inspector:
+    <<: *endurecido
+    image: ${INSPECTOR_IMAGE:?Imagen inspector por ID o digest}
+    restart: unless-stopped
+    network_mode: none
+    mem_limit: 768m
+    cpus: 1
+    pids_limit: 32
+    tmpfs: ["/scratch:size=192m,uid=1000,gid=1000,mode=0700", "/tmp:size=8m,mode=1777"]
+    volumes: ["${FORMULARIO_RAIZ}/ipc/inspector:/ipc"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(socket.AF_UNIX); s.settimeout(3); s.connect('/ipc/inspector.sock'); s.sendall(bytes.fromhex('7b2273616c7564223a747275657d0a')); assert b'LANDLOCK3_SECCOMP' in s.recv(512)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+  antivirus:
+    <<: *endurecido
+    image: ${ANTIVIRUS_IMAGE:?Imagen ClamAV por ID o digest}
+    restart: unless-stopped
+    mem_limit: 1536m
+    cpus: 1
+    pids_limit: 32
+    tmpfs: ["/scratch:size=320m,uid=1000,gid=1000,mode=0700", "/tmp:size=8m,mode=1777"]
+    volumes:
+      - ${FORMULARIO_RAIZ}/ipc/antivirus:/ipc
+      - ${FORMULARIO_RAIZ}/clamav:/var/lib/clamav:ro
+      - ${FORMULARIO_RAIZ}/infra/clamd.conf:/etc/clamd-media.conf:ro
+    networks: [inspeccion]
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/3310; echo nPING >&3; read -r -t 3 pong <&3; test \"$$pong\" = PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+  pisee:
+    <<: *endurecido
+    image: ${PISEE_IMAGE:?Imagen del nodo PISEE por ID o digest}
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    tmpfs: ["/tmp:size=32m,uid=1000,gid=1000,mode=0700"]
+    labels:
+      # formulario.py nunca arranca un nodo si otro contenedor activo declara esta misma identidad.
+      cl.ddn.formulario.pisee-identidad: ${PISEE_IDENTIDAD:?Huella del certificado institucional}
+    volumes:
+      - ${FORMULARIO_RAIZ}/pisee/runtime:/opt/pisee:ro
+      - ${FORMULARIO_RAIZ}/pisee/config.json:/var/lib/pisee/config.json:ro
+      - ${FORMULARIO_RAIZ}/pisee/runtime/assets:/var/lib/pisee/assets:ro
+      - ${FORMULARIO_RAIZ}/pisee/runtime/conversiones:/var/lib/pisee/conversiones:ro
+      - ${FORMULARIO_RAIZ}/pisee/state:/var/lib/pisee
+    networks:
+      pisee_privada: {ipv4_address: "${PISEE_NODE_IPV4:?IP del nodo en la red PISEE}"}
+      pisee_salida: {}
+    healthcheck:
+      # Readiness local, sin provocar consultas gubernamentales periódicas.
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/8084"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # El runtime institucional puede registrar cuerpos: sin logs.
+    logging: {driver: none}
+networks:
+  datos: {internal: true}
+  inspeccion: {internal: true}
+  salida:
+    ipam:
+      config: [{subnet: "${SALIDA_SUBNET:?Subred fija de salida}"}]
+  pisee_privada:
+    internal: true
+    ipam:
+      config: [{subnet: "${PISEE_SUBNET:?Subred PISEE exclusiva}"}]
+  pisee_salida: {}
+volumes:
+  mysql-data: {}

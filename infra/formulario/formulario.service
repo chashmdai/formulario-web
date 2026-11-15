@@ -1,0 +1,18 @@
+[Unit]
+Description=Formulario DDN (instalación única operada por formulario.py)
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
+ConditionPathExists=/srv/formulario/instalacion.json
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+UMask=0077
+# `arrancar` rechaza iniciar si otro nodo PISEE activo usa la misma identidad.
+ExecStart=/usr/bin/python3 /srv/formulario/bin/formulario.py arrancar --raiz /srv/formulario
+TimeoutStartSec=600
+# Sin ExecStop: detener la unidad no detiene contenedores ni borra datos (usar `formulario.py detener`).
+
+[Install]
+WantedBy=multi-user.target
