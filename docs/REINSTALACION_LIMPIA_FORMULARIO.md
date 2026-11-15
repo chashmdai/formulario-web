@@ -47,7 +47,7 @@ Paquete: `scripts/linux/empaquetar-release.py` en el equipo de build, `sha256sum
    python3 "$F" plan --legado /srv/ddn-formulario-produccion --destino /srv/formulario --limite-gib 40
    ```
    Sin `bloqueos`. Revisar `montajes`, `noMigradoPermaneceEnOrigen`, `baseDatos` y `piseeIdentidad`.
-2. **Respaldo previo verificado y externo** (detiene unos segundos proxy, app y PISEE):
+2. **Respaldo previo verificado y externo** (**interrumpe el servicio durante toda la copia**: proxy, app y PISEE quedan detenidos desde el volcado hasta que el archivo cifrado está escrito y los servicios vuelven a estar sanos):
    ```bash
    python3 "$F" respaldar --legado /srv/ddn-formulario-produccion --salida "$E/formulario-pre-reinstalacion.gpg" --clave "$K" --mantenimiento
    ```
@@ -57,7 +57,7 @@ Paquete: `scripts/linux/empaquetar-release.py` en el equipo de build, `sha256sum
      --proyecto formulario-ensayo --puerto 30445 --puerto-validacion 30446 \
      --subred-salida 10.203.77.0/28 --subred-pisee 10.203.78.0/29 --imagen-app <imagen nueva>
    python3 "$F" arrancar --raiz /srv/formulario-ensayo --validacion
-   python3 "$F" verificar --raiz /srv/formulario-ensayo
+   python3 "$F" verificar --raiz /srv/formulario-ensayo --validacion
    ```
    Con la contraseña temporal vigente debe abrirse `https://localhost:30446/acceso-temporal` (sin publicar nada). `arrancar` sin `--validacion` **debe rechazarse** mientras el nodo PISEE anterior esté activo. Después: `formulario.py detener`, `docker compose -p formulario-ensayo down` y `docker volume rm formulario-ensayo_mysql-data` (solo recursos de ese proyecto), `rm -rf /srv/formulario-ensayo`.
 4. **Transición** (ventana; la interrupción dura el respaldo final, la restauración y dos arranques):
@@ -73,7 +73,7 @@ Paquete: `scripts/linux/empaquetar-release.py` en el equipo de build, `sha256sum
 ```bash
 python3 /srv/formulario/bin/formulario.py revertir --legado /srv/ddn-formulario-produccion --raiz /srv/formulario
 ```
-Detiene la instalación nueva, deshabilita su unidad, reanuda el origen intacto y rehabilita su unidad. **Se rechaza** si la nueva tiene comunicaciones posteriores a la transición: primero `respaldar --raiz /srv/formulario …` y pasar `--clave K --respaldo-nuevo <archivo>`; esas comunicaciones deben conciliarse antes de reabrir el origen (no se pierden: quedan en ese respaldo y en `/srv/formulario`, que no se borra).
+Detiene los escritores de la instalación nueva y solo continúa si **demuestra** que ninguna tabla protegida (ciudadanía, custodia, integración, controles CAS) cambió desde la restauración: huellas `CHECKSUM TABLE` contra `registro/linea-base.json`, lo que detecta también modificaciones de filas existentes. Si MySQL nueva no está activa, falta la línea base o hay cambios, **se bloquea** (y reanuda los escritores). Con cambios, primero `respaldar --raiz /srv/formulario … --mantenimiento` y pasar `--clave K --respaldo-nuevo <archivo>`, cuyas huellas deben coincidir exactamente con el estado actual; esos cambios deben conciliarse antes de reabrir el origen (no se pierden: quedan en ese respaldo y en `/srv/formulario`, que no se borra). Durante la transición, un fallo posterior al arranque productivo aplica la misma regla: sin demostración no hay reversión automática. Cualquier fallo de systemd es bloqueante; `--sin-systemd` existe solo para el laboratorio.
 
 ## 6. Operación posterior (instalación nueva)
 
@@ -81,7 +81,7 @@ Detiene la instalación nueva, deshabilita su unidad, reanuda el origen intacto 
 |---|---|
 | Arranque (systemd) | `formulario.py arrancar --raiz /srv/formulario` |
 | Parada | `formulario.py detener --raiz /srv/formulario` (no borra nada) |
-| Verificación | `formulario.py verificar --raiz /srv/formulario` |
+| Verificación | `formulario.py verificar --raiz /srv/formulario` (seis servicios obligatorios; `--validacion` para el modo cerrado sin PISEE) |
 | Respaldo | `formulario.py respaldar --raiz /srv/formulario --salida <externo>/f.gpg --clave K --mantenimiento` |
 | Verificar respaldo | `formulario.py verificar-respaldo --archivo <f.gpg> --clave K` |
 | Recuperación | `formulario.py restaurar --archivo <f.gpg> --clave K --raiz <raíz NUEVA> --imagen-app <imagen>` + `arrancar` (con el origen dañado detenido) |
@@ -101,7 +101,7 @@ El respaldo de la instalación nueva usa el mismo formato y la misma restauraci�
 
 ## 8. Requisitos pendientes de producción (bloquean la transición)
 
-Cada punto se comprueba en DDN-UBUNTU **antes** de `transicion` y se registra (hashes y contadores, sin secretos). Ninguno está acreditado todavía.
+Cada punto se comprueba en DDN-UBUNTU **antes** de `transicion` y se registra (hashes y contadores, sin secretos). Ninguno está acreditado todavía. Las partes de R3–R6 que solo pueden observarse después (nodo PISEE real sano, unidades `disabled`/`enabled`, dominio público) son **aceptación posterior**, no requisitos previos: ver la separación 1.a/1.b de la [guía operativa](GUIA_OPERATIVA_PRODUCCION.md#1-requisitos-r1r7).
 
 | # | Requisito | Cómo se acredita | Bloquea si |
 |---|---|---|---|
@@ -142,5 +142,7 @@ Cada punto se comprueba en DDN-UBUNTU **antes** de `transicion` y se registra (h
 | Final | origen operativo e intacto por hash; recursos del LAB eliminados por etiqueta de proyecto |
 
 Defectos encontrados y corregidos durante el ensayo: la salud del Compose nuevo usaba `/api/session`, que no responde sin acceso cuando la contraseña temporal está activa; ahora usa `FORM_HEALTH_PATH` heredado del origen (`/acceso-temporal/salud`). Además, un error de lectura al verificar que los archivos no cambian durante el respaldo y el pipe de `stderr` de GPG sin leer.
+
+Repetido el 15/11/2026 tras endurecer la reversión, systemd y `verificar`: mismos resultados; `verificar --validacion` del ensayo y `verificar` productivo correctos; la reversión sin datos nuevos no detecta cambios en las tablas protegidas (`cambiosRespaldados: []`) tras operar la instalación nueva; con la entrega insertada se rechaza señalando `public_delivery`; tras respaldar, se permite porque las huellas del respaldo coinciden con el estado actual.
 
 No acreditado en LAB: unidades systemd (el contenedor de herramientas no tiene `systemctl`: la herramienta las informa como `omitido`), el nodo PISEE, ClamAV e inspector institucionales reales, cloudflared y el `compose.origin-ca.yml` real de producción. El `plan` en DDN-UBUNTU es el primer paso obligatorio para verificarlo.

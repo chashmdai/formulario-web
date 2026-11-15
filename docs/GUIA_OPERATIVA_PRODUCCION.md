@@ -8,7 +8,7 @@ Base: commit **`3d0b54c32f8638674efa9c0ccbe5f05615c439a3`** (`scripts/formulario
 2. **Detenerse** ante cualquier diferencia con lo esperado, error, salida vacía o duda. No improvisar comandos fuera de esta guía, no "arreglar" archivos, no editar código, no borrar nada que no esté indicado.
 3. **Nunca** pedir, mostrar ni pegar valores secretos: contraseña temporal, tokens, claves, contenido de `secrets/`, `keys/`, `cu/`, `pki/*.key`, credenciales de cloudflared ni el token de un túnel. Las salidas de `formulario.py` contienen solo hashes, contadores, rutas operacionales e IDs de imagen: esas sí pueden compartirse.
 4. **No asumir valores.** Todo valor marcado `‹COMPROBAR›` se obtiene en la etapa indicada y se anota en la bitácora (sección 14) antes de usarlo.
-5. No ejecutar nunca: `docker compose down -v`, `docker system prune`, `docker volume rm` de volúmenes que no sean del ensayo, `rm` sobre `/srv/ddn-formulario-produccion`, cambios en cloudflared/DNS/Cloudflare, `preparar.py`, `acceso-temporal.py`, ni `formulario.py arrancar` **sin** `--validacion` sobre el ensayo.
+5. No ejecutar nunca: `docker compose down -v`, `docker system prune`, `docker volume rm` de volúmenes que no sean del ensayo, `rm` sobre `/srv/ddn-formulario-produccion`, cambios en cloudflared/DNS/Cloudflare, `preparar.py`, `acceso-temporal.py`, ni `formulario.py arrancar` **sin** `--validacion` sobre el ensayo. Las opciones `--sin-systemd`, `--ignorar-montaje` y `--overlay` son exclusivas del laboratorio: **nunca** en DDN-UBUNTU.
 
 ### Leyenda de operaciones
 
@@ -19,19 +19,31 @@ Base: commit **`3d0b54c32f8638674efa9c0ccbe5f05615c439a3`** (`scripts/formulario
 | **[INTERRUMPE]** | Detiene temporalmente el servicio público. Reversible. |
 | **[SIN RETORNO SIMPLE]** | A partir de aquí, volver atrás exige un respaldo de la instalación nueva y conciliación (sección 12). |
 
-## 1. Requisitos R1–R7 (bloquean la transición)
+## 1. Requisitos R1–R7
 
-La **etapa 9 (transición) no se ejecuta** mientras alguna fila no tenga evidencia anotada en la bitácora.
+Hay dos grupos distintos. Los **requisitos previos** (1.a) bloquean la etapa 9: sin evidencia anotada en la bitácora para **cada** fila, la transición es NO-GO. La **aceptación posterior** (1.b) se comprueba en la etapa 10; si cualquier punto falla, se aplica la reversión (etapa 12) y no se continúa.
 
-| # | Requisito | Evidencia exigida | Etapa |
+### 1.a Requisitos previos — bloquean la transición
+
+| # | Requisito | Evidencia exigida **antes** de la etapa 9 | Etapa |
 |---|---|---|---|
-| R1 | Respaldo externo verificado | `respaldar` con `"verificado": true` escrito en un medio externo POSIX, `verificar-respaldo` OK leyendo **desde ese medio**, SHA-256 coincidente, y confirmación de que una copia de la clave `K` está custodiada **fuera de la VM** | 5 |
+| R1 | Respaldo externo verificado | `respaldar` con `"verificado": true` escrito en un medio externo POSIX; `verificar-respaldo` OK leyendo **desde ese medio**; SHA-256 coincidente; confirmación de que una copia de la clave `K` está custodiada **fuera de la VM** | 5 |
 | R2 | Espacio disponible | `plan` sin bloqueos con `--limite-gib 40`; `df` de `/srv`, `/var/lib/docker` y del medio externo anotados | 3, 4 |
-| R3 | Identidad PISEE única | exactamente un contenedor activo monta `/opt/pisee`; su `public.pem` coincide con `plan.piseeIdentidad` y con `PISEE_IDENTIDAD` del ensayo; contenedores PISEE detenidos de otros proyectos identificados; TI acepta el cambio de la IP permitida del backend | 3, 4, 6 |
-| R4 | Subredes | subredes de la instalación nueva y del ensayo **aprobadas por TI**, sin colisión con redes Docker, rutas, VPN, GATE4A ni el orquestador; `verificar` del ensayo con `puertaSalida` = `FORM_TRUSTED_PROXIES` | 3, 6 |
-| R5 | systemd | unidad anterior identificada; `formulario.service` **no existe** aún; tras la transición: anterior `disabled`, nueva `enabled`, `systemctl start formulario.service` correcto | 3, 10 |
-| R6 | Componentes reales | puerto de cloudflared = puerto público del origen; ensayo con imágenes reales: ClamAV detecta EICAR, inspector sano, contraseña temporal operativa, ClaveÚnica redirige; `plan.montajes` sin bloqueos (incluye el `compose.origin-ca.yml` real); nodo PISEE real sano tras la transición | 3, 6, 10 |
-| R7 | Ventana y autorización | autorización expresa del operador para la ventana, aviso a SIGER y responsable de reversión designado | 8 |
+| R3 | Identidad PISEE | exactamente un contenedor activo monta `/opt/pisee`; su `public.pem` coincide con `plan.piseeIdentidad` y con `PISEE_IDENTIDAD` del ensayo; nodos PISEE detenidos de otros proyectos identificados; TI acepta el cambio de la IP permitida del backend | 3, 4, 6 |
+| R4 | Subredes | subredes nuevas y del ensayo **aprobadas por TI** sin colisión (redes Docker, rutas, VPN, GATE4A, orquestador); `verificar --validacion` del ensayo con `puertaSalida` = `FORM_TRUSTED_PROXIES` | 3, 6 |
+| R5 | systemd (estado previo) | `ddn-formulario-produccion.service` `enabled`; `/etc/systemd/system/formulario.service` **no existe**. La herramienta vuelve a comprobarlo y aborta **antes de interrumpir** si no se cumple | 3, 8 |
+| R6 | Componentes reales (ensayo) | puerto de cloudflared = puerto público del origen; `plan.montajes` sin bloqueos (incluye el `compose.origin-ca.yml` real); en el ensayo: ClamAV detecta EICAR, inspector sano, contraseña temporal operativa, ClaveÚnica redirige | 3, 4, 6 |
+| R7 | Ventana y autorización | autorización expresa del operador, aviso a SIGER y responsable de reversión designado | 8 |
+
+### 1.b Aceptación posterior — tras la transición
+
+| # | Comprobación | Etapa |
+|---|---|---|
+| A1 (R3) | un único nodo PISEE activo, el de `/srv/formulario`, sano | 10 |
+| A2 (R4) | `verificar` (modo producción) con `puertaSalida` = `FORM_TRUSTED_PROXIES`; acceso real por el dominio público | 10 |
+| A3 (R5) | `ddn-formulario-produccion.service` `disabled`, `formulario.service` `enabled` y `systemctl start formulario.service` correcto | 10 |
+| A4 (R6) | seis servicios sanos con los componentes reales, contraseña temporal y ClaveÚnica por el dominio público vía cloudflared **sin cambios** | 10 |
+| A5 | CAS idéntico al registrado en 3.2; contenedores del origen conservados en `Exited` | 10 |
 
 ## 2. Valores a comprobar (no se asumen)
 
@@ -217,9 +229,9 @@ sudo python3 -c 'import json;d=json.load(open("/root/reinstalacion-formulario/pl
 - GiB requeridos ≤ mín(libres, 40). → R2.
 - `no migrado` lista lo que permanece solo en el origen (p. ej. `release`, `software`, `updates`, `ipc`).
 
-## Etapa 5 — Respaldo externo verificado **[INTERRUMPE]** (breve) → R1
+## Etapa 5 — Respaldo externo verificado **[INTERRUMPE]** → R1
 
-Avisar del corte. La herramienta detiene `proxy`, `app` y `pisee` del origen durante la copia (el público verá error de cloudflared), los reanuda y espera su salud. No cambia controles CAS ni datos.
+**El servicio público queda interrumpido durante toda la ejecución de la copia**: la herramienta detiene `proxy`, `app` y `pisee` del origen, vuelca MySQL, escribe y cifra el archivo completo en `E`, y solo entonces los reanuda y espera a que estén sanos; el público ve error de cloudflared en todo ese intervalo. La verificación final del archivo corre ya con el servicio reanudado. Planificar la ventana para el comando completo (la duración crece con el tamaño de la custodia y la velocidad de `E`). No cambia controles CAS ni datos.
 
 ```bash
 A="$E/formulario-pre-reinstalacion-$(date -u +%Y%m%dT%H%M%SZ).gpg"; echo "$A"
@@ -253,17 +265,18 @@ sudo python3 "$F" restaurar --archivo "$A" --clave "$K" --raiz /srv/formulario-e
 
 ```bash
 sudo python3 "$F" arrancar --raiz /srv/formulario-ensayo --validacion
-sudo python3 "$F" verificar --raiz /srv/formulario-ensayo | sudo tee "$W/ensayo-verificar.json"
-curl -sS --cacert "$R/pki/proxy/origin-ca.crt" https://localhost:‹ENS_VAL›/acceso-temporal/salud; echo
+sudo python3 "$F" verificar --raiz /srv/formulario-ensayo --validacion | sudo tee "$W/ensayo-verificar.json"
+sudo curl -sS --cacert "$R/pki/proxy/origin-ca.crt" --resolve "‹HOSTNAME›:‹ENS_VAL›:127.0.0.1" \
+  "https://‹HOSTNAME›:‹ENS_VAL›/acceso-temporal/salud"; echo
 ```
 
-`curl` necesita leer la CA: si no hay permiso, anteponer `sudo`.
+`--resolve` conecta a `127.0.0.1` conservando el hostname del certificado (SNI y validación de nombre intactos). No usar `-k`/`--insecure` ni sustituir el hostname por una IP.
 
 **Esperado:** `"modo": "validacion"`, `"pisee": "no iniciado"`; `verificar` con `"ok": true`, `"problemas": []`, `salud` `healthy` en `mysql`, `antivirus`, `inspector`, `app` y `proxy` (sin `pisee`) y `puertaSalida` = primera IP de `ENS_SAL` (→ R4 parcial); `curl` → `{"status":"UP"}`.
 
 Componentes reales (R6), sin datos personales:
 
-1. **Contraseña temporal:** en el Firefox institucional de DDN-UBUNTU, abrir `https://localhost:‹ENS_VAL›/acceso-temporal` e ingresar la contraseña vigente (el operador, sin compartirla). Esperado: acceso concedido.
+1. **Contraseña temporal:** en el Firefox institucional de DDN-UBUNTU (perfil que ya confía en la CA de origen), abrir `https://localhost:‹ENS_VAL›/acceso-temporal` e ingresar la contraseña vigente (el operador, sin compartirla). Esperado: acceso concedido **sin advertencia de certificado**; si aparece una advertencia, **no** aceptar la excepción: detenerse e informar.
 2. **ClaveÚnica:** pulsar el acceso con ClaveÚnica y comprobar la redirección a `accounts.claveunica.gob.cl`. **No** ingresar credenciales.
 3. **ClamAV (EICAR):**
    ```bash
@@ -317,6 +330,7 @@ sudo python3 "$F" transicion --legado "$R" --clave "$K" --respaldos "$E" --raiz 
 
 Secuencia automática (sin intervención manual):
 
+0. Comprobaciones sin interrumpir: plan sin bloqueos, `ddn-formulario-produccion.service` `enabled` y `formulario.service` inexistente; si fallan, la herramienta aborta **sin tocar el servicio**.
 1. Plan; detiene `proxy`, `app` y `pisee` del origen (**comienza el corte**); respaldo final verificado en `E` (`formulario-transicion-‹UTC›.gpg`).
 2. Detiene `mysql`, `antivirus` e `inspector` del origen (los contenedores **se conservan**) y **deshabilita** `ddn-formulario-produccion.service`.
 3. Restaura en `/srv/formulario` (Flyway 12 → 13, conteos idénticos).
@@ -326,9 +340,9 @@ Secuencia automática (sin intervención manual):
 
 **Esperado:** `"pasos": ["respaldo-final-verificado", "origen-detenido", "validacion-cerrada", "produccion"]`, `respaldo.verificado: true`, `restauracion.flywayDespues: "13"`, `unidadAnterior: "ok"`, `unidadNueva: "ok"`, `verificacion.ok: true` con `pisee` `healthy`. El corte termina al quedar sano el `proxy` nuevo en `PUB`; la duración depende del volumen (en LAB, minutos con datos mínimos): registrarla.
 
-**Si falla:** la herramienta detiene lo nuevo y reanuda el origen (`"reversion": {"origen": "reanudado", …}` en el error). Comprobar los seis servicios del origen `healthy`, `systemctl is-enabled ddn-formulario-produccion.service` = `enabled` y el dominio público. **Detenerse** e informar. No reintentar: `/srv/formulario` queda para diagnóstico y la herramienta exige un destino nuevo. Si el error dice «Reversión automática omitida: la instalación nueva ya tiene comunicaciones propias», la instalación nueva queda activa a propósito: ir a la sección 12.
+**Si falla antes del paso 5:** la herramienta detiene lo nuevo y reanuda el origen (`"reversion": {"origen": "reanudado", …}` en el error). **Si falla en el paso 5 o 6:** solo revierte si demuestra, con los escritores detenidos, que ninguna tabla protegida cambió (huellas `CHECKSUM TABLE` contra la línea base de la restauración); si no puede demostrarlo (MySQL caído, cambios, error), **no** reanuda el origen, vuelve a dejar la instalación nueva como estaba y lo informa como «Reversión automática bloqueada»: ir a la sección 12. Un fallo de systemd (deshabilitar la unidad anterior o habilitar la nueva) siempre es bloqueante. Comprobar los seis servicios del origen `healthy`, `systemctl is-enabled ddn-formulario-produccion.service` = `enabled` y el dominio público. **Detenerse** e informar. No reintentar: `/srv/formulario` queda para diagnóstico y la herramienta exige un destino nuevo. Si el error dice «Reversión automática bloqueada», el origen sigue detenido a propósito: no reanudarlo a mano; ir a la sección 12.
 
-## Etapa 10 — Aceptación **[LECTURA]**, salvo el arranque de la unidad → R4, R5, R6
+## Etapa 10 — Aceptación posterior **[LECTURA]**, salvo el arranque de la unidad → A1–A5
 
 ```bash
 N=/srv/formulario
@@ -366,7 +380,7 @@ Desde un equipo externo, por el dominio público (`https://‹HOSTNAME›`, vía
 
 Con todo conforme: comunicar a SIGER el cambio de instalación (mismo dominio, firma, token y confianza). La instalación anterior **no se borra** y su timer de respaldo sigue deshabilitado.
 
-## Etapa 11 — Primer respaldo de la instalación nueva **[INTERRUMPE]** (breve)
+## Etapa 11 — Primer respaldo de la instalación nueva **[INTERRUMPE]** (durante toda la copia, como en la etapa 5)
 
 ```bash
 B="$E/formulario-post-reinstalacion-$(date -u +%Y%m%dT%H%M%SZ).gpg"
@@ -376,17 +390,19 @@ sudo python3 /srv/formulario/bin/formulario.py verificar-respaldo --archivo "$B"
 
 **Esperado:** `"verificado": true` en ambos. Repetirlo con la periodicidad que defina la institución (los respaldos no se borran automáticamente).
 
-## Etapa 12 — Reversión
+## Etapa 12 — Reversión **[INTERRUMPE]**
 
-**12.a Sin comunicaciones nuevas** (CAS cerrado, o ninguna recibida) **[INTERRUMPE]**:
+`revertir` detiene primero `proxy`, `app` y `pisee` de la instalación nueva y, con MySQL nueva **activa**, compara las huellas (`CHECKSUM TABLE`) de las tablas protegidas —recorridos, personas, adjuntos, cargas, comunicaciones, entregas e integración, custodia, operaciones externas, controles CAS y su auditoría— con la línea base tomada al restaurar. Detecta inserciones, borrados **y modificaciones** de filas existentes (p. ej. estados de reserva o ACK). Si no puede demostrar que no hay cambios (MySQL detenida, sin línea base, error) o encuentra cambios no respaldados, **se bloquea** y vuelve a iniciar los escritores de la instalación nueva.
+
+**12.a Sin cambios:**
 
 ```bash
 sudo python3 /srv/formulario/bin/formulario.py revertir --legado "$R" --raiz /srv/formulario | sudo tee "$W/reversion.json"
 ```
 
-**Esperado:** `{"nueva": "detenida", "unidadNueva": "ok", "unidadAnterior": "ok", "origen": "reanudado"}`; los seis servicios del origen `healthy`; `ddn-formulario-produccion.service` `enabled` y `formulario.service` `disabled`; el dominio público responde. `/srv/formulario` se conserva.
+**Esperado:** `{"cambiosRespaldados": [], "unidadNueva": "ok", "nueva": "detenida", "unidadAnterior": "ok", "origen": "reanudado"}`; los seis servicios del origen `healthy`; `ddn-formulario-produccion.service` `enabled` y `formulario.service` `disabled`; el dominio público responde. `/srv/formulario` se conserva. Si MySQL nueva estuviera detenida, la herramienta se niega: iniciarla (`sudo docker start formulario-mysql-1`) y repetir.
 
-**12.b Con comunicaciones nuevas** **[SIN RETORNO SIMPLE]**: la herramienta **rechaza** 12.a. Antes de continuar, **detenerse** y escalar: esas comunicaciones existen solo en `/srv/formulario`. Solo con decisión institucional:
+**12.b Con cambios** **[SIN RETORNO SIMPLE]**: la herramienta rechaza 12.a e indica las tablas. **Detenerse** y escalar: esos datos existen solo en `/srv/formulario`. Solo con decisión institucional:
 
 ```bash
 C="$E/formulario-antes-de-revertir-$(date -u +%Y%m%dT%H%M%SZ).gpg"
@@ -394,13 +410,13 @@ sudo python3 /srv/formulario/bin/formulario.py respaldar --raiz /srv/formulario 
 sudo python3 /srv/formulario/bin/formulario.py revertir --legado "$R" --raiz /srv/formulario --clave "$K" --respaldo-nuevo "$C"
 ```
 
-El origen vuelve **sin** esas comunicaciones: deben conciliarse con SIGER desde `C` o `/srv/formulario` antes de reabrir la recepción. Ninguna herramienta lo hace automáticamente.
+`revertir` exige que las huellas guardadas en `C` sean **idénticas** al estado actual (comprobado con los escritores detenidos): como `respaldar` reanuda el servicio al terminar, cualquier cambio entre ambos comandos bloquea la reversión y obliga a repetir el respaldo. El origen vuelve **sin** esos cambios: deben conciliarse con SIGER desde `C` o `/srv/formulario` antes de reabrir la recepción. Ninguna herramienta lo hace automáticamente.
 
 ## 13. Operación posterior (resumen)
 
 | Tarea | Comando (desde `/srv/formulario/bin/formulario.py`, como root) |
 |---|---|
-| Verificar | `verificar --raiz /srv/formulario` |
+| Verificar | `verificar --raiz /srv/formulario` (producción: exige los seis servicios sanos; `--validacion` solo para el modo de validación, que exige PISEE detenido) |
 | Detener / arrancar | `detener --raiz /srv/formulario` / `arrancar --raiz /srv/formulario` |
 | Respaldo | etapa 11 |
 | Actualizar | desde un paquete nuevo verificado: `python3 ‹PKG nuevo›/fuente/scripts/formulario/formulario.py actualizar --raiz /srv/formulario --imagen-app ‹IMG nueva› --clave "$K" --respaldos "$E"` |

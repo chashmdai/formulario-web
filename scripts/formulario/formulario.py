@@ -92,6 +92,12 @@ CERRADO = {
     'FORMULARIO_MINIMIZACIONBORRADORES_HABILITADA': 'false',
 }
 SOLO_LAB = 'SOLO LAB: destino de montaje de stubs que no se migra (nunca en producción)'
+# Tablas cuyo contenido no puede perderse al volver al origen: ciudadanía, custodia, integración y control.
+TABLAS_HUELLA = ['citizen_journey', 'citizen_person', 'citizen_identity_history', 'citizen_attachment',
+                 'citizen_submission', 'public_delivery', 'media_upload', 'media_chunk', 'media_access',
+                 'custody_guarantee', 'custody_lifecycle', 'storage_retirement', 'external_operation',
+                 'operation_control', 'control_audit']
+SERVICIOS = ['mysql', 'antivirus', 'inspector', 'pisee', 'app', 'proxy']
 DATOS_CIUDADANOS = ['citizen_submission', 'public_delivery', 'citizen_journey']
 
 
@@ -282,7 +288,20 @@ def base_datos(mysql_id):
     version = sql('SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1')
     bytes_db = int(sql("SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables "
                        "WHERE table_schema='formulario_publico'") or 0)
-    return {'conteos': conteos, 'flyway': version, 'bytes': bytes_db}
+    return {'conteos': conteos, 'flyway': version, 'bytes': bytes_db, 'huellas': huellas(sql)}
+
+
+def huellas(sql):
+    """CHECKSUM TABLE de MySQL: cambia con inserciones, borrados Y modificaciones de filas existentes."""
+    salida = sql('CHECKSUM TABLE ' + ', '.join(f'`{t}`' for t in TABLAS_HUELLA))
+    resultado = {}
+    for linea in salida.splitlines():
+        partes = linea.split('\t')
+        if len(partes) == 2:
+            resultado[partes[0].split('.', 1)[-1]] = partes[1]
+    if set(resultado) != set(TABLAS_HUELLA):
+        raise Rechazo('No se pudo calcular la huella de todas las tablas protegidas')
+    return resultado
 
 
 def plan(a):
@@ -661,6 +680,8 @@ def restaurar(a):
     if importado != manifiesto['baseDatos']['conteos']:
         raise Rechazo('Conteos importados distintos del respaldo')
     n.compose('--profile', 'migracion', 'run', '--rm', 'migrar')
+    # Línea base para demostrar después que no hay datos nuevos (la app aún no se ha iniciado).
+    escribir(raiz / 'registro/linea-base.json', json.dumps({'creada': ahora(), 'huellas': huellas(n.sql)}, sort_keys=True), 0o600)
     shutil.rmtree(tmp)
     return {'raiz': str(raiz), 'proyecto': n.proyecto, 'flywayAntes': manifiesto['baseDatos']['flyway'],
             'flywayDespues': n.sql('SELECT version FROM flyway_schema_history WHERE success=1 '
@@ -712,7 +733,23 @@ def detener_instalacion(a):
     return {'detenida': n.proyecto}
 
 
+def problemas_servicios(salud, validacion):
+    """Validación: todo salvo PISEE, que NO debe estar activo. Producción: los seis servicios sanos."""
+    requeridos = [s for s in SERVICIOS if not (validacion and s == 'pisee')]
+    problemas = []
+    faltan = [s for s in requeridos if s not in salud]
+    if faltan:
+        problemas.append('Servicios ausentes: ' + ', '.join(faltan))
+    enfermos = [s for s in requeridos if s in salud and salud[s] != 'healthy']
+    if enfermos:
+        problemas.append('Servicios no saludables: ' + ', '.join(enfermos))
+    if validacion and 'pisee' in salud:
+        problemas.append('Nodo PISEE activo durante la validación')
+    return problemas
+
+
 def verificar(a):
+    validacion = bool(getattr(a, 'validacion', False))
     n = Instalacion(a.raiz)
     manifiesto = json.loads((n.raiz / 'registro/origen-manifiesto.json').read_text())
     problemas = []
@@ -738,17 +775,21 @@ def verificar(a):
     salud = {}
     for c in contenedores(n.proyecto, activos=True):
         salud[servicio(c)] = (c['State'].get('Health') or {}).get('Status', 'running')
-    if any(v != 'healthy' for k, v in salud.items() if k != 'migrar'):
-        problemas.append('Servicios no saludables')
-    red = docker_inspect([n.proyecto + '_salida'])
-    puerta = (red[0]['IPAM']['Config'] or [{}])[0].get('Gateway') if red else None
-    if puerta and n.env['FORM_TRUSTED_PROXIES'] != f'{puerta}/32':
+    salud.pop('migrar', None)
+    problemas += problemas_servicios(salud, validacion)
+    puerta = None
+    if n.proyecto + '_salida' in run(['docker', 'network', 'ls', '--format', '{{.Name}}']).split():
+        red = docker_inspect([n.proyecto + '_salida'])
+        puerta = (red[0]['IPAM']['Config'] or [{}])[0].get('Gateway')
+    if not puerta:
+        problemas.append('Red salida ausente o sin puerta de enlace')
+    elif n.env['FORM_TRUSTED_PROXIES'] != f'{puerta}/32':
         problemas.append('FORM_TRUSTED_PROXIES no coincide con la puerta de enlace de salida')
     if 'pisee' in salud:
         if nodos_pisee_en_conflicto(n.env['PISEE_IDENTIDAD'], n.proyecto):
             problemas.append('Dos nodos PISEE activos con la misma identidad')
-    return {'proyecto': n.proyecto, 'problemas': problemas, 'conteos': conteos, 'salud': salud,
-            'puertaSalida': puerta, 'ok': not problemas}
+    return {'proyecto': n.proyecto, 'modo': 'validacion' if validacion else 'produccion', 'problemas': problemas,
+            'conteos': conteos, 'salud': salud, 'puertaSalida': puerta, 'ok': not problemas}
 
 
 # ----------------------------------------------------------------------------- transición y reversión
@@ -759,22 +800,81 @@ def systemctl(*args):
                                   stderr=subprocess.DEVNULL).returncode == 0 else 'fallo'
 
 
-def unidad_nueva(n, accion):
+def estado_unidad(nombre):
+    if os.geteuid() != 0 or not shutil.which('systemctl'):
+        return 'omitido'
+    r = subprocess.run(['systemctl', 'is-enabled', nombre], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return r.stdout.decode().strip() or 'desconocido'
+
+
+def exigir_unidad(accion, nombre, sin_systemd):
+    """enable/disable comprobado: el estado final debe ser enabled/disabled. Un fallo siempre bloquea;
+    'omitido' (sin systemctl o sin root) solo se acepta con --sin-systemd (laboratorio)."""
+    resultado = systemctl(accion, nombre)
+    if resultado == 'omitido':
+        if sin_systemd:
+            return 'omitido'
+        raise Rechazo(f'systemd no disponible para {accion} {nombre}')
+    esperado = 'enabled' if accion == 'enable' else 'disabled'
+    estado = estado_unidad(nombre)
+    if resultado != 'ok' or estado != esperado:
+        raise Rechazo(f'systemctl {accion} {nombre} no dejó la unidad {esperado} (estado: {estado})')
+    return 'ok'
+
+
+UNIDAD_NUEVA = Path('/etc/systemd/system/formulario.service')
+
+
+def unidad_nueva(n, accion, sin_systemd=False):
     if accion == 'instalar':
         if os.geteuid() != 0 or not shutil.which('systemctl'):
-            return 'omitido'
+            if sin_systemd:
+                return 'omitido'
+            raise Rechazo('systemd no disponible para instalar formulario.service')
         texto = (n.raiz / 'infra/formulario.service').read_text().replace('/srv/formulario', str(n.raiz))
-        escribir(Path('/etc/systemd/system/formulario.service'), texto, 0o644)
-        systemctl('daemon-reload')
-        return systemctl('enable', 'formulario.service')
-    return systemctl('disable', 'formulario.service')
+        escribir(UNIDAD_NUEVA, texto, 0o644)
+        if systemctl('daemon-reload') != 'ok':
+            raise Rechazo('systemctl daemon-reload falló')
+        return exigir_unidad('enable', 'formulario.service', sin_systemd)
+    if not UNIDAD_NUEVA.exists():
+        return 'no-instalada'
+    return exigir_unidad('disable', 'formulario.service', sin_systemd)
 
 
-def legado_arriba(legado, unidad):
+def preflight_systemd(a):
+    """Antes de interrumpir nada: unidad anterior habilitada y formulario.service inexistente."""
+    if os.geteuid() != 0 or not shutil.which('systemctl'):
+        if a.sin_systemd:
+            return
+        raise Rechazo('systemd no disponible: la transición productiva lo requiere')
+    if estado_unidad(a.unidad_legado) != 'enabled':
+        raise Rechazo(f'{a.unidad_legado} no está habilitada (estado: {estado_unidad(a.unidad_legado)})')
+    if UNIDAD_NUEVA.exists():
+        raise Rechazo(f'{UNIDAD_NUEVA} ya existe: revisar antes de transicionar')
+
+
+def legado_arriba(legado, unidad, sin_systemd=False):
     inv = inventario_legado(legado)
     ids = [inv['servicios'][s]['Id'] for s in ORDEN_ARRANQUE if s in inv['servicios']]
     arrancar_ids(ids)
-    return systemctl('enable', unidad)
+    return exigir_unidad('enable', unidad, sin_systemd)
+
+
+def escritores(n):
+    return [c['Id'] for s in ESCRITORES if (c := n.contenedor(s)) and c['State']['Running']]
+
+
+def cambios_desde_linea_base(n):
+    """Tablas protegidas cuyo contenido difiere de la línea base. Falla (Rechazo) si no puede demostrarlo."""
+    base = n.raiz / 'registro/linea-base.json'
+    if not base.is_file():
+        raise Rechazo('Sin línea base: no se puede demostrar que no hay datos nuevos')
+    c = n.contenedor('mysql')
+    if not c or not c['State']['Running']:
+        raise Rechazo('MySQL de la instalación nueva no está activo: no se puede demostrar que no hay datos nuevos')
+    referencia = json.loads(base.read_text())['huellas']
+    actuales = huellas(n.sql)
+    return [t for t in TABLAS_HUELLA if actuales.get(t) != referencia.get(t)], actuales
 
 
 def transicion(a):
@@ -789,7 +889,8 @@ def transicion(a):
         raise Rechazo('Plan con bloqueos: ' + '; '.join(pre['bloqueos']))
     inv = inventario_legado(a.legado, a.ignorar_montaje)
     restantes = [inv['servicios'][s]['Id'] for s in ['mysql', 'antivirus', 'inspector'] if s in inv['servicios']]
-    legado_detenido = False
+    preflight_systemd(a)
+    produccion_iniciada = False
     try:
         # 1. Escritores del origen detenidos; respaldo final consistente y verificado (MySQL sigue activo).
         informe['respaldo'] = respaldar_legado(a.legado, archivo, passfile, mantenimiento=True, reanudar=False,
@@ -797,78 +898,91 @@ def transicion(a):
         informe['pasos'].append('respaldo-final-verificado')
         # 2. Origen completamente detenido (nunca borrado) y su unidad deshabilitada: un solo nodo PISEE.
         detener(restantes)
-        legado_detenido = True
-        informe['unidadAnterior'] = systemctl('disable', a.unidad_legado)
+        informe['unidadAnterior'] = exigir_unidad('disable', a.unidad_legado, a.sin_systemd)
         informe['pasos'].append('origen-detenido')
         # 3. Restauración en la raíz nueva + validación cerrada en puerto alternativo.
         r = argparse.Namespace(**{**vars(a), 'archivo': str(archivo)})
         informe['restauracion'] = restaurar(r)
         arrancar(argparse.Namespace(raiz=a.raiz, validacion=True))
-        v = verificar(argparse.Namespace(raiz=a.raiz))
+        v = verificar(argparse.Namespace(raiz=a.raiz, validacion=True))
         if not v['ok']:
             raise Rechazo('Validación cerrada fallida: ' + '; '.join(v['problemas']))
         informe['pasos'].append('validacion-cerrada')
         # 4. Producción: puerto público, nodo PISEE único y controles CAS heredados del origen.
         n = Instalacion(a.raiz)
         n.compose('stop', 'proxy', 'app', validacion=True)
+        produccion_iniciada = True  # desde aquí puede haber tráfico público: la reversión exige demostración
         arrancar(argparse.Namespace(raiz=a.raiz, validacion=False))
-        v = verificar(argparse.Namespace(raiz=a.raiz))
+        v = verificar(argparse.Namespace(raiz=a.raiz, validacion=False))
         if not v['ok']:
             raise Rechazo('Verificación productiva fallida: ' + '; '.join(v['problemas']))
-        informe['unidadNueva'] = unidad_nueva(n, 'instalar')
+        informe['unidadNueva'] = unidad_nueva(n, 'instalar', a.sin_systemd)
         informe['pasos'].append('produccion')
         informe['verificacion'] = v
         return informe
     except Rechazo as error:
         informe['error'] = str(error)
         try:
-            informe['reversion'] = revertir_automatico(a)
+            informe['reversion'] = revertir_automatico(a, produccion_iniciada)
         except Rechazo as fallo:
             informe['reversion'] = {'error': str(fallo)}
-        raise Rechazo(json.dumps(informe, default=str)) from error
+        raise Rechazo(json.dumps(informe, default=str, ensure_ascii=False)) from error
 
 
-def comunicaciones_nuevas(n):
-    """Filas ciudadanas que la instalación nueva tiene por encima de su respaldo de origen."""
-    manifiesto = json.loads((n.raiz / 'registro/origen-manifiesto.json').read_text())
-    c = n.contenedor('mysql')
-    if not c or not c['State']['Running']:
-        return {}
-    conteos = {t: int(n.sql(f'SELECT COUNT(*) FROM `{t}`')) for t in ['citizen_submission', 'public_delivery']}
-    return {t: v - manifiesto['baseDatos']['conteos'].get(t, 0) for t, v in conteos.items()
-            if v > manifiesto['baseDatos']['conteos'].get(t, 0)}
-
-
-def revertir_automatico(a):
-    """Detiene lo nuevo y reanuda el origen intacto, salvo que lo nuevo ya tenga datos propios."""
+def revertir_automatico(a, produccion_iniciada):
+    """Antes de producción no hubo tráfico público: se detiene lo nuevo y se reanuda el origen.
+    Después, solo si se DEMUESTRA (escritores detenidos) que no hay cambios; si no, se bloquea y lo nuevo
+    vuelve a su estado previo: nunca se intenta recuperar el origen a ciegas."""
     resultado = {}
-    if (Path(a.raiz) / 'registro/origen-manifiesto.json').is_file():
-        n = Instalacion(a.raiz)
-        nuevos = comunicaciones_nuevas(n)
-        if nuevos:
-            # Nunca perder comunicaciones: se deja la instalación nueva activa y se corrige hacia adelante.
-            raise Rechazo('Reversión automática omitida: la instalación nueva ya tiene comunicaciones propias')
+    hay_nueva = (Path(a.raiz) / 'instalacion.json').is_file()
+    n = Instalacion(a.raiz) if hay_nueva else None
+    if produccion_iniciada:
+        detenidos = escritores(n)
+        detener(detenidos)
+        try:
+            cambiadas, _ = cambios_desde_linea_base(n)
+            if cambiadas:
+                raise Rechazo('la instalación nueva tiene cambios en: ' + ', '.join(cambiadas))
+        except Rechazo as error:
+            arrancar_ids(list(reversed(detenidos)))
+            raise Rechazo(f'Reversión automática bloqueada ({error}); origen sin reanudar, intervención manual') from error
+    if n:
+        resultado['unidadNueva'] = unidad_nueva(n, 'deshabilitar', a.sin_systemd)
         n.compose('stop', '--timeout', '40', check=False)
         resultado['nueva'] = 'detenida'
-    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado)
+    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado, a.sin_systemd)
     resultado['origen'] = 'reanudado'
     return resultado
 
 
 def revertir(a):
+    """Vuelve al origen solo si se demuestra que no hay datos nuevos, o que un respaldo verificado de la
+    instalación nueva contiene exactamente su estado actual (comprobado con escritores detenidos)."""
     requiere_root()
     n = Instalacion(a.raiz)
-    if comunicaciones_nuevas(n) and not a.respaldo_nuevo:
-        raise Rechazo('La instalación nueva tiene comunicaciones posteriores a la transición: respaldarla '
-                      '(respaldar --raiz) y pasar --respaldo-nuevo; conciliar antes de reanudar el origen')
-    if a.respaldo_nuevo:
-        if not a.clave:
-            raise Rechazo('--clave requerida para verificar --respaldo-nuevo')
-        if leer_respaldo(a.respaldo_nuevo, clave(a.clave)).get('proyectoOrigen') != n.proyecto:
-            raise Rechazo('--respaldo-nuevo no corresponde a esta instalación')
+    detenidos = escritores(n)
+    detener(detenidos)
+    try:
+        cambiadas, actuales = cambios_desde_linea_base(n)
+        if cambiadas:
+            if not a.respaldo_nuevo:
+                raise Rechazo('La instalación nueva tiene cambios desde la transición en: ' + ', '.join(cambiadas)
+                              + '. Respaldarla (respaldar --raiz --mantenimiento), pasar --clave y --respaldo-nuevo, '
+                              'y conciliar antes de reanudar el origen')
+            if not a.clave:
+                raise Rechazo('--clave requerida para verificar --respaldo-nuevo')
+            m = leer_respaldo(a.respaldo_nuevo, clave(a.clave))
+            if m.get('proyectoOrigen') != n.proyecto:
+                raise Rechazo('--respaldo-nuevo no corresponde a esta instalación')
+            if m['baseDatos'].get('huellas') != actuales:
+                raise Rechazo('--respaldo-nuevo no contiene el estado actual de la instalación nueva')
+        resultado = {'cambiosRespaldados': cambiadas, 'unidadNueva': unidad_nueva(n, 'deshabilitar', a.sin_systemd)}
+    except Rechazo:
+        arrancar_ids(list(reversed(detenidos)))
+        raise
     n.compose('stop', '--timeout', '40')
-    resultado = {'nueva': 'detenida', 'unidadNueva': unidad_nueva(n, 'deshabilitar')}
-    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado)
+    resultado['nueva'] = 'detenida'
+    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado, a.sin_systemd)
     resultado['origen'] = 'reanudado'
     return resultado
 
@@ -984,6 +1098,7 @@ def main(argv=None):
     s.add_argument('--raiz', required=True)
     s = sub.add_parser('verificar')
     s.add_argument('--raiz', required=True)
+    s.add_argument('--validacion', action='store_true', help='Modo validación: todo salvo PISEE, que no debe estar activo')
     s = sub.add_parser('transicion', help='Origen -> instalación nueva en el puerto público, con reversión automática')
     s.add_argument('--legado', required=True)
     s.add_argument('--clave', required=True)
@@ -992,6 +1107,7 @@ def main(argv=None):
     s.add_argument('--limite-gib', type=float, default=40)
     s.add_argument('--respaldo-local', action='store_true')
     s.add_argument('--ignorar-montaje', action='append', default=[], help=SOLO_LAB)
+    s.add_argument('--sin-systemd', action='store_true', help='SOLO LAB: tolerar la ausencia de systemctl')
     opciones_nueva(s)
     s = sub.add_parser('revertir', help='Instalación nueva -> origen intacto')
     s.add_argument('--legado', required=True)
@@ -999,6 +1115,7 @@ def main(argv=None):
     s.add_argument('--clave')
     s.add_argument('--respaldo-nuevo')
     s.add_argument('--unidad-legado', default='ddn-formulario-produccion.service')
+    s.add_argument('--sin-systemd', action='store_true', help='SOLO LAB: tolerar la ausencia de systemctl')
     s = sub.add_parser('actualizar', help='Respaldo verificado + imagen nueva + migración + verificación')
     s.add_argument('--raiz', required=True)
     s.add_argument('--imagen-app', required=True)
@@ -1030,8 +1147,8 @@ def main(argv=None):
         else:
             r = actualizar(a)
     except (Rechazo, OSError, KeyError, ValueError) as error:
-        print(json.dumps({'ok': False, 'error': str(error) if isinstance(error, Rechazo) else type(error).__name__ + ': ' + str(error)[:200]}),
-              file=sys.stderr)
+        print(json.dumps({'ok': False, 'error': str(error) if isinstance(error, Rechazo) else type(error).__name__ + ': ' + str(error)[:200]},
+                         ensure_ascii=False), file=sys.stderr)
         return 1
     print(json.dumps(r, indent=2, default=str))
     return 1 if isinstance(r, dict) and (r.get('bloqueos') or r.get('ok') is False) else 0

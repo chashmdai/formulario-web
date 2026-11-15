@@ -204,5 +204,191 @@ class PiseeUnicoTest(unittest.TestCase):
                 self.assertEqual(f.nodos_pisee_en_conflicto('otra', 'formulario'), [])
 
 
+
+class FakeInstalacion:
+    """Instalación nueva simulada: MySQL activo o no, huellas controladas y registro de acciones."""
+    def __init__(self, raiz, mysql_activo=True, huellas=None, escritores=('p', 'a')):
+        self.raiz, self.proyecto, self.acciones = Path(raiz), 'formulario', []
+        self.mysql_activo, self._huellas, self._escritores = mysql_activo, huellas, list(escritores)
+
+    def contenedor(self, svc):
+        if svc == 'mysql':
+            return {'Id': 'mysql', 'State': {'Running': self.mysql_activo}}
+        if svc in ('proxy', 'app') and self._escritores:
+            return {'Id': 'proxy' if svc == 'proxy' else 'app', 'State': {'Running': True}}
+        return None
+
+    def sql(self, q):
+        assert q.startswith('CHECKSUM TABLE')
+        return '\n'.join(f'formulario_publico.{t}\t{v}' for t, v in self._huellas.items())
+
+    def compose(self, *args, **kw):
+        self.acciones.append(('compose',) + args)
+
+
+def base_huellas(valor='1'):
+    return {t: valor for t in f.TABLAS_HUELLA}
+
+
+class ReversionSeguraTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.raiz = Path(self.temp.name) / 'formulario'
+        (self.raiz / 'registro').mkdir(parents=True)
+        (self.raiz / 'instalacion.json').write_text('{}')
+        (self.raiz / 'registro/linea-base.json').write_text(json.dumps({'huellas': base_huellas()}))
+        self.eventos = []
+        self.patches = [patch.object(f, 'detener', side_effect=lambda ids: self.eventos.append(('detener', list(ids)))),
+                        patch.object(f, 'arrancar_ids', side_effect=lambda ids: self.eventos.append(('arrancar', list(ids)))),
+                        patch.object(f, 'legado_arriba', side_effect=lambda *x, **k: self.eventos.append(('legado',)) or 'ok'),
+                        patch.object(f, 'unidad_nueva', return_value='no-instalada'),
+                        patch.object(f, 'requiere_root')]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.temp.cleanup()
+
+    def args(self, **extra):
+        return argparse.Namespace(**{'legado': '/srv/legado', 'raiz': str(self.raiz), 'unidad_legado': 'u.service',
+                                     'sin_systemd': False, 'clave': None, 'respaldo_nuevo': None, **extra})
+
+    def con(self, inst):
+        return patch.object(f, 'Instalacion', return_value=inst)
+
+    def test_mysql_detenido_bloquea_y_no_reanuda_el_origen(self):
+        with self.con(FakeInstalacion(self.raiz, mysql_activo=False, huellas=base_huellas())):
+            with self.assertRaisesRegex(f.Rechazo, 'MySQL'):
+                f.revertir(self.args())
+        self.assertNotIn(('legado',), self.eventos)
+
+    def test_sin_linea_base_bloquea(self):
+        (self.raiz / 'registro/linea-base.json').unlink()
+        with self.con(FakeInstalacion(self.raiz, huellas=base_huellas())):
+            with self.assertRaisesRegex(f.Rechazo, 'línea base'):
+                f.revertir(self.args())
+        self.assertNotIn(('legado',), self.eventos)
+
+    def test_modificacion_de_fila_existente_con_igual_conteo_bloquea_y_restablece_escritores(self):
+        cambiadas = {**base_huellas(), 'public_delivery': '999'}  # p. ej. estado de integración actualizado
+        inst = FakeInstalacion(self.raiz, huellas=cambiadas)
+        with self.con(inst):
+            with self.assertRaisesRegex(f.Rechazo, 'public_delivery'):
+                f.revertir(self.args())
+        self.assertEqual(self.eventos[0][0], 'detener')
+        self.assertEqual(self.eventos[-1], ('arrancar', ['app', 'proxy']))
+        self.assertNotIn(('legado',), self.eventos)
+
+    def test_respaldo_nuevo_que_no_contiene_el_estado_actual_bloquea(self):
+        clave = Path(self.temp.name) / 'k'
+        clave.write_text('k' * 40)
+        clave.chmod(0o600)
+        actuales = {**base_huellas(), 'citizen_submission': '7'}
+        with self.con(FakeInstalacion(self.raiz, huellas=actuales)), \
+                patch.object(f, 'leer_respaldo', return_value={'proyectoOrigen': 'formulario',
+                                                               'baseDatos': {'huellas': base_huellas()}}):
+            with self.assertRaisesRegex(f.Rechazo, 'estado actual'):
+                f.revertir(self.args(clave=str(clave), respaldo_nuevo='/x.gpg'))
+        with self.con(FakeInstalacion(self.raiz, huellas=actuales)), \
+                patch.object(f, 'leer_respaldo', return_value={'proyectoOrigen': 'formulario', 'baseDatos': {'huellas': actuales}}):
+            r = f.revertir(self.args(clave=str(clave), respaldo_nuevo='/x.gpg'))
+        self.assertEqual(r['cambiosRespaldados'], ['citizen_submission'])
+        self.assertIn(('legado',), self.eventos)
+
+    def test_sin_cambios_revierte(self):
+        inst = FakeInstalacion(self.raiz, huellas=base_huellas())
+        with self.con(inst):
+            r = f.revertir(self.args())
+        self.assertEqual(r['origen'], 'reanudado')
+        self.assertIn(('compose', 'stop', '--timeout', '40'), inst.acciones)
+
+    def test_automatica_tras_produccion_exige_demostracion(self):
+        with self.con(FakeInstalacion(self.raiz, mysql_activo=False, huellas=base_huellas())):
+            with self.assertRaisesRegex(f.Rechazo, 'bloqueada'):
+                f.revertir_automatico(self.args(), produccion_iniciada=True)
+        self.assertNotIn(('legado',), self.eventos)
+        with self.con(FakeInstalacion(self.raiz, huellas={**base_huellas(), 'operation_control': '2'})):
+            with self.assertRaisesRegex(f.Rechazo, 'operation_control'):
+                f.revertir_automatico(self.args(), produccion_iniciada=True)
+        self.assertNotIn(('legado',), self.eventos)
+
+    def test_automatica_antes_de_produccion_no_necesita_base_de_datos(self):
+        inst = FakeInstalacion(self.raiz, mysql_activo=False, huellas=base_huellas())
+        with self.con(inst):
+            r = f.revertir_automatico(self.args(), produccion_iniciada=False)
+        self.assertEqual(r['origen'], 'reanudado')
+        self.assertIn(('legado',), self.eventos)
+
+
+class HuellasTest(unittest.TestCase):
+    def test_huella_incompleta_falla(self):
+        with self.assertRaises(f.Rechazo):
+            f.huellas(lambda q: 'formulario_publico.citizen_journey\t1')
+        completo = '\n'.join(f'formulario_publico.{t}\t{i}' for i, t in enumerate(f.TABLAS_HUELLA))
+        self.assertEqual(len(f.huellas(lambda q: completo)), len(f.TABLAS_HUELLA))
+
+
+class SystemdTest(unittest.TestCase):
+    def test_fallo_o_estado_inesperado_bloquean_y_omitido_solo_en_lab(self):
+        with patch.object(f, 'systemctl', return_value='fallo'), patch.object(f, 'estado_unidad', return_value='enabled'):
+            with self.assertRaises(f.Rechazo):
+                f.exigir_unidad('disable', 'u.service', False)
+        with patch.object(f, 'systemctl', return_value='ok'), patch.object(f, 'estado_unidad', return_value='enabled'):
+            with self.assertRaisesRegex(f.Rechazo, 'disabled'):
+                f.exigir_unidad('disable', 'u.service', False)
+            self.assertEqual(f.exigir_unidad('enable', 'u.service', False), 'ok')
+        with patch.object(f, 'systemctl', return_value='omitido'):
+            with self.assertRaises(f.Rechazo):
+                f.exigir_unidad('enable', 'u.service', False)
+            self.assertEqual(f.exigir_unidad('enable', 'u.service', True), 'omitido')
+
+    def transicion_args(self):
+        return argparse.Namespace(legado='/srv/l', raiz='/srv/n', clave='k', respaldos='/e', unidad_legado='u.service',
+                                  limite_gib=40, respaldo_local=False, ignorar_montaje=[], sin_systemd=False)
+
+    def test_transicion_no_interrumpe_si_systemd_previo_falla(self):
+        llamado = []
+        with patch.object(f, 'requiere_root'), patch.object(f, 'clave'), \
+                patch.object(f, 'plan', return_value={'bloqueos': []}), \
+                patch.object(f, 'inventario_legado', return_value={'servicios': {}}), \
+                patch.object(f, 'preflight_systemd', side_effect=f.Rechazo('unidad anterior no habilitada')), \
+                patch.object(f, 'respaldar_legado', side_effect=lambda *a, **k: llamado.append('respaldo')):
+            with self.assertRaisesRegex(f.Rechazo, 'no habilitada'):
+                f.transicion(self.transicion_args())
+        self.assertEqual(llamado, [])
+
+    def test_transicion_bloquea_si_no_puede_deshabilitar_la_unidad_anterior(self):
+        llamado = []
+        with patch.object(f, 'requiere_root'), patch.object(f, 'clave'), \
+                patch.object(f, 'plan', return_value={'bloqueos': []}), \
+                patch.object(f, 'inventario_legado', return_value={'servicios': {}}), \
+                patch.object(f, 'preflight_systemd'), patch.object(f, 'detener'), \
+                patch.object(f, 'respaldar_legado', return_value={'verificado': True}), \
+                patch.object(f, 'exigir_unidad', side_effect=f.Rechazo('disable falló')), \
+                patch.object(f, 'restaurar', side_effect=lambda a: llamado.append('restaurar')), \
+                patch.object(f, 'revertir_automatico', side_effect=lambda a, p: llamado.append(('revertir', p)) or {}):
+            with self.assertRaisesRegex(f.Rechazo, 'disable falló'):
+                f.transicion(self.transicion_args())
+        self.assertEqual(llamado, [('revertir', False)])
+
+
+class ServiciosObligatoriosTest(unittest.TestCase):
+    sanos = {s: 'healthy' for s in f.SERVICIOS}
+
+    def test_produccion_exige_los_seis(self):
+        self.assertEqual(f.problemas_servicios(self.sanos, False), [])
+        sin_pisee = {k: v for k, v in self.sanos.items() if k != 'pisee'}
+        self.assertIn('Servicios ausentes: pisee', f.problemas_servicios(sin_pisee, False))
+        self.assertTrue(f.problemas_servicios({**self.sanos, 'antivirus': 'starting'}, False))
+        self.assertTrue(f.problemas_servicios({'mysql': 'healthy'}, False))
+
+    def test_validacion_exige_todo_salvo_pisee_y_rechaza_pisee_activo(self):
+        sin_pisee = {k: v for k, v in self.sanos.items() if k != 'pisee'}
+        self.assertEqual(f.problemas_servicios(sin_pisee, True), [])
+        self.assertIn('Nodo PISEE activo durante la validación', f.problemas_servicios(self.sanos, True))
+        self.assertTrue(f.problemas_servicios({k: v for k, v in sin_pisee.items() if k != 'inspector'}, True))
+
 if __name__ == '__main__':
     unittest.main()

@@ -33,6 +33,7 @@ RUNTIME = 'eclipse-temurin:25-jre@sha256:ecdc0adb37bde1a281c4d245a3cd535004b1fc8
 HOST = 'formulario-lab.formulario.gob.cl'
 LEGADO = 'ddn-lab-legado'
 IGN = ['--ignorar-montaje', '/lab/stub.py']
+SIN_SYSTEMD = ['--sin-systemd']  # el contenedor de herramientas no tiene systemctl
 
 
 def sh(args, check=True, input=None):
@@ -262,7 +263,7 @@ def main():
         lab.tool('arrancar', '--raiz', lab.w / 'srv/formulario-ensayo', '--validacion')
         lab.esperar_puerto(V2)
         R['ensayoAccesoTemporal'] = lab.acceso_temporal(V2, password)
-        _, R['ensayoVerificacion'] = lab.tool('verificar', '--raiz', lab.w / 'srv/formulario-ensayo', check=False)
+        _, R['ensayoVerificacion'] = lab.tool('verificar', '--raiz', lab.w / 'srv/formulario-ensayo', '--validacion', check=False)
         # 3. Invariante PISEE: con el nodo anterior activo, el arranque productivo se rechaza.
         code, R['ensayoDobleNodo'] = lab.tool('arrancar', '--raiz', lab.w / 'srv/formulario-ensayo', check=False)
         R['ensayoDobleNodoRechazado'] = code != 0 and 'PISEE' in json.dumps(R['ensayoDobleNodo'])
@@ -270,7 +271,7 @@ def main():
         # 4. Transición al puerto público con respaldo final, validación cerrada y nodo único.
         _, R['transicion'] = lab.tool('transicion', '--legado', lab.legado, '--clave', clave, '--respaldos', respaldos,
                                       '--raiz', lab.w / 'srv/formulario', '--proyecto', 'formulario-lab', '--puerto', P,
-                                      '--puerto-validacion', V, *IGN, *comun)
+                                      '--puerto-validacion', V, *IGN, *SIN_SYSTEMD, *comun)
         lab.esperar_puerto(P)
         R['nuevaAccesoTemporal'] = lab.acceso_temporal(P, password)
         R['nuevaOrigenCa'] = lab.root(f'sha256sum {lab.w}/srv/formulario/pki/proxy/origin-ca.crt '
@@ -284,20 +285,20 @@ def main():
         R['origenActivos'] = len(lab.root(f'docker ps -q --filter label=com.docker.compose.project={LEGADO}').stdout.split())
         R['origenArbolIntacto'] = lab.huella_legado() == huella
         # 5. Reversión sin datos nuevos: origen intacto en el mismo puerto.
-        _, R['reversion'] = lab.tool('revertir', '--legado', lab.legado, '--raiz', lab.w / 'srv/formulario')
+        _, R['reversion'] = lab.tool('revertir', '--legado', lab.legado, '--raiz', lab.w / 'srv/formulario', *SIN_SYSTEMD)
         lab.esperar_puerto(P)
         R['revertidoAccesoTemporal'] = lab.acceso_temporal(P, password)
         # 6. Segunda transición; datos nuevos bloquean la reversión hasta respaldarlos.
         _, R['transicion2'] = lab.tool('transicion', '--legado', lab.legado, '--clave', clave, '--respaldos', respaldos,
                                        '--raiz', lab.w / 'srv/formulario-2', '--proyecto', 'formulario-lab-2', '--puerto', P,
                                        '--puerto-validacion', V, '--subred-salida', '10.203.79.0/28',
-                                       '--subred-pisee', '10.203.80.0/29', *IGN, *comun)
+                                       '--subred-pisee', '10.203.80.0/29', *IGN, *SIN_SYSTEMD, *comun)
         now = int(time.time() * 1000)
         lab.root(f'docker exec $(docker ps -q --filter label=com.docker.compose.project=formulario-lab-2 '
                  f'--filter label=com.docker.compose.service=mysql) mysql --defaults-extra-file=/run/secrets/root.cnf '
                  f'formulario_publico -e "INSERT INTO public_delivery(id,owner_run,request_hash,body,state,created_ms,'
                  f"next_attempt_ms,attempts,lease_until_ms) VALUES (UUID(),'0','{'1' * 64}','{{}}','PENDIENTE',{now},{now},0,0)\"")
-        code, R['reversionConDatosNuevos'] = lab.tool('revertir', '--legado', lab.legado, '--raiz', lab.w / 'srv/formulario-2', check=False)
+        code, R['reversionConDatosNuevos'] = lab.tool('revertir', '--legado', lab.legado, '--raiz', lab.w / 'srv/formulario-2', *SIN_SYSTEMD, check=False)
         R['reversionConDatosNuevosRechazada'] = code != 0
         # 7. Actualización sobre la instalación nueva (respaldo previo verificado + migración + verificación).
         _, R['actualizacion'] = lab.tool('actualizar', '--raiz', lab.w / 'srv/formulario-2', '--imagen-app', a.imagen_app,
@@ -305,7 +306,8 @@ def main():
         _, R['respaldoNuevo'] = lab.tool('respaldar', '--raiz', lab.w / 'srv/formulario-2', '--salida',
                                          respaldos / 'nueva-con-datos.gpg', '--clave', clave, '--mantenimiento')
         _, R['reversionTrasRespaldar'] = lab.tool('revertir', '--legado', lab.legado, '--raiz', lab.w / 'srv/formulario-2',
-                                                  '--clave', clave, '--respaldo-nuevo', respaldos / 'nueva-con-datos.gpg')
+                                                  '--clave', clave, '--respaldo-nuevo', respaldos / 'nueva-con-datos.gpg',
+                                                  *SIN_SYSTEMD)
         lab.esperar_puerto(P)
         R['finalOrigenAccesoTemporal'] = lab.acceso_temporal(P, password)
         R['finalOrigenArbolIntacto'] = lab.huella_legado() == huella
