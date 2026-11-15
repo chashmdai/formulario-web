@@ -853,8 +853,26 @@ def preflight_systemd(a):
         raise Rechazo(f'{UNIDAD_NUEVA} ya existe: revisar antes de transicionar')
 
 
-def legado_arriba(legado, unidad, sin_systemd=False):
+def detener_nueva(n):
+    """Detiene la instalación nueva y COMPRUEBA que ningún contenedor suyo sigue activo. Nunca borra nada."""
+    try:
+        n.compose('stop', '--timeout', '40')
+    except Rechazo:
+        pass  # se decide por el estado observado, no por el código de salida
+    activos = [servicio(c) or c.get('Name') for c in contenedores(n.proyecto, activos=True)]
+    if activos:
+        raise Rechazo('No se pudo detener la instalación nueva (activos: ' + ', '.join(map(str, activos))
+                      + '); origen sin reanudar')
+    return 'detenida'
+
+
+def legado_arriba(legado, unidad, sin_systemd=False, identidad=None):
     inv = inventario_legado(legado)
+    if identidad:
+        conflictos = nodos_pisee_en_conflicto(identidad, inv['proyecto'])
+        if conflictos:
+            raise Rechazo('Nodo PISEE con la misma identidad aún activo (' + ', '.join(conflictos)
+                          + '); origen sin reanudar')
     ids = [inv['servicios'][s]['Id'] for s in ORDEN_ARRANQUE if s in inv['servicios']]
     arrancar_ids(ids)
     return exigir_unidad('enable', unidad, sin_systemd)
@@ -920,12 +938,12 @@ def transicion(a):
         informe['pasos'].append('produccion')
         informe['verificacion'] = v
         return informe
-    except Rechazo as error:
-        informe['error'] = str(error)
+    except Exception as error:  # cualquier fallo (OSError, KeyError, ValueError…) pasa por la recuperación controlada
+        informe['error'] = str(error) if isinstance(error, Rechazo) else f'{type(error).__name__}: {str(error)[:300]}'
         try:
             informe['reversion'] = revertir_automatico(a, produccion_iniciada)
-        except Rechazo as fallo:
-            informe['reversion'] = {'error': str(fallo)}
+        except Exception as fallo:
+            informe['reversion'] = {'error': str(fallo) if isinstance(fallo, Rechazo) else f'{type(fallo).__name__}: {str(fallo)[:300]}'}
         raise Rechazo(json.dumps(informe, default=str, ensure_ascii=False)) from error
 
 
@@ -948,9 +966,9 @@ def revertir_automatico(a, produccion_iniciada):
             raise Rechazo(f'Reversión automática bloqueada ({error}); origen sin reanudar, intervención manual') from error
     if n:
         resultado['unidadNueva'] = unidad_nueva(n, 'deshabilitar', a.sin_systemd)
-        n.compose('stop', '--timeout', '40', check=False)
-        resultado['nueva'] = 'detenida'
-    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado, a.sin_systemd)
+        resultado['nueva'] = detener_nueva(n)
+    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado, a.sin_systemd,
+                                                n.env.get('PISEE_IDENTIDAD') if n else None)
     resultado['origen'] = 'reanudado'
     return resultado
 
@@ -980,9 +998,8 @@ def revertir(a):
     except Rechazo:
         arrancar_ids(list(reversed(detenidos)))
         raise
-    n.compose('stop', '--timeout', '40')
-    resultado['nueva'] = 'detenida'
-    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado, a.sin_systemd)
+    resultado['nueva'] = detener_nueva(n)
+    resultado['unidadAnterior'] = legado_arriba(a.legado, a.unidad_legado, a.sin_systemd, n.env.get('PISEE_IDENTIDAD'))
     resultado['origen'] = 'reanudado'
     return resultado
 

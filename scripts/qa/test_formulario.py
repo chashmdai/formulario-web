@@ -209,6 +209,7 @@ class FakeInstalacion:
     """Instalación nueva simulada: MySQL activo o no, huellas controladas y registro de acciones."""
     def __init__(self, raiz, mysql_activo=True, huellas=None, escritores=('p', 'a')):
         self.raiz, self.proyecto, self.acciones = Path(raiz), 'formulario', []
+        self.env = {'PISEE_IDENTIDAD': 'id'}
         self.mysql_activo, self._huellas, self._escritores = mysql_activo, huellas, list(escritores)
 
     def contenedor(self, svc):
@@ -237,11 +238,12 @@ class ReversionSeguraTest(unittest.TestCase):
         (self.raiz / 'registro').mkdir(parents=True)
         (self.raiz / 'instalacion.json').write_text('{}')
         (self.raiz / 'registro/linea-base.json').write_text(json.dumps({'huellas': base_huellas()}))
-        self.eventos = []
+        self.eventos, self.activos = [], []
         self.patches = [patch.object(f, 'detener', side_effect=lambda ids: self.eventos.append(('detener', list(ids)))),
                         patch.object(f, 'arrancar_ids', side_effect=lambda ids: self.eventos.append(('arrancar', list(ids)))),
                         patch.object(f, 'legado_arriba', side_effect=lambda *x, **k: self.eventos.append(('legado',)) or 'ok'),
                         patch.object(f, 'unidad_nueva', return_value='no-instalada'),
+                        patch.object(f, 'contenedores', side_effect=lambda proyecto, activos=False: list(self.activos)),
                         patch.object(f, 'requiere_root')]
         for p in self.patches:
             p.start()
@@ -320,6 +322,47 @@ class ReversionSeguraTest(unittest.TestCase):
             r = f.revertir_automatico(self.args(), produccion_iniciada=False)
         self.assertEqual(r['origen'], 'reanudado')
         self.assertIn(('legado',), self.eventos)
+
+
+    def test_no_reanuda_el_origen_si_la_nueva_sigue_activa(self):
+        self.activos = [{'Name': '/formulario-pisee-1', 'Config': {'Labels': {'com.docker.compose.service': 'pisee'}}}]
+        for llamada in [lambda: f.revertir(self.args()), lambda: f.revertir_automatico(self.args(), produccion_iniciada=False),
+                        lambda: f.revertir_automatico(self.args(), produccion_iniciada=True)]:
+            with self.con(FakeInstalacion(self.raiz, huellas=base_huellas())):
+                with self.assertRaisesRegex(f.Rechazo, 'No se pudo detener'):
+                    llamada()
+        self.assertNotIn(('legado',), self.eventos)
+
+
+class LegadoArribaTest(unittest.TestCase):
+    def test_no_arranca_el_origen_con_otro_nodo_pisee_activo(self):
+        arranques = []
+        with patch.object(f, 'inventario_legado', return_value={'proyecto': 'legado', 'servicios': {}}), \
+                patch.object(f, 'nodos_pisee_en_conflicto', return_value=['/formulario-pisee-1']), \
+                patch.object(f, 'arrancar_ids', side_effect=arranques.append):
+            with self.assertRaisesRegex(f.Rechazo, 'PISEE'):
+                f.legado_arriba('/srv/l', 'u.service', True, 'id')
+        self.assertEqual(arranques, [])
+
+
+class TransicionExcepcionesTest(unittest.TestCase):
+    def test_error_no_rechazo_en_restauracion_pasa_por_la_recuperacion(self):
+        llamado = []
+        a = argparse.Namespace(legado='/srv/l', raiz='/srv/n', clave='k', respaldos='/e', unidad_legado='u.service',
+                               limite_gib=40, respaldo_local=False, ignorar_montaje=[], sin_systemd=True)
+        for error in [OSError('disco'), KeyError('FORM_HOSTNAME'), ValueError('json')]:
+            llamado.clear()
+            with patch.object(f, 'requiere_root'), patch.object(f, 'clave'), \
+                    patch.object(f, 'plan', return_value={'bloqueos': []}), \
+                    patch.object(f, 'inventario_legado', return_value={'servicios': {}}), \
+                    patch.object(f, 'preflight_systemd'), patch.object(f, 'detener'), \
+                    patch.object(f, 'respaldar_legado', return_value={'verificado': True}), \
+                    patch.object(f, 'exigir_unidad', return_value='omitido'), \
+                    patch.object(f, 'restaurar', side_effect=error), \
+                    patch.object(f, 'revertir_automatico', side_effect=lambda a, p: llamado.append(p) or {'origen': 'reanudado'}):
+                with self.assertRaisesRegex(f.Rechazo, type(error).__name__):
+                    f.transicion(a)
+            self.assertEqual(llamado, [False])
 
 
 class HuellasTest(unittest.TestCase):
