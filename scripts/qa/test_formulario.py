@@ -830,6 +830,128 @@ def shlex_quote(texto):
     import shlex
     return shlex.quote(texto)
 
+
+ENV_COMPOSE = {'COMPOSE_PROJECT_NAME': 'ddn-prueba-config', 'FORMULARIO_RAIZ': '/nonexistent', 'FORM_HOSTNAME': HOST,
+               'FORM_HTTPS_PORT': '24443', 'FORM_VALIDACION_PORT': '30444', 'FORM_IMAGE': 'sha256:00', 'PROXY_IMAGE': 'sha256:00',
+               'PISEE_IMAGE': 'sha256:00', 'MYSQL_IMAGE': 'sha256:00', 'ANTIVIRUS_IMAGE': 'sha256:00', 'INSPECTOR_IMAGE': 'sha256:00',
+               'SALIDA_SUBNET': '10.203.76.0/28', 'FORM_TRUSTED_PROXIES': '10.203.76.1/32', 'PISEE_SUBNET': '10.203.75.0/29',
+               'PISEE_NODE_IPV4': '10.203.75.2', 'PISEE_BACKEND_IPV4': '10.203.75.3', 'PISEE_IDENTIDAD': 'x',
+               'FORM_HEALTH_PATH': '/acceso-temporal/salud'}
+
+
+def compose_disponible():
+    return shutil.which('docker') and subprocess.run(['docker', 'compose', 'version'], stdout=subprocess.DEVNULL,
+                                                      stderr=subprocess.DEVNULL).returncode == 0
+
+
+class DependenciasValidacionTest(unittest.TestCase):
+    """Regresión del ensayo 2 en DDN-UBUNTU: `depends_on: !reset` vaciaba las dependencias de app en la validación
+    (la app arrancaba antes que ClamAV). Debe ser `!override`: mysql, antivirus e inspector sanos, sin pisee."""
+
+    def test_validacion_reemplaza_y_no_vacia_las_dependencias(self):
+        with tempfile.TemporaryDirectory() as d:
+            raiz = Path(d)
+            (raiz / 'infra').mkdir()
+            (raiz / 'infra/Caddyfile').write_text((ROOT / 'infra/ubuntu/Caddyfile.production').read_text())
+            f.generar_validacion(raiz)
+            yml = (raiz / 'infra/validacion.yml').read_text()
+        self.assertIn('depends_on: !override', yml)
+        self.assertNotIn('!reset', yml)
+
+    @unittest.skipUnless(compose_disponible(), 'docker compose requerido')
+    def test_docker_compose_config_resuelve_tres_dependencias_sanas_sin_pisee(self):
+        with tempfile.TemporaryDirectory() as d:
+            raiz = Path(d)
+            (raiz / 'infra').mkdir()
+            (raiz / 'infra/Caddyfile').write_text((ROOT / 'infra/ubuntu/Caddyfile.production').read_text())
+            f.generar_validacion(raiz)
+            env = raiz / 'f.env'
+            env.write_text(''.join(f'{k}={v}\n' for k, v in ENV_COMPOSE.items()))
+
+            def config(*extra):
+                r = subprocess.run(['docker', 'compose', '--env-file', str(env), '-f', str(ROOT / 'infra/formulario/compose.yml'),
+                                    *extra, 'config', '--format', 'json'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=d)
+                self.assertEqual(r.returncode, 0, r.stderr.decode())
+                return json.loads(r.stdout)['services']
+            validacion = config('-f', str(raiz / 'infra/validacion.yml'))
+            produccion = config()
+        dependencias = {k: v['condition'] for k, v in validacion['app']['depends_on'].items()}
+        self.assertEqual(dependencias, {'mysql': 'service_healthy', 'antivirus': 'service_healthy', 'inspector': 'service_healthy'})
+        self.assertEqual({k: v['condition'] for k, v in produccion['app']['depends_on'].items()},
+                         {**dependencias, 'pisee': 'service_healthy'})
+        self.assertIn('FORMULARIO_VALIDACION_CERRADA', validacion['app']['environment'])
+        self.assertTrue(any(v.get('target') == '/etc/caddy/Caddyfile' and v['source'].endswith('/infra/Caddyfile.validacion')
+                            for v in validacion['proxy']['volumes']))
+        self.assertNotIn('FORMULARIO_VALIDACION_CERRADA', produccion['app'].get('environment') or {})
+
+
+@unittest.skipUnless(shutil.which('bash') and shutil.which('perl'), 'bash y perl requeridos')
+class SaludAntivirusTest(unittest.TestCase):
+    """El healthcheck de antivirus debe garantizar los DOS canales que usa app: TCP 3310 (adjuntos) y el socket
+    Unix LocalSocket (multimedia, /ipc/antivirus/clamd.sock en app). Antes solo comprobaba TCP."""
+
+    @staticmethod
+    def comando():
+        texto = (ROOT / 'infra/formulario/compose.yml').read_text()
+        bloque = texto.split('\n  antivirus:\n', 1)[1].split('\n  pisee:\n', 1)[0]
+        linea = next(l for l in bloque.splitlines() if l.strip().startswith('test:'))
+        cmd = json.loads(linea.split('test:', 1)[1])
+        assert cmd[:3] == ['CMD', 'bash', '-ec'], cmd
+        return cmd[3].replace('$$', '$')
+
+    def test_ruta_del_socket_coincide_con_clamd_y_con_la_app(self):
+        local = next(l.split()[1] for l in (ROOT / 'infra/ubuntu/clamd.conf').read_text().splitlines()
+                     if l.strip().startswith('LocalSocket '))
+        self.assertEqual(local, '/ipc/clamd.sock')
+        self.assertIn('q(' + local + ')', self.comando())
+        compose = (ROOT / 'infra/formulario/compose.yml').read_text()
+        self.assertIn('${FORMULARIO_RAIZ}/ipc/antivirus:/ipc\n', compose)            # antivirus: /ipc/clamd.sock
+        self.assertIn('${FORMULARIO_RAIZ}/ipc/antivirus:/ipc/antivirus\n', compose)  # app: /ipc/antivirus/clamd.sock
+        self.assertIn('/dev/tcp/127.0.0.1/3310', self.comando())
+
+    def ejecutar(self, tcp, unix):
+        import socket as so
+        import threading
+        with tempfile.TemporaryDirectory() as d:
+            ruta = Path(d) / 'clamd.sock'
+            servidores = []
+
+            def atender(srv, respuesta):
+                srv.settimeout(10)
+                try:
+                    c, _ = srv.accept()
+                    with c:
+                        c.recv(64)
+                        c.sendall(respuesta)
+                except OSError:
+                    pass
+            puerto = 1
+            if tcp:
+                t = so.socket()
+                t.bind(('127.0.0.1', 0))
+                t.listen(1)
+                puerto = t.getsockname()[1]
+                servidores.append((t, tcp))
+            if unix:
+                u = so.socket(so.AF_UNIX)
+                u.bind(str(ruta))
+                u.listen(1)
+                servidores.append((u, unix))
+            for srv, respuesta in servidores:
+                threading.Thread(target=atender, args=(srv, respuesta), daemon=True).start()
+            cmd = self.comando().replace('/dev/tcp/127.0.0.1/3310', f'/dev/tcp/127.0.0.1/{puerto}').replace('q(/ipc/clamd.sock)', f'q({ruta})')
+            try:
+                return subprocess.run(['bash', '-ec', cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20).returncode
+            finally:
+                for srv, _ in servidores:
+                    srv.close()
+
+    def test_sano_solo_si_responden_tcp_y_socket_unix(self):
+        self.assertEqual(self.ejecutar(b'PONG\n', b'PONG\n'), 0)
+        self.assertNotEqual(self.ejecutar(b'PONG\n', None), 0)       # el caso real: TCP listo, socket Unix aún no
+        self.assertNotEqual(self.ejecutar(None, b'PONG\n'), 0)
+        self.assertNotEqual(self.ejecutar(b'PONG\n', b'ERROR\n'), 0)
+
 class PaqueteReleaseTest(unittest.TestCase):
     def test_docs_operativos_del_paquete_incluyen_los_que_enlazan(self):
         """El paquete 7395a3f omitía GUIA_OPERATIVA_PRODUCCION.md aunque REINSTALACION la enlaza."""

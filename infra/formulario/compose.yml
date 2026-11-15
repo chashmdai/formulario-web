@@ -153,7 +153,9 @@ services:
       - ${FORMULARIO_RAIZ}/infra/clamd.conf:/etc/clamd-media.conf:ro
     networks: [inspeccion]
     healthcheck:
-      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/3310; echo nPING >&3; read -r -t 3 pong <&3; test \"$$pong\" = PONG"]
+      # Los dos canales que usa app: TCP 3310 (adjuntos, clamav-host) y el socket Unix LocalSocket /ipc/clamd.sock
+      # (multimedia: /ipc/antivirus/clamd.sock en app). service_healthy solo si ambos responden PONG.
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/3310; echo nPING >&3; read -r -t 3 pong <&3; test \"$$pong\" = PONG; perl -MIO::Socket::UNIX -e 'alarm 3; $$s = IO::Socket::UNIX->new(Peer => q(/ipc/clamd.sock)) or exit 1; print $$s qq(nPING\\n); defined(sysread($$s, $$r, 16)) or exit 1; exit($$r =~ /^PONG/ ? 0 : 1)'"]
       interval: 15s
       timeout: 5s
       retries: 12

@@ -707,7 +707,9 @@ def generar_validacion(raiz):
              '# inaccesibles (proxy y aplicación); controles CAS del origen sin cambios.\n'
              'services:\n'
              '  app:\n'
-             '    depends_on: !reset\n'
+             # !override REEMPLAZA las dependencias (sin pisee); !reset las vaciaba e ignoraba esta lista, y la app
+             # arrancaba antes que ClamAV (CargasMultimedia: SocketException; ensayo 2 en DDN-UBUNTU).
+             '    depends_on: !override\n'
              '      mysql: {condition: service_healthy}\n'
              '      antivirus: {condition: service_healthy}\n'
              '      inspector: {condition: service_healthy}\n'
