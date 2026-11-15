@@ -1,15 +1,16 @@
 // @vitest-environment node
 import {PDFDocument} from 'pdf-lib';
 import {describe,expect,it} from 'vitest';
-import {confirmedRegistration,evidenceJson,textSha256} from './evidence';
+import {confirmedRegistration,evidenceJson,RegistrationNotConfirmedError,registrationStatus,textSha256} from './evidence';
 import {PAGE_SIZE,renderReceiptPdf,SUBSTITUTION_NOTICE,wrapText} from './pdf';
 import type {PdfTraceEvent} from './pdf';
 import {buildReceiptDocument,FOOTER_NOTICE,NOT_SIGNED_NOTICE} from './receiptModel';
+import type {ReceiptDocument} from './receiptModel';
 import {parseSummary} from './summaryApi';
 import {adultSummary,b64url,ID,nnaSummary,nodeAssets,pending,registered,registryContent} from './fixtures.test-utils';
 
 const assets=nodeAssets(),now=new Date('2026-11-16T13:00:00Z');
-async function render(summary:unknown,state=pending){
+async function render(summary:unknown,state=registered){
   const parsed=summary===null?null:parseSummary(summary,state.id);const model=buildReceiptDocument(parsed,state,now);
   const trace:PdfTraceEvent[]=[];const bytes=await renderReceiptPdf(model,assets,event=>trace.push(event));
   const pdf=await PDFDocument.load(bytes,{updateMetadata:false});const pages=pdf.getPageCount();
@@ -32,9 +33,48 @@ describe('Ajuste de líneas del PDF',()=>{
   });
 });
 
+describe('Sin registro institucional confirmado no existe comprobante PDF',()=>{
+  const forgedFolio={...registered,registro:{...registered.registro!,registro:{folio:'COM-999999'}}};
+  const otherOperation={...registered,registro:{...registered.registro!,comprobante:{...registered.registro!.comprobante,payload:b64url({...registryContent,operacionPublicaId:'99999999-9999-4999-8999-999999999999'})}}};
+  it('clasifica pendiente, confirmado e incoherente sin excepciones',()=>{
+    expect(registrationStatus(pending)).toEqual({kind:'PENDIENTE'});expect(registrationStatus(registered).kind).toBe('CONFIRMADO');
+    for(const state of [forgedFolio,otherOperation,{...registered,registro:{...registered.registro!,comprobante:pending.custodia}},{...registered,registro:null}])expect(registrationStatus(state as typeof registered)).toEqual({kind:'INCOHERENTE'});
+  });
+  it('el modelo rechaza un estado pendiente o incoherente, también con un resumen válido',()=>{
+    for(const state of [pending,forgedFolio,otherOperation]){
+      expect(()=>buildReceiptDocument(null,state,now)).toThrow(RegistrationNotConfirmedError);
+      expect(()=>buildReceiptDocument(parseSummary(adultSummary(registered,adultFields),ID),state,now)).toThrow(RegistrationNotConfirmedError);
+    }
+    // Un resumen del servidor pendiente o con otro folio tampoco habilita el comprobante de un estado confirmado.
+    expect(()=>buildReceiptDocument(parseSummary(adultSummary(pending,adultFields),ID),registered,now)).toThrow(RegistrationNotConfirmedError);
+    expect(()=>buildReceiptDocument({...parseSummary(adultSummary(registered,adultFields),ID),state:forgedFolio},registered,now)).toThrow(RegistrationNotConfirmedError);
+  });
+  it('el renderizador rechaza un modelo sin folio confirmado o sin registro anexado',async()=>{
+    const model=buildReceiptDocument(parseSummary(adultSummary(registered,adultFields),ID),registered,now);
+    const forgedModels=[{...model,registered:false},{...model,folio:null},{...model,folio:''},{...model,evidence:model.evidence.filter(e=>e.kind!=='registro')}] as unknown as ReceiptDocument[];
+    for(const m of forgedModels)await expect(renderReceiptPdf(m,assets)).rejects.toThrow(RegistrationNotConfirmedError);
+  });
+  it('el renderizador rechaza evidencias de registro presentes pero incoherentes con la referencia o el folio',async()=>{
+    const model=buildReceiptDocument(parseSummary(adultSummary(registered,adultFields),ID),registered,now);
+    const registry=model.evidence.find(e=>e.kind==='registro')!,custody=model.evidence.find(e=>e.kind==='custodia')!;
+    const asRegistry=(value:unknown)=>{const json=evidenceJson(value);return {...registry,json,sha256:textSha256(json)};};
+    const forgedModels:ReceiptDocument[]=[
+      {...model,folio:'COM-999999'},
+      {...model,reference:'99999999-9999-4999-8999-999999999999'},
+      {...model,evidence:[custody,{...custody,kind:'registro',filename:registry.filename}]},
+      {...model,evidence:[custody,asRegistry(otherOperation.registro)]},
+      {...model,evidence:[custody,asRegistry(forgedFolio.registro)]},
+      {...model,evidence:[custody,{...registry,json:registry.json.replace('COM-000123','COM-000124')}]},
+      {...model,evidence:[custody,registry,registry]},
+    ];
+    for(const m of forgedModels)await expect(renderReceiptPdf(m,assets)).rejects.toThrow(RegistrationNotConfirmedError);
+    expect((await renderReceiptPdf(model,assets)).length).toBeGreaterThan(0);
+  });
+});
+
 describe('Comprobante PDF de una comunicación adulta',()=>{
-  it('genera un PDF A4 real, paginado, con estado pendiente y sin inventar folio',async()=>{
-    const r=await render(adultSummary(pending,adultFields));
+  it('genera un PDF A4 real y paginado con el folio confirmado',async()=>{
+    const r=await render(adultSummary(registered,adultFields));
     expect(new TextDecoder().decode(r.bytes.slice(0,5))).toBe('%PDF-');
     const [w,h]=[r.pdf.getPage(0).getWidth(),r.pdf.getPage(0).getHeight()];expect(Math.round(w)).toBe(595);expect(Math.round(h)).toBe(842);
     expect(r.pages).toBeGreaterThanOrEqual(3);expect(Math.max(...r.trace.map(e=>e.page))).toBe(r.pages);
@@ -42,13 +82,13 @@ describe('Comprobante PDF de una comunicación adulta',()=>{
       const texts=r.trace.filter(e=>e.page===page).map(e=>e.text);
       expect(texts).toContain(`Página ${page} de ${r.pages}`);expect(texts).toContain(FOOTER_NOTICE);expect(texts).toContain('Referencia '+ID);
     }
-    expect(r.text).toContain('Registro institucional pendiente');expect(r.text).toContain('Aún no asignado');expect(r.text).toContain(ID);
-    expect(r.text).not.toMatch(/COM-\d/);expect(r.model.folio).toBeNull();
+    expect(r.text).toContain('Registro institucional confirmado');expect(r.text).not.toContain('pendiente');expect(r.text).not.toContain('Aún no asignado');expect(r.text).toContain(ID);
+    expect(r.model.folio).toBe('COM-000123');
     expect(r.text).toContain('14 de noviembre de 2026');expect(r.text).toContain('(hora de Chile)');
     expect(r.pdf.getTitle()).toContain(ID);expect(r.pdf.getAuthor()).toBe('Defensoría de la Niñez');expect(r.pdf.getSubject()).toMatch(/No firmada digitalmente/);
   });
   it('incluye íntegramente el relato extenso, continúa entre páginas y respeta las secciones de la revisión',async()=>{
-    const r=await render(adultSummary(pending,adultFields));
+    const r=await render(adultSummary(registered,adultFields));
     expect(r.values).toContain(story.replace(/\s+/g,''));expect(r.text).toContain('Relato (continuación)');
     for(const title of ['Identificación','Contacto','Ubicación','Comunicación','Relato','NNA 1','Persona señalada 1','Institución 1','Archivos adjuntos'])expect(r.trace.some(e=>e.family==='heading'&&e.text===title)).toBe(true);
     for(const value of ['APELLIDO DECLARADO','sintetico@example.test','+56987654321','Informar una vulneración de derechos','Persona testigo','Santiago','SEÑALADO DECLARADO','Apodo sintético','Institución sintética','respaldo-sintético.pdf · 2 KB'])expect(r.text).toContain(value);
@@ -56,12 +96,12 @@ describe('Comprobante PDF de una comunicación adulta',()=>{
     const relatoPage=r.trace.find(e=>e.text.startsWith('Primer párrafo'))!.page,lastPage=r.trace.filter(e=>e.text.includes('ñññ')).at(-1)!.page;expect(lastPage).toBeGreaterThan(relatoPage);
   });
   it('declara que no está firmado y anexa las evidencias originales con la huella del JSON descargable',async()=>{
-    const r=await render(adultSummary(pending,adultFields));
+    const r=await render(adultSummary(registered,adultFields));
     expect(r.text).toContain(NOT_SIGNED_NOTICE);expect(r.text).not.toMatch(/firmado digitalmente por|firma electrónica avanzada/i);
     const annex=r.trace.find(e=>e.text==='Anexo técnico')!,files=r.trace.find(e=>e.family==='heading'&&e.text==='Archivos adjuntos')!;expect(annex.page).toBeGreaterThan(files.page);
-    const json=evidenceJson(pending.custodia);expect(r.compact).toContain(json.replace(/\s+/g,''));expect(r.text).toContain(textSha256(json));
+    const json=evidenceJson(registered.custodia);expect(r.compact).toContain(json.replace(/\s+/g,''));expect(r.text).toContain(textSha256(json));
     expect(r.text).toContain('comprobante-custodia-'+ID+'.json');expect(r.text).toContain('FORMULARIO_PUBLICO_DDN');expect(r.text).toContain('a'.repeat(64));
-    expect(r.text).toContain('El registro institucional aún no existe');expect(r.text).toContain('c'.repeat(64));
+    expect(r.text).not.toContain('aún no existe');expect(r.text).toContain('El registro institucional lo emitió SIGER');expect(r.text).toContain('c'.repeat(64));
   });
   it('incorpora el folio real solo desde el registro confirmado y coherente',async()=>{
     const r=await render(adultSummary(registered,adultFields),registered);
@@ -74,18 +114,18 @@ describe('Comprobante PDF de una comunicación adulta',()=>{
     expect(()=>confirmedRegistration(otherOperation)).toThrow();
   });
   it('muestra la identidad de ClaveÚnica igual que la revisión y nunca un antecedente registral',async()=>{
-    const summary=adultSummary(pending,adultFields,{tipo:'ADULTO_CU',identidadAutenticada:{run:'12345678-5',nombres:'NOMBRE CU',apellidos:'APELLIDO CU'}});
+    const summary=adultSummary(registered,adultFields,{tipo:'ADULTO_CU',identidadAutenticada:{run:'12345678-5',nombres:'NOMBRE CU',apellidos:'APELLIDO CU'}});
     (summary.contenido.personas[0] as {autenticada:boolean}).autenticada=true;
     const r=await render(summary);
     expect(r.text).toContain('12345678-5');expect(r.text).toContain('NOMBRE CU');expect(r.text).toContain('Identidad autenticada con ClaveÚnica.');expect(r.text).toContain('Persona adulta · ClaveÚnica');
     expect(r.text).not.toContain('APELLIDO DECLARADO');
   });
   it('mantiene dentro de la página un nombre de archivo de longitud máxima sin espacios',async()=>{
-    const longName='a'.repeat(176)+'.pdf',summary=adultSummary(pending,adultFields);summary.contenido.adjuntos[0].nombre=longName;
+    const longName='a'.repeat(176)+'.pdf',summary=adultSummary(registered,adultFields);summary.contenido.adjuntos[0].nombre=longName;
     const r=await render(summary);expect(r.compact).toContain(longName);expect(r.text).toContain('2 KB (2.048 bytes)');
   });
   it('representa visiblemente los caracteres sin glifo y dibuja otros alfabetos sin pérdidas',async()=>{
-    const r=await render(adultSummary(pending,{...adultFields,relato:'Relato con emoji 😀, escritura 漢 y griego Ωμέγα; cirílico Жизнь.'}));
+    const r=await render(adultSummary(registered,{...adultFields,relato:'Relato con emoji 😀, escritura 漢 y griego Ωμέγα; cirílico Жизнь.'}));
     expect(r.text).toContain('[U+1F600]');expect(r.text).toContain('[U+6F22]');expect(r.text).toContain('Ωμέγα');expect(r.text).toContain('Жизнь');
     expect(r.text).toContain(SUBSTITUTION_NOTICE);
   });
@@ -93,7 +133,7 @@ describe('Comprobante PDF de una comunicación adulta',()=>{
 
 describe('Comprobante PDF NNA y comprobantes reducidos',()=>{
   it('aplica las reglas de la revisión NNA',async()=>{
-    const r=await render(nnaSummary(pending,{'nna-region':'13','nna-primary-method':'unsafe','nna-preferred':'Preferido sintético','nna-treatment':'elle','nna-story':'Relato NNA sintético\nSegunda línea.'}));
+    const r=await render(nnaSummary(registered,{'nna-region':'13','nna-primary-method':'unsafe','nna-preferred':'Preferido sintético','nna-treatment':'elle','nna-story':'Relato NNA sintético\nSegunda línea.'}));
     for(const value of ['NNA SINTÉTICO','Preferido sintético','Elle','No tengo una forma segura de contacto','Comunicación de niño, niña o adolescente','Relato NNA sintético','Segunda línea.','Sin archivos adjuntos.','Niña, niño o adolescente'])expect(r.text).toContain(value);
     expect(r.text).toContain('Los antecedentes recuperados del Registro Civil se mantienen protegidos y no se muestran aquí.');
   });
@@ -106,7 +146,7 @@ describe('Comprobante PDF NNA y comprobantes reducidos',()=>{
   });
   it('sin resumen recuperable genera un comprobante reducido con las evidencias en memoria',async()=>{
     const r=await render(null);expect(r.model.reduced).toBe('NO_DISPONIBLE');expect(r.model.sections).toEqual([]);
-    expect(r.text).toContain('no fue posible recuperar el resumen');expect(r.text).toContain('No disponible en este comprobante reducido.');expect(r.text).toContain(textSha256(evidenceJson(pending.custodia)));
+    expect(r.text).toContain('no fue posible recuperar el resumen');expect(r.text).toContain('No disponible en este comprobante reducido.');expect(r.text).toContain('COM-000123');expect(r.text).toContain(textSha256(evidenceJson(registered.custodia)));
   });
 });
 
@@ -114,8 +154,8 @@ describe('Comprobante PDF NNA y comprobantes reducidos',()=>{
 describe.runIf(!!process.env.RECEIPT_PDF_OUTPUT)('Muestras visuales del comprobante',()=>{
   it('exporta comprobantes sintéticos',async()=>{
     const {mkdirSync,writeFileSync}=await import('node:fs');const dir=process.env.RECEIPT_PDF_OUTPUT!;mkdirSync(dir,{recursive:true});
-    const samples:[string,unknown,typeof pending][]=[['adulto-pendiente',adultSummary(pending,adultFields),pending],['adulto-registrado',adultSummary(registered,adultFields),registered],
-      ['nna-pendiente',nnaSummary(pending,{'nna-region':'13','nna-primary-method':'unsafe','nna-treatment':'elle','nna-story':'Relato NNA sintético.\nSegunda línea.'}),pending],
+    const samples:[string,unknown,typeof pending][]=[['adulto-confirmado-cu',adultSummary(registered,adultFields,{tipo:'ADULTO_CU',identidadAutenticada:{run:'12345678-5',nombres:'NOMBRE CU',apellidos:'APELLIDO CU'}}),registered],['adulto-registrado',adultSummary(registered,adultFields),registered],
+      ['nna-registrado',nnaSummary(registered,{'nna-region':'13','nna-primary-method':'unsafe','nna-treatment':'elle','nna-story':'Relato NNA sintético.\nSegunda línea.'}),registered],
       ['reducido-retirado',{id:ID,estado:'REGISTRADA_SIGER',custodia:registered.custodia,registro:registered.registro,contenido:null,archivosRetirados:[{id:'33333333-3333-4333-8333-333333333333',tamanio:2048,sha256:'c'.repeat(64)}]},registered]];
     for(const [name,summary,state] of samples)writeFileSync(`${dir}/${name}.pdf`,(await render(summary,state)).bytes);
   });

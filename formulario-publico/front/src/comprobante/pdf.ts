@@ -2,6 +2,7 @@ import {PDFDocument,StandardFonts,rgb} from 'pdf-lib';
 import type {Color,PDFFont,PDFPage} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type {SummaryRow} from '../formulario/reviewModel';
+import {RegistrationNotConfirmedError,requireRegistrationEvidence} from './evidence';
 import {FOOTER_NOTICE} from './receiptModel';
 import type {ReceiptDocument} from './receiptModel';
 
@@ -26,7 +27,6 @@ const WIDTH=PAGE[0]-MARGIN.left-MARGIN.right;
 const hex=(value:string):Color=>rgb(parseInt(value.slice(1,3),16)/255,parseInt(value.slice(3,5),16)/255,parseInt(value.slice(5,7),16)/255);
 const C={tinta:hex('#233a47'),texto:hex('#38515d'),suave:hex('#5b717c'),azul:hex('#115874'),azulOscuro:hex('#0d465f'),azulClaro:hex('#e8f5fb'),
   linea:hex('#dee7ec'),lineaFuerte:hex('#baccd5'),fondo:hex('#f6f9fb'),blanco:hex('#ffffff'),
-  pendienteFondo:hex('#fff5de'),pendienteBorde:hex('#efc46a'),pendienteTinta:hex('#6f4700'),
   okFondo:hex('#e8f5ec'),okBorde:hex('#9fd0b0'),okTinta:hex('#1b5a35')};
 const STRIPE=['#2fa9d7','#f05a30','#8bc53f','#ffe72c','#faaf4c','#e34d7f','#9e1f63'].map(hex);
 export const SUBSTITUTION_NOTICE='Algunos caracteres no disponibles en las fuentes de este documento (por ejemplo, emojis) se muestran con su código Unicode, como [U+1F600]. El contenido enviado no se modificó.';
@@ -125,7 +125,7 @@ function cover(w:Writer,m:ReceiptDocument){
   for(const l of w.wrap(m.title,'title',20,WIDTH))w.line(l,MARGIN.left,'title',20,C.tinta,25);
   w.y-=2;w.paragraph(m.reduced?'Comprobante reducido de tu comunicación a la Defensoría de la Niñez.':'Resumen de lo que enviaste a la Defensoría de la Niñez.','body',10.5,C.texto,15);w.y-=12;
   // Estado de la comunicación: siempre con texto, nunca solo con color.
-  const ok=m.registered,fill=ok?C.okFondo:C.pendienteFondo,border=ok?C.okBorde:C.pendienteBorde,ink=ok?C.okTinta:C.pendienteTinta,h=46;
+  const fill=C.okFondo,border=C.okBorde,ink=C.okTinta,h=46;
   w.box(MARGIN.left,w.y,WIDTH,h,fill,border);w.page.drawCircle({x:MARGIN.left+20,y:w.y-h/2,size:5,color:ink});
   w.draw(m.status.label,MARGIN.left+36,w.y-19,'heading',12,ink);w.draw(m.status.detail,MARGIN.left+36,w.y-34,'body',9.5,ink);w.y-=h+14;
   // Datos principales en dos columnas.
@@ -185,9 +185,7 @@ function annex(w:Writer,m:ReceiptDocument){
   w.addPage();w.line('Anexo técnico',MARGIN.left,'title',17,C.tinta,23);
   w.line('Evidencias originales de custodia y registro institucional',MARGIN.left,'heading',11,C.azulOscuro,17);w.y-=6;
   w.paragraph('Las evidencias se reproducen exactamente como fueron emitidas, en el mismo formato que su descarga JSON. Su integridad se verifica con la firma Ed25519 del campo «firma» sobre el contenido «payload» (base64url), usando la clave pública del emisor indicado en «keyId». Este PDF no contiene firmas digitales ni sustituye esas evidencias.','body',9,C.texto,12.8);w.y-=4;
-  w.paragraph(m.registered
-    ?'El comprobante de custodia lo emitió el Formulario Público al recibir tu comunicación; no es un folio. El registro institucional lo emitió SIGER al registrar la comunicación e incluye el folio.'
-    :'El comprobante de custodia lo emitió el Formulario Público al recibir tu comunicación; no es un folio. El registro institucional aún no existe: SIGER lo emitirá al confirmar el registro.','body',9,C.texto,12.8);
+  w.paragraph('El comprobante de custodia lo emitió el Formulario Público al recibir tu comunicación; no es un folio. El registro institucional lo emitió SIGER al registrar la comunicación e incluye el folio.','body',9,C.texto,12.8);
   w.y-=6;
   for(const e of m.evidence){
     sectionTitle(w,e.title,40);
@@ -205,6 +203,9 @@ function annex(w:Writer,m:ReceiptDocument){
 }
 
 export async function renderReceiptPdf(model:ReceiptDocument,assets:PdfAssets,trace?:(event:PdfTraceEvent)=>void):Promise<Uint8Array>{
+  // Defensa adicional ante invocaciones directas: el folio debe coincidir con un registro coherente anexado.
+  if(model.registered!==true)throw new RegistrationNotConfirmedError();
+  requireRegistrationEvidence(model.reference,model.folio,model.evidence);
   const doc=await PDFDocument.create();doc.registerFontkit(fontkit);
   const fonts={} as Record<FontKey,Face>;
   for(const key of FONT_KEYS){const font=await doc.embedFont(assets.fonts[key],{subset:true});const set=new Set(font.getCharacterSet());fonts[key]={font,has:cp=>set.has(cp)};}
@@ -219,7 +220,7 @@ export async function renderReceiptPdf(model:ReceiptDocument,assets:PdfAssets,tr
   doc.setTitle(`${model.title} · ${model.reference}`,{showInWindowTitleBar:true});doc.setAuthor('Defensoría de la Niñez');
   doc.setSubject('Representación legible de una comunicación recibida por el Formulario Público. No firmada digitalmente.');
   doc.setCreator('Formulario Público · Defensoría de la Niñez');doc.setProducer('Formulario Público · Defensoría de la Niñez');
-  doc.setKeywords(['comprobante','Defensoría de la Niñez',model.reference,...(model.folio?[model.folio]:[])]);doc.setLanguage('es-CL');
+  doc.setKeywords(['comprobante','Defensoría de la Niñez',model.reference,model.folio]);doc.setLanguage('es-CL');
   doc.setCreationDate(model.generatedAt);doc.setModificationDate(model.generatedAt);
   const w=new Writer(doc,families,assets.logoSvg,document,trace);
   cover(w,document);sections(w,document);annex(w,document);w.footers();

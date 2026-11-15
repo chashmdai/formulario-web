@@ -7,7 +7,7 @@ import Entry from '../Entry';
 import type { IdentityView, Journey } from './api';
 import type { SubmissionState } from './submission';
 import type { ReceiptDocument } from '../comprobante/receiptModel';
-import { adultSummary, registered as registeredFixture } from '../comprobante/fixtures.test-utils';
+import { adultSummary, pending as pendingFixture, registered as registeredFixture } from '../comprobante/fixtures.test-utils';
 
 const pdf=vi.hoisted(()=>({models:[] as unknown[]}));
 vi.mock('../comprobante/pdf',()=>({renderReceiptPdf:async(model:unknown)=>{pdf.models.push(model);return new Uint8Array([37,80,68,70,45]);}}));
@@ -57,7 +57,7 @@ async function fill(){
 describe('Cierre de adulto con API controlada',()=>{
   it('exige aviso antes de identificar, revisa sin alterar el relato y recibe custodia sin folio inventado',async()=>{
     render(<StrictMode><AdultPage /></StrictMode>);await screen.findByRole('dialog');expect(screen.queryByRole('textbox',{name:/^RUN/})).toBeNull();const review=await fill();expect(within(review).getByText('no',{exact:true})).toBeTruthy();expect(posts).toHaveLength(0);
-    await userEvent.click(within(review).getByRole('button',{name:'Enviar comunicación'}));await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(posts).toHaveLength(1);expect(posts[0].body).toEqual({campos:{motivo:'consulta',tema:'general','consulta-confirmada':'true','consulta-general-detalle':'no','adult-region':'13'},personas:[],instituciones:[],adjuntos:[]});expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();expect(Object.keys(localStorage).filter(key=>!['siger:font-scale','siger:theme'].includes(key))).toEqual([]);
+    await userEvent.click(within(review).getByRole('button',{name:'Enviar comunicación'}));await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(posts).toHaveLength(1);expect(posts[0].body).toEqual({campos:{motivo:'consulta',tema:'general','consulta-confirmada':'true','consulta-general-detalle':'no','adult-region':'13'},personas:[],instituciones:[],adjuntos:[]});expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();expect(screen.queryByRole('button',{name:/comprobante PDF/})).toBeNull();expect(Object.keys(localStorage).filter(key=>!['siger:font-scale','siger:theme'].includes(key))).toEqual([]);
   });
   it('retoma CU desde el callback raíz y envía referencias sin autoafirmar identidad en el cuerpo',async()=>{
     exists=true;cu=true;render(<Entry />);const review=await fill();expect(within(review).getByText('NOMBRE CU')).toBeTruthy();expect(screen.getByRole('button',{name:'Cerrar sesión'})).toBeTruthy();await userEvent.click(within(review).getByRole('button',{name:'Enviar comunicación'}));await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(JSON.stringify(posts[0].body)).not.toContain('NOMBRE CU');expect(vi.mocked(fetch).mock.calls.some(([url,init])=>String(url)==='/api/formulario/recorridos'&&init?.method==='POST')).toBe(false);
@@ -99,7 +99,7 @@ describe('Cierre de adulto con API controlada',()=>{
   });
   it('actualiza automáticamente el ACK restaurado sin repetir el envío y se recupera de un error GET',async()=>{
     vi.useFakeTimers();exists=true;
-    received={id:'33333333-3333-4333-8333-333333333333',estado:'PENDIENTE_REGISTRO_SIGER',custodia:proof,registro:null};
+    received=pendingFixture;
     await act(async()=>{render(<StrictMode><AdultPage /></StrictMode>);});
     expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();
     const original=vi.mocked(fetch).getMockImplementation()!;let checks=0;
@@ -109,8 +109,9 @@ describe('Cierre de adulto con API controlada',()=>{
     });
     await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByRole('alert').textContent).toContain('No pudimos actualizar el estado');
     expect(screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'})).toBeTruthy();expect(posts).toHaveLength(0);
-    received={...received,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'COM-000123'},comprobante:proof}};
-    await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByText('COM-000123')).toBeTruthy();
+    expect(screen.queryByRole('button',{name:/comprobante PDF/})).toBeNull();
+    received=registeredFixture;
+    await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByText('COM-000123')).toBeTruthy();expect(screen.getByRole('button',{name:'Descargar comprobante PDF'})).toBeTruthy();
     expect(screen.getByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeTruthy();expect(screen.queryByRole('alert')).toBeNull();
     await act(()=>vi.advanceTimersByTimeAsync(20000));expect(checks).toBe(2);expect(posts).toHaveLength(0);
   });

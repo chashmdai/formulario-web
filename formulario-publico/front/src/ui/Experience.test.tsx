@@ -6,6 +6,7 @@ import {ReceiptPanel} from './ReceiptPanel';
 import {AttachmentStatus} from './AttachmentStatus';
 import {ExitDialog} from './ExitDialog';
 import type {SubmissionState} from '../formulario/submission';
+import {registered} from '../comprobante/fixtures.test-utils';
 const receipt:SubmissionState={id:'referencia-controlada',estado:'PENDIENTE_REGISTRO_SIGER',custodia:{algoritmo:'Ed25519',keyId:'controlado',payload:'controlado',firma:'controlada'},registro:null};
 beforeEach(()=>{HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};});
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
@@ -22,12 +23,16 @@ describe('Experiencia ciudadana',()=>{
  });
  it('una custodia pendiente no inventa folio ni ofrece comprobante institucional',async()=>{
   const download=vi.fn(),check=vi.fn();render(<ReceiptPanel receipt={receipt} busy={false} onDownload={download} onCheck={check}/>);
-  expect(document.activeElement?.id).toBe('communication-receipt');expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();expect(screen.queryByText(/^Folio:/)).toBeNull();expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();
+  expect(document.activeElement?.id).toBe('communication-receipt');expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();expect(screen.queryByText(/^Folio:/)).toBeNull();expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();expect(screen.queryByRole('button',{name:/comprobante PDF/})).toBeNull();
   await userEvent.click(screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'}));expect(download).toHaveBeenCalledWith(receipt.custodia,'comprobante-custodia-referencia-controlada.json');await userEvent.click(screen.getByRole('button',{name:'Actualizar estado'}));expect(check).toHaveBeenCalledOnce();
  });
  it('el registro confirmado muestra el folio y descarga el objeto firmado recibido sin alterarlo',async()=>{
-  const registered:SubmissionState={...receipt,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'FOLIO-CONTROLADO'},comprobante:receipt.custodia}},download=vi.fn();render(<ReceiptPanel receipt={registered} busy={false} onDownload={download} onCheck={vi.fn()}/>);
-  expect(screen.getByText('FOLIO-CONTROLADO')).toBeTruthy();await userEvent.click(screen.getByRole('button',{name:'Descargar registro institucional (JSON)'}));expect(download).toHaveBeenCalledWith(registered.registro,'comprobante-institucional-referencia-controlada.json');
+  const download=vi.fn();const view=render(<ReceiptPanel receipt={registered} busy={false} onDownload={download} onCheck={vi.fn()}/>);
+  expect(screen.getByText('COM-000123')).toBeTruthy();expect(screen.getByRole('button',{name:'Descargar comprobante PDF'})).toBeTruthy();await userEvent.click(screen.getByRole('button',{name:'Descargar registro institucional (JSON)'}));expect(download).toHaveBeenCalledWith(registered.registro,'comprobante-institucional-'+registered.id+'.json');
+  view.unmount();
+  // Un folio declarado sin contenido firmado coherente no se muestra ni habilita comprobantes institucionales.
+  const forged:SubmissionState={...receipt,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'FOLIO-CONTROLADO'},comprobante:receipt.custodia}};render(<ReceiptPanel receipt={forged} busy={false} onDownload={download} onCheck={vi.fn()}/>);
+  expect(screen.queryByText('FOLIO-CONTROLADO')).toBeNull();expect(screen.queryByRole('button',{name:/comprobante PDF/})).toBeNull();expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();
  });
  it('una consulta de estado ocupada conserva el estado real y muestra el error recibido',()=>{
   render(<ReceiptPanel receipt={receipt} busy error="No pudimos actualizar el estado." onDownload={vi.fn()} onCheck={vi.fn()}/>);expect((screen.getByRole('button',{name:'Consultando estado…'}) as HTMLButtonElement).disabled).toBe(true);expect(screen.getByRole('alert').textContent).toBe('No pudimos actualizar el estado.');expect(screen.getByText('Registro institucional pendiente')).toBeTruthy();

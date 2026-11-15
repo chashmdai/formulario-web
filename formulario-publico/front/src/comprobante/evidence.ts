@@ -37,6 +37,38 @@ export function confirmedRegistration(state:SubmissionState):ConfirmedRegistrati
   if(typeof folio!=='string'||!FOLIO.test(folio)||!signed||signed.folio!==folio||signed.operacionPublicaId!==state.id)throw new Error('Registro institucional incoherente');
   return {folio,registradaEn:typeof signed.registradaEn==='string'?signed.registradaEn:null};
 }
+export type RegistrationStatus=
+  |{kind:'PENDIENTE'}
+  |{kind:'CONFIRMADO';registration:ConfirmedRegistration}
+  |{kind:'INCOHERENTE'};
+/** Variante sin excepciones para la interfaz: un registro incoherente nunca se presenta como confirmado. */
+export function registrationStatus(state:SubmissionState):RegistrationStatus{
+  if(state.estado!=='REGISTRADA_SIGER')return {kind:'PENDIENTE'};
+  try{const registration=confirmedRegistration(state);return registration?{kind:'CONFIRMADO',registration}:{kind:'INCOHERENTE'};}
+  catch{return {kind:'INCOHERENTE'};}
+}
+/** Rechazo explícito: el comprobante PDF solo existe tras el ACK de SIGER validado contra esta referencia. */
+export class RegistrationNotConfirmedError extends Error{
+  constructor(){super('El comprobante PDF requiere un registro institucional confirmado');this.name='RegistrationNotConfirmedError';}
+}
+export function requireConfirmedRegistration(state:SubmissionState):ConfirmedRegistration{
+  const status=registrationStatus(state);
+  if(status.kind!=='CONFIRMADO')throw new RegistrationNotConfirmedError();
+  return status.registration;
+}
+/**
+ * Comprueba un modelo ya construido: la evidencia institucional anexada debe ser un registro coherente con la
+ * referencia y con el folio presentado. Protege al renderizador ante modelos forjados o invocaciones directas.
+ */
+export function requireRegistrationEvidence(reference:string,folio:unknown,evidence:readonly EvidenceFile[]):void{
+  const registry=evidence.filter(e=>e.kind==='registro');
+  if(registry.length!==1||typeof folio!=='string'||registry[0].filename!==registryFilename(reference))throw new RegistrationNotConfirmedError();
+  let registro:unknown;
+  try{registro=JSON.parse(registry[0].json);}catch{throw new RegistrationNotConfirmedError();}
+  if(registry[0].sha256!==textSha256(registry[0].json))throw new RegistrationNotConfirmedError();
+  const status=registrationStatus({id:reference,estado:'REGISTRADA_SIGER',registro} as SubmissionState);
+  if(status.kind!=='CONFIRMADO'||status.registration.folio!==folio)throw new RegistrationNotConfirmedError();
+}
 export function receivedAt(state:SubmissionState):string|null{
   const signed=decodePayload(state.custodia?.payload);
   return signed&&signed.id===state.id&&typeof signed.recibidaEn==='string'?signed.recibidaEn:null;
@@ -55,7 +87,8 @@ export function evidenceFiles(state:SubmissionState):EvidenceFile[]{
     result.push({kind:'custodia',title:'Comprobante de custodia del Formulario Público',filename:custodyFilename(state.id),json,sha256:textSha256(json),
       fields:fields(decodePayload(state.custodia.payload),[['emisor','Emisor'],['tipoRecepcion','Tipo de recepción'],['id','Referencia'],['recibidaEn','Recibida en (UTC)'],['huellaContenido','Huella del contenido (SHA-256)'],['huellaProcedencia','Huella de procedencia (SHA-256)'],['avisoVersion','Versión del aviso de privacidad'],['version','Versión del comprobante']],state.custodia)});
   }
-  if(state.registro){
+  // El registro institucional solo se anexa si es coherente con el estado confirmado y esta referencia.
+  if(state.registro&&registrationStatus(state).kind==='CONFIRMADO'){
     const json=evidenceJson(state.registro);
     result.push({kind:'registro',title:'Registro institucional emitido por SIGER',filename:registryFilename(state.id),json,sha256:textSha256(json),
       fields:fields(decodePayload(state.registro.comprobante?.payload),[['emisor','Emisor'],['hecho','Hecho registrado'],['folio','Folio'],['registradaEn','Registrada en (UTC)'],['operacionPublicaId','Referencia de recepción'],['canalOrigen','Canal de origen'],['sha256','Huella del contenido (SHA-256)'],['huellaProcedencia','Huella de procedencia (SHA-256)'],['version','Versión del registro']],state.registro.comprobante||{})});

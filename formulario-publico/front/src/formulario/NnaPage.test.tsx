@@ -7,7 +7,7 @@ import type { IdentityView, Journey } from './api';
 import type { Attachment } from './NnaFlow';
 import type { SubmissionState } from './submission';
 import type { ReceiptDocument } from '../comprobante/receiptModel';
-import { nnaSummary, pending as pendingFixture } from '../comprobante/fixtures.test-utils';
+import { nnaSummary, pending as pendingFixture, registered as registeredFixture } from '../comprobante/fixtures.test-utils';
 
 // El renderizador real se prueba en comprobante/; aquí se verifica el recorrido completo de la página.
 const pdf=vi.hoisted(()=>({models:[] as unknown[]}));
@@ -70,6 +70,7 @@ describe('Página NNA con API completa controlada',()=>{
     await userEvent.click(within(dialog).getByRole('button',{name:'Enviar comunicación'}));expect(await screen.findByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();
     expect(sends).toHaveLength(1);expect(sends[0].body).toEqual({campos:{'nna-region':'13','nna-primary-method':'unsafe','nna-story':'Relato sintético para enviar.'},personas:[],instituciones:[],adjuntos:[]});
     expect(screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'})).toBeTruthy();expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();
+    expect(screen.queryByRole('button',{name:/comprobante PDF/})).toBeNull();expect(screen.getByText('Registro institucional pendiente')).toBeTruthy();
     expect(Object.keys(localStorage).filter(key=>!['siger:font-scale','siger:theme'].includes(key))).toEqual([]);expect(Object.values(localStorage).join(' ')).not.toContain('NOMBRE');
   });
   it('no confirma un envío fallido y reintenta exactamente la misma clave y captura',async()=>{
@@ -87,24 +88,24 @@ describe('Página NNA con API completa controlada',()=>{
     render(<NnaPage />);await screen.findByRole('heading',{name:'Recibimos tu comunicación'});expect(screen.queryByRole('textbox',{name:/^Primer nombre/})).toBeNull();
     expect(vi.mocked(fetch).mock.calls.filter(([p])=>String(p).endsWith('/identificacion'))).toHaveLength(0);expect(sends).toHaveLength(0);
   });
-  it('tras recargar genera el PDF desde el resumen del servidor sin guardar datos en el navegador',async()=>{
+  it('tras recargar un registro confirmado genera el PDF desde el resumen del servidor sin guardar datos en el navegador',async()=>{
     const created_=URL.createObjectURL,revoked=URL.revokeObjectURL,saved:{type:string;name:string}[]=[];
     URL.createObjectURL=vi.fn((blob:Blob)=>{saved.push({type:blob.type,name:''});return 'blob:controlado';});URL.revokeObjectURL=vi.fn();
     vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(function(this:HTMLAnchorElement){saved.at(-1)!.name=this.download;});
     try{
-      created=true;received=pendingFixture;const story='Relato NNA sintético que debe aparecer íntegro.\nSegunda línea.';
-      summary=nnaSummary(pendingFixture,{'nna-region':'13','nna-primary-method':'unsafe','nna-story':story});
-      render(<NnaPage />);await screen.findByRole('heading',{name:'Recibimos tu comunicación'});
+      created=true;received=registeredFixture;const story='Relato NNA sintético que debe aparecer íntegro.\nSegunda línea.';
+      summary=nnaSummary(registeredFixture,{'nna-region':'13','nna-primary-method':'unsafe','nna-story':story});
+      render(<NnaPage />);await screen.findByRole('heading',{name:'Comunicación registrada'});
       await userEvent.click(screen.getByRole('button',{name:'Descargar comprobante PDF'}));
       await waitFor(()=>expect(pdf.models).toHaveLength(1));const model=pdf.models[0] as ReceiptDocument;
-      expect(model.reference).toBe(pendingFixture.id);expect(model.folio).toBeNull();expect(model.reduced).toBeNull();
+      expect(model.reference).toBe(registeredFixture.id);expect(model.folio).toBe('COM-000123');expect(model.reduced).toBeNull();
       expect(model.sections.find(section=>section.title==='Relato')?.rows[0].value).toBe(story);
-      expect(vi.mocked(fetch).mock.calls.some(([p])=>String(p)===`/api/formulario/comunicaciones/${pendingFixture.id}/resumen`)).toBe(true);
-      expect(saved).toEqual([{type:'application/pdf',name:`comprobante-comunicacion-${pendingFixture.id}.pdf`}]);expect(sends).toHaveLength(0);
+      expect(vi.mocked(fetch).mock.calls.some(([p])=>String(p)===`/api/formulario/comunicaciones/${registeredFixture.id}/resumen`)).toBe(true);
+      expect(saved).toEqual([{type:'application/pdf',name:`comprobante-comunicacion-${registeredFixture.id}.pdf`}]);expect(sends).toHaveLength(0);
       expect(JSON.stringify({...localStorage})+JSON.stringify({...sessionStorage})).not.toContain('Relato NNA');
       summary=null;await userEvent.click(screen.getByRole('button',{name:'Descargar comprobante PDF'}));
       await waitFor(()=>expect(pdf.models).toHaveLength(2));const reduced=pdf.models[1] as ReceiptDocument;
-      expect(reduced.reduced).toBe('NO_DISPONIBLE');expect(reduced.sections).toEqual([]);expect(reduced.evidence[0].json).toContain(pendingFixture.custodia.payload);
+      expect(reduced.reduced).toBe('NO_DISPONIBLE');expect(reduced.folio).toBe('COM-000123');expect(reduced.sections).toEqual([]);expect(reduced.evidence[0].json).toContain(registeredFixture.custodia.payload);
     }finally{URL.createObjectURL=created_;URL.revokeObjectURL=revoked;}
   });
   it('adjunta por multipart y referencia únicamente los archivos confirmados por servidor',async()=>{
@@ -120,12 +121,20 @@ describe('Página NNA con API completa controlada',()=>{
   });
   it('actualiza automáticamente el folio NNA con el mismo GET sin nuevo POST',async()=>{
     vi.useFakeTimers();created=true;
-    received={id:'33333333-3333-4333-8333-333333333333',estado:'PENDIENTE_REGISTRO_SIGER',custodia:proof,registro:null};
+    received=pendingFixture;
     await act(async()=>{render(<StrictMode><NnaPage /></StrictMode>);});
     expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();
-    received={...received,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'COM-000124'},comprobante:proof}};
-    await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByText('COM-000124')).toBeTruthy();
-    expect(screen.getByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeTruthy();expect(sends).toHaveLength(0);
+    expect(screen.queryByRole('button',{name:/comprobante PDF/})).toBeNull();
+    received=registeredFixture;
+    await act(()=>vi.advanceTimersByTimeAsync(4000));expect(screen.getByText('COM-000123')).toBeTruthy();
+    expect(screen.getByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeTruthy();expect(screen.getByRole('button',{name:'Descargar comprobante PDF'})).toBeTruthy();expect(sends).toHaveLength(0);
     const calls=vi.mocked(fetch).mock.calls.length;await act(()=>vi.advanceTimersByTimeAsync(20000));expect(fetch).toHaveBeenCalledTimes(calls);
+  });
+  it('un ACK incoherente no muestra folio ni permite generar comprobantes institucionales',async()=>{
+    created=true;received={...registeredFixture,registro:{registro:{folio:'COM-000124'},comprobante:proof}};summary=nnaSummary(registeredFixture,{'nna-region':'13','nna-story':'Relato.'});
+    render(<NnaPage />);await screen.findByText('Registro institucional en verificación');
+    expect(screen.queryByText('COM-000124')).toBeNull();expect(screen.queryByRole('heading',{name:'Comunicación registrada'})).toBeNull();
+    expect(screen.queryByRole('button',{name:/comprobante PDF/})).toBeNull();expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();
+    expect(screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'})).toBeTruthy();expect(pdf.models).toHaveLength(0);expect(sends).toHaveLength(0);
   });
 });
