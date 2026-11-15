@@ -59,10 +59,11 @@ def run(args, *, input=None, check=True, capture=True):
 
 def new_workdir(path):
     work = Path(path).absolute()
+    # Antes de tocar el sistema de archivos: estas rutas pueden ni siquiera ser legibles.
+    if work.is_relative_to('/srv') or work.is_relative_to('/var/lib/docker'):
+        raise ValueError('El simulacro nunca trabaja bajo /srv ni el almacenamiento Docker')
     if any(p.is_symlink() or (p / '.git').exists() for p in [work, *work.parents]):
         raise ValueError('Directorio de trabajo fuera de Git y sin enlaces requerido')
-    if str(work).startswith(('/srv', '/var/lib/docker')):
-        raise ValueError('El simulacro nunca trabaja bajo /srv ni el almacenamiento Docker')
     work.mkdir(mode=0o700, parents=True, exist_ok=True)
     return work
 

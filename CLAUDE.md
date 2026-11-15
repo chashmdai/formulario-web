@@ -44,6 +44,7 @@ python3 scripts/qa/test_ubuntu_prepare.py
 python3 scripts/qa/test_ubuntu_backup.py
 python3 scripts/qa/test_ubuntu_preflight.py
 python3 scripts/qa/test_simulacro_restauracion.py
+python3 scripts/qa/test_actualizacion_desde_anterior.py
 
 # Empaquetado: valida Compose sin crear servicios y construye la imagen completa
 docker compose --env-file infra/ubuntu/.env.example -f infra/ubuntu/compose.yml config --quiet

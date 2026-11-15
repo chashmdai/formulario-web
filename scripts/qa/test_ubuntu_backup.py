@@ -239,9 +239,7 @@ class StreamingBackupTest(unittest.TestCase):
         self.check_no_temporaries()
 
     def test_scheduled_end_to_end_verifies_and_retains_with_simulated_tools(self):
-        installed = self.origin / 'release/scripts/ubuntu/respaldo.py'
-        installed.parent.mkdir(parents=True)
-        installed.write_bytes(SCRIPT.read_bytes())
+        # El programado usa su respaldo.py hermano; release/ no interviene (ver test_actualizacion_desde_anterior).
         directory = self.base / 'scheduled'
         directory.mkdir(mode=0o700)
         old = []

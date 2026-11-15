@@ -24,9 +24,11 @@ class SimulacroTest(unittest.TestCase):
         (Path(self.temp.name) / '.git').mkdir()
         with self.assertRaises(ValueError):
             simulacro.new_workdir(self.work)
-        for forbidden in ['/srv/ddn-formulario-produccion/simulacro', '/var/lib/docker/simulacro']:
-            with self.assertRaises(ValueError):
-                simulacro.new_workdir(forbidden)
+        # Se rechazan sin consultar el disco (en CI /var/lib/docker no es legible).
+        with patch.object(Path, 'exists', side_effect=PermissionError('sin acceso')):
+            for forbidden in ['/srv/ddn-formulario-produccion/simulacro', '/var/lib/docker/simulacro', '/srv']:
+                with self.assertRaises(ValueError):
+                    simulacro.new_workdir(forbidden)
 
     def test_overlay_closes_everything_isolates_network_and_publishes_nothing(self):
         work = simulacro.new_workdir(self.work)

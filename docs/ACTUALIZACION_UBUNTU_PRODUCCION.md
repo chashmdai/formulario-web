@@ -38,34 +38,43 @@ Propiedades nuevas (todas con valor por defecto seguro; no es necesario añadirl
 
 ## 2. Ventana productiva (como root en DDN-UBUNTU)
 
-Variables de ejemplo: `R=/srv/ddn-formulario-produccion`, `U=$R/updates/remediacion-20261115` (privado, 0700).
+Variables de ejemplo: `R=/srv/ddn-formulario-produccion`, `U=$R/updates/remediacion-20261115` (privado, 0700), `PKG=<paquete release-<sha12> copiado a la VM, fuera de Git>`, `P=$PKG/fuente/scripts/ubuntu`, `K=/srv/ddn-formulario-custodia/backup-encryption-key`, `M=/srv/ddn-formulario-respaldos/manual`.
 
-1. **Inventario sin secretos y espacio** (partición de 98 GiB):
+**Compatibilidad con lo instalado.** `release/` contiene las herramientas de `c16d135` (sin cambios desde el 04/11; copia en `scripts/qa/fixtures/instalado-c16d135/`): `respaldo.py` solo admite `backup|restore` y `respaldo-programado.py` solo `--root` (destino fijo `productivo-diario`, umbral fijo de 16 GiB, formato TAR sin comprimir con copia en claro: ~3× el tamaño). Las herramientas nuevas (`estimate`, `verify`, `--directory`, `--keep`, preflight) se ejecutan **desde el paquete verificado** (`$P`), sin instalarlas. El `respaldo-programado.py` nuevo invoca siempre el `respaldo.py` de su mismo directorio, nunca el de `release/`. `release/` no se modifica hasta el paso 6.
+
+1. **Verificar el paquete antes de usarlo** (sin cargar nada aún):
    ```bash
-   install -d -m 0700 "$U"
-   python3 <release>/fuente/scripts/ubuntu/preflight-actualizacion.py --root "$R" --snapshot "$U/preflight-antes.json"
-   df -h "$R" /var/lib/docker; docker system df
+   cd "$PKG" && sha256sum -c --quiet SHA256SUMS && python3 -c 'import json;print(json.load(open("manifiesto.json"))["commit"])'
    ```
-   Debe terminar sin `blockers`. `backupTimer` debe seguir `disabled`. Si el espacio libre no cubre el respaldo estimado (paso 3) más la imagen nueva, **detener**: no borrar respaldos, imágenes ni volúmenes para hacer sitio sin autorización.
-2. Registrar ID de imagen actual (`docker inspect` del contenedor `app`), `compose.env`, `installation.json` y el estado CAS (`GET /operacion/v1/control`) en `$U` (`*.before`). Coordinar con SIGER: no hay PULL efectivo sin clave ACK, pero registrar el estado.
-3. **Respaldo manual previo obligatorio** (no existe uno reciente recuperable; el timer no se reactiva):
+   El commit debe ser el aprobado en la sección 1.
+2. **Inventario sin secretos y espacio** (partición de 98 GiB):
    ```bash
-   python3 $R/release/scripts/ubuntu/respaldo.py estimate --private-dir "$R" --project ddn-formulario-produccion \
-     --pisee-private-dir "$R/pisee/runtime" --pisee-node-config "$R/pisee/config-produccion.json" --pisee-state-dir "$R/pisee/state" \
-     --output /srv/ddn-formulario-respaldos/manual/formulario-pre-remediacion.gpg
-   python3 $R/release/scripts/ubuntu/respaldo-programado.py --root "$R" --directory /srv/ddn-formulario-respaldos/manual
+   install -d -m 0700 "$U" "$M"
+   python3 "$P/preflight-actualizacion.py" --root "$R" --snapshot "$U/preflight-antes.json"
+   df -h "$R" "$M" /var/lib/docker; docker system df
    ```
-   El segundo comando cierra el CAS, respalda en streaming, verifica descifrado completo y manifiesto, y restaura el CAS exacto. Sin `--keep` no borra nada. Copiar el `.gpg` y su `.sha256` a un medio **externo** a la VM antes de continuar.
-4. Cerrar recepción/PULL por CAS (`productor.py --root "$R" close`) y esperar a que no haya leases activos.
-5. Importar la imagen nueva (sin build en la VM):
+   Debe terminar sin `blockers`. `backupTimer` debe seguir `disabled`. Registrar ID de imagen actual (`docker inspect` del contenedor `app`), `compose.env`, `installation.json` y el estado CAS (`GET /operacion/v1/control`) en `$U` (`*.before`). Coordinar con SIGER: no hay PULL efectivo sin clave ACK, pero registrar el estado.
+3. **Respaldo previo obligatorio con las herramientas del paquete** (no existe uno reciente recuperable; el timer no se reactiva):
    ```bash
-   cd <release> && sha256sum -c SHA256SUMS && gunzip -c imagen-app.tar.gz | docker load
+   python3 "$P/respaldo.py" estimate --private-dir "$R" --project ddn-formulario-produccion \
+     --pisee-private-dir "$R/pisee/runtime" --pisee-node-config "$R/pisee/config-produccion.json" \
+     --pisee-state-dir "$R/pisee/state" --output "$M/estimacion.gpg"
+   python3 "$P/respaldo-programado.py" --root "$R" --directory "$M" --key-file "$K"
    ```
-   Conservar la imagen anterior para reversión. Actualizar `release/` con `fuente/` del paquete, **sin tocar** `config/`, `secrets/`, `keys/`, `pki/`, `cu/`, `acceso-temporal/`, `pisee/`, `store/` ni `mysql*`.
-6. Actualizar únicamente `FORM_IMAGE` (y `FORM_SOURCE_REVISION`) en `compose.env`. No ejecutar `preparar.py` (solo inicializa destinos nuevos) ni `acceso-temporal.py provision|rotate|configure`.
+   `estimate` solo lee y no crea `estimacion.gpg`. Si `freeBytes` no supera `requiredFreeBytes` con margen para la imagen nueva (~0,2 GiB comprimida y ~0,6 GiB cargada, medida en el build del 15/11), **detener**: no borrar respaldos, imágenes ni volúmenes para hacer sitio sin autorización. `respaldo-programado.py` cierra el CAS, detiene brevemente solo los escritores del proyecto, respalda en streaming cifrado, ejecuta `verify` (SHA externo, descifrado completo e integridad GPG, manifiesto por archivo), reanuda los servicios con el `release/` actual y restaura el CAS exacto. Sin `--keep` no borra nada. Anotar `archive` y `sha256` de `$R/backup-last-success.json`.
+   *Alternativa solo si el paquete no puede usarse:* la herramienta instalada sin opciones, `python3 "$R/release/scripts/ubuntu/respaldo-programado.py" --root "$R"`, que escribe en `/srv/ddn-formulario-respaldos/productivo-diario` en el formato anterior y necesita libre ≥ 2× `bytesByCategory` + volcado + archivo (usar las cifras de `estimate`). Su archivo se verifica igualmente con `python3 "$P/respaldo.py" verify --archive <archivo> --key-file "$K"` (lectura compatible con el formato anterior).
+4. **Copia externa comprobada** antes de seguir. La clave `$K` nunca viaja con la copia:
+   ```bash
+   A=<archive de backup-last-success.json>; E=<medio o host externo montado, fuera de la VM>
+   cp --preserve=mode "$A" "$A.sha256" "$E"/
+   test "$(sha256sum "$E/$(basename "$A")" | cut -d' ' -f1)" = "$(cat "$A.sha256")" && echo copia-externa-ok
+   ```
+   Sin `copia-externa-ok` no se continúa. Registrar destino y SHA-256 en `$U` (sin rutas de evidencias ni datos personales).
+5. Cerrar recepción/PULL por CAS (`python3 "$R/release/scripts/ubuntu/productor.py" --root "$R" close`, admitido por la versión instalada) y esperar a que no haya leases activos. Importar la imagen nueva (sin build en la VM): `gunzip -c "$PKG/imagen-app.tar.gz" | docker load`. Conservar la imagen anterior para reversión.
+6. **Solo ahora** actualizar `release/` con `$PKG/fuente/` (guardar antes el `release/` anterior en `$U/release.before/`), **sin tocar** `config/`, `secrets/`, `keys/`, `pki/`, `cu/`, `acceso-temporal/`, `pisee/`, `store/` ni `mysql*`. Actualizar únicamente `FORM_IMAGE` (y `FORM_SOURCE_REVISION`) en `compose.env`. No ejecutar `preparar.py` (solo inicializa destinos nuevos) ni `acceso-temporal.py provision|rotate|configure`.
 7. Migrar V13 con el migrador inmutable: `<wrapper compose de installation.json> --profile migracion run --rm migrar`. Si falla, **no** continuar: la base queda en V12 y la imagen anterior sigue siendo compatible.
 8. Recrear solo lo necesario: `... up -d --no-build --wait app proxy`. No recrear `mysql`, `pisee`, `antivirus` ni `inspector` salvo cambio de imagen.
-9. Verificar: `productor.py --root "$R" verify`; salud de los seis servicios; `preflight-actualizacion.py --root "$R" --compare "$U/preflight-antes.json"` **sin blockers** (identidades, certificados, credenciales, contraseña temporal, configuración de acceso temporal y vencimiento idénticos; custodia y estado PISEE sin pérdida). Comprobar con la contraseña temporal vigente que el acceso funciona.
+9. Verificar: `python3 "$R/release/scripts/ubuntu/productor.py" --root "$R" verify`; salud de los seis servicios; `python3 "$P/preflight-actualizacion.py" --root "$R" --compare "$U/preflight-antes.json"` **sin blockers** (identidades, certificados, credenciales, contraseña temporal, configuración de acceso temporal y vencimiento idénticos; custodia y estado PISEE sin pérdida). Comprobar con la contraseña temporal vigente que el acceso funciona.
 10. Restaurar el CAS exactamente al estado registrado en el paso 2 (revisión esperada), no a uno distinto.
 
 ## 3. Preservación explícita
@@ -83,8 +92,8 @@ Variables de ejemplo: `R=/srv/ddn-formulario-produccion`, `U=$R/updates/remediac
 
 ## 4. Reversión
 
-- **Antes de migrar** (pasos 1–6): reponer `compose.env.before` y recrear `app`/`proxy` con la imagen anterior.
-- **Después de V13**: la imagen anterior es compatible con V13 (columna aditiva con valor por defecto; el código anterior no la lee). Revertir solo `compose.env`, `release/` y el Caddyfile anterior y recrear `app`/`proxy`. No bajar Flyway ni restaurar la base salvo corrupción comprobada; en ese caso, restaurar el respaldo del paso 3 en un **destino nuevo** (`respaldo.py restore`) y conciliar ACK/COMMIT con SIGER antes de elegir origen.
+- **Antes de migrar** (pasos 1–6): reponer `release.before/` y `compose.env.before` y recrear `app`/`proxy` con la imagen anterior.
+- **Después de V13**: la imagen anterior es compatible con V13 (columna aditiva con valor por defecto; el código anterior no la lee). Revertir solo `compose.env`, `release/` y el Caddyfile anterior y recrear `app`/`proxy`. No bajar Flyway ni restaurar la base salvo corrupción comprobada; en ese caso, restaurar el respaldo del paso 3 en un **destino nuevo** (`python3 "$P/respaldo.py" restore`, que lee ambos formatos) y conciliar ACK/COMMIT con SIGER antes de elegir origen.
 - Reabrir el CAS al estado previo registrado.
 
 ## 5. Decisiones institucionales pendientes (no se activan aquí)

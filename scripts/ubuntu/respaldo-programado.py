@@ -112,7 +112,12 @@ def main(argv=None):
         directory.mkdir(mode=0o700, exist_ok=True)
         stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         archive = directory / ('formulario-' + stamp + '.gpg')
-        script = str(op.root / 'release/scripts/ubuntu/respaldo.py')
+        # Siempre la herramienta hermana de ESTE script: ejecutado desde un paquete verificado no
+        # mezcla versiones con release/ (la instalada puede carecer de verify/estimate/capacidad).
+        sibling = Path(__file__).resolve().parent / 'respaldo.py'
+        if sibling.is_symlink() or not sibling.is_file():
+            raise ValueError('respaldo.py hermano requerido')
+        script = str(sibling)
         command = ['python3', script, 'backup', '--private-dir', str(op.root),
             '--project', op.meta['project'], '--pisee-private-dir', str(op.root / 'pisee/runtime'),
             '--pisee-node-config', str(op.root / 'pisee/config-produccion.json'),
