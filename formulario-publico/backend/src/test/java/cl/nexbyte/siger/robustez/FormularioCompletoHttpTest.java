@@ -54,6 +54,19 @@ class FormularioCompletoHttpTest {
         mvc.perform(post(path+"/personas/presentador-nna/declaracion").secure(true).session(session).with(csrf()).contentType("application/json").content("x".repeat(9000))).andExpect(status().isPayloadTooLarge());
         mvc.perform(post("/integracion/v3/entregas/reclamar").secure(true).header("Authorization","Bearer token-controlado-de-integracion-sintetico-2026").contentType("application/json").content("x".repeat(9000))).andExpect(status().isPayloadTooLarge());
     }
+    @Test void resumenDelComprobanteEsPrivadoHttpsYNoAlmacenable()throws Exception {
+        String key=UUID.randomUUID().toString();var story="Relato\n\n"+"ñ".repeat(4000);
+        mvc.perform(post(path+"/comunicaciones").secure(true).session(session).with(csrf()).header("Idempotency-Key",key).contentType("application/json").content(datos(story))).andExpect(status().isOk());
+        var summary="/api/formulario/comunicaciones/"+key+"/resumen";
+        var body=mvc.perform(get(summary).secure(true).session(session)).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
+            .andExpect(jsonPath("$.estado").value("PENDIENTE_REGISTRO_SIGER")).andExpect(jsonPath("$.registro").isEmpty()).andExpect(jsonPath("$.contenido.tipo").value("NNA"))
+            .andExpect(jsonPath("$.contenido.campos['nna-story']").value(story)).andExpect(jsonPath("$.contenido.personas[0].valoresDeclarados.primerNombre").value("NOMBRE"))
+            .andReturn().getResponse().getContentAsString();
+        assertEquals(mapper.readTree(mvc.perform(get("/api/formulario/comunicaciones/"+key).secure(true).session(session)).andReturn().getResponse().getContentAsString()).path("custodia"),mapper.readTree(body).path("custodia"));
+        mvc.perform(get(summary).session(session)).andExpect(status().isForbidden());
+        mvc.perform(get(summary).secure(true).session(new MockHttpSession())).andExpect(status().isNotFound());
+        mvc.perform(get(summary).secure(true)).andExpect(status().isNotFound());
+    }
     @Test void envioExigeHttpsPropiedadCsrfYClaveValida()throws Exception {
         var body=datos("Relato");var key=UUID.randomUUID().toString();
         mvc.perform(post(path+"/comunicaciones").secure(true).session(session).header("Idempotency-Key",key).contentType("application/json").content(body)).andExpect(status().isForbidden());

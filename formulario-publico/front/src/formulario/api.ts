@@ -31,7 +31,7 @@ export const startJourney = (tipo: JourneyKind, avisoVersion: string, aceptaCana
 export const cancelJourney = (id: string) => mutation<void>(`${root}/recorridos/${encodeURIComponent(id)}`, 'DELETE');
 export const resetPerson = (journey: string, person: string) => mutation<void>(`${path(journey, person)}/identificacion`, 'DELETE');
 /** Rechaza una proyección ampliada accidentalmente con atributos internos del Registro Civil. */
-function publicView(value: unknown): IdentityView {
+export function publicView(value: unknown): IdentityView {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiError(502);
   const v = value as Record<string, unknown>;
   const keys = ['personaId', 'estado', 'autenticada', 'runInformado', 'camposFaltantes', 'camposObligatorios', 'valoresDeclarados', 'mensaje'];

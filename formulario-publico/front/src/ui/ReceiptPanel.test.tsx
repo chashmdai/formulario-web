@@ -21,7 +21,7 @@ describe('Confirmación ciudadana con actualización automática',()=>{
   await act(()=>vi.advanceTimersByTimeAsync(4000));expect(check).toHaveBeenCalledTimes(1);
   rerender(<ReceiptPanel receipt={pending} busy onCheck={check} onDownload={download}/>);
   await act(()=>vi.advanceTimersByTimeAsync(20000));expect(check).toHaveBeenCalledTimes(1);
-  expect((screen.getByRole('button',{name:'Descargar comprobante de recepción'}) as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'}) as HTMLButtonElement).disabled).toBe(false);
   rerender(<ReceiptPanel receipt={pending} busy={false} onCheck={check} onDownload={download}/>);
   await act(()=>vi.advanceTimersByTimeAsync(4000));expect(check).toHaveBeenCalledTimes(2);
  });
@@ -29,11 +29,11 @@ describe('Confirmación ciudadana con actualización automática',()=>{
   const check=vi.fn().mockResolvedValue(undefined),download=vi.fn();
   const {rerender}=render(<ReceiptPanel receipt={pending} busy={false} onCheck={check} onDownload={download}/>);
   expect(document.querySelector('.receipt-waiting .ui-spinner')?.getAttribute('aria-hidden')).toBe('true');
-  expect(screen.queryByRole('button',{name:'Descargar comprobante institucional'})).toBeNull();
+  expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();
   rerender(<ReceiptPanel receipt={confirmed} busy={false} onCheck={check} onDownload={download}/>);
   expect(screen.getByRole('heading',{name:'Comunicación registrada'})).toBeTruthy();expect(screen.getByText('COM-000123')).toBeTruthy();
-  expect(screen.queryByRole('button',{name:'Actualizar estado'})).toBeNull();expect(screen.getByRole('heading',{name:'Guarda tus comprobantes'})).toBeTruthy();expect(screen.getByText(/Anota y guarda el folio/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button',{name:'Descargar comprobante institucional'}));
+  expect(screen.queryByRole('button',{name:'Actualizar estado'})).toBeNull();expect(screen.getByRole('heading',{name:'Guarda tu comprobante'})).toBeTruthy();expect(screen.getByText(/Anota y guarda el folio/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Descargar registro institucional (JSON)'}));
   expect(download).toHaveBeenCalledWith(confirmed.registro,'comprobante-institucional-'+pending.id+'.json');
   await act(()=>vi.advanceTimersByTimeAsync(90000));expect(check).not.toHaveBeenCalled();expect(document.querySelector('.receipt-waiting')).toBeNull();
  });
@@ -43,9 +43,22 @@ describe('Confirmación ciudadana con actualización automática',()=>{
   await act(()=>vi.advanceTimersByTimeAsync(60000));
   expect(screen.getByText(/El registro está tardando más/)).toBeTruthy();expect(screen.getByRole('alert').textContent).toContain('No pudimos actualizar');
   fireEvent.click(screen.getByRole('button',{name:'Reintentar consulta'}));expect(check).toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button',{name:'Descargar comprobante de recepción'}));
+  fireEvent.click(screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'}));
   expect(download).toHaveBeenCalledWith(pending.custodia,'comprobante-custodia-'+pending.id+'.json');
   expect(screen.queryByRole('button',{name:/Enviar/})).toBeNull();
+ });
+ it('el PDF es la acción principal, no se duplica mientras se prepara y un fallo conserva las evidencias',async()=>{
+  let finish:(value?:unknown)=>void=()=>{};const pdf=vi.fn(()=>new Promise(resolve=>{finish=resolve;}));const download=vi.fn();
+  render(<ReceiptPanel receipt={pending} busy={false} onCheck={vi.fn()} onDownload={download} onPdf={pdf}/>);
+  const button=screen.getByRole('button',{name:'Descargar comprobante PDF'});expect(button.className).toContain('btn-primary');
+  fireEvent.click(button);expect(pdf).toHaveBeenCalledWith(pending);
+  const busy=screen.getByRole('button',{name:'Preparando comprobante…'}) as HTMLButtonElement;expect(busy.disabled).toBe(true);fireEvent.click(busy);expect(pdf).toHaveBeenCalledTimes(1);
+  await act(async()=>{finish();});expect(screen.getByRole('button',{name:'Descargar comprobante PDF'})).toBeTruthy();expect(screen.queryByRole('alert')).toBeNull();
+  pdf.mockRejectedValueOnce(new Error('fallo controlado'));await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Descargar comprobante PDF'}));});
+  expect(screen.getByRole('alert').textContent).toMatch(/No pudimos preparar el comprobante PDF/);
+  expect(screen.getByText('Evidencias técnicas originales (JSON)').closest('details')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'}));expect(download).toHaveBeenCalledWith(pending.custodia,'comprobante-custodia-'+pending.id+'.json');
+  expect(screen.getByText(/no está firmado digitalmente/)).toBeTruthy();
  });
  it('cancela los temporizadores al salir y no consulta una recepción ya registrada',async()=>{
   const check=vi.fn().mockResolvedValue(undefined);

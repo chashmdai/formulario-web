@@ -22,12 +22,12 @@ describe('Experiencia ciudadana',()=>{
  });
  it('una custodia pendiente no inventa folio ni ofrece comprobante institucional',async()=>{
   const download=vi.fn(),check=vi.fn();render(<ReceiptPanel receipt={receipt} busy={false} onDownload={download} onCheck={check}/>);
-  expect(document.activeElement?.id).toBe('communication-receipt');expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();expect(screen.queryByText(/^Folio:/)).toBeNull();expect(screen.queryByRole('button',{name:'Descargar comprobante institucional'})).toBeNull();
-  await userEvent.click(screen.getByRole('button',{name:'Descargar comprobante de recepción'}));expect(download).toHaveBeenCalledWith(receipt.custodia,'comprobante-custodia-referencia-controlada.json');await userEvent.click(screen.getByRole('button',{name:'Actualizar estado'}));expect(check).toHaveBeenCalledOnce();
+  expect(document.activeElement?.id).toBe('communication-receipt');expect(screen.getByRole('heading',{name:'Recibimos tu comunicación'})).toBeTruthy();expect(screen.queryByText(/^Folio:/)).toBeNull();expect(screen.queryByRole('button',{name:'Descargar registro institucional (JSON)'})).toBeNull();
+  await userEvent.click(screen.getByRole('button',{name:'Descargar evidencia de custodia (JSON)'}));expect(download).toHaveBeenCalledWith(receipt.custodia,'comprobante-custodia-referencia-controlada.json');await userEvent.click(screen.getByRole('button',{name:'Actualizar estado'}));expect(check).toHaveBeenCalledOnce();
  });
  it('el registro confirmado muestra el folio y descarga el objeto firmado recibido sin alterarlo',async()=>{
   const registered:SubmissionState={...receipt,estado:'REGISTRADA_SIGER',registro:{registro:{folio:'FOLIO-CONTROLADO'},comprobante:receipt.custodia}},download=vi.fn();render(<ReceiptPanel receipt={registered} busy={false} onDownload={download} onCheck={vi.fn()}/>);
-  expect(screen.getByText('FOLIO-CONTROLADO')).toBeTruthy();await userEvent.click(screen.getByRole('button',{name:'Descargar comprobante institucional'}));expect(download).toHaveBeenCalledWith(registered.registro,'comprobante-institucional-referencia-controlada.json');
+  expect(screen.getByText('FOLIO-CONTROLADO')).toBeTruthy();await userEvent.click(screen.getByRole('button',{name:'Descargar registro institucional (JSON)'}));expect(download).toHaveBeenCalledWith(registered.registro,'comprobante-institucional-referencia-controlada.json');
  });
  it('una consulta de estado ocupada conserva el estado real y muestra el error recibido',()=>{
   render(<ReceiptPanel receipt={receipt} busy error="No pudimos actualizar el estado." onDownload={vi.fn()} onCheck={vi.fn()}/>);expect((screen.getByRole('button',{name:'Consultando estado…'}) as HTMLButtonElement).disabled).toBe(true);expect(screen.getByRole('alert').textContent).toBe('No pudimos actualizar el estado.');expect(screen.getByText('Registro institucional pendiente')).toBeTruthy();

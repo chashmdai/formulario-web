@@ -80,14 +80,31 @@ public final class RecepcionFormularioJdbc {
         sesion(session);var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE journey_id=? AND owner_session=?",journey.toString(),session);
         if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();return estado(UUID.fromString(row.get("id").toString()),row);
     }
-    private Estado estado(UUID id,Map<String,Object> row){
-        if(Boolean.TRUE.equals(row.get("content_retired"))) {
-            try {var c=cl.nexbyte.siger.custodia.ReciboMinimo.validar(row.get("minimal_receipt").toString(),id,trust,institutional,mapper);
-                if(!"COMPLETO".equals(c.cola())||!c.recorridoId().toString().equals(row.get("journey_id"))||!"CONFIRMADA".equals(row.get("state"))||!c.registro().equals(mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class)))throw new IllegalArgumentException();
-                return new Estado(id,"REGISTRADA_SIGER",c.custodia(),c.registro());
-            }catch(RuntimeException invalid){throw new FalloTecnico(503);}
-        }
+    /**
+     * Resumen legible del envío para su propietario. Se deriva del documento custodiado tras verificar huellas y firmas;
+     * no crea copias. Tras la retirada solo queda el recibo mínimo validado.
+     */
+    public ResumenComunicacion consultarResumen(UUID id,String session){
+        sesion(session);var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE id=? AND owner_session=?",id.toString(),session);
+        if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();
+        // Una sola validación criptográfica por consulta: el estado y la proyección se derivan del mismo documento verificado.
+        if(Boolean.TRUE.equals(row.get("content_retired"))){var c=minimo(id,row);return ResumenComunicacion.reducido(retirado(id,c),c);}
         var delivery=leer(row.get("body").toString(),id);
+        try{return ResumenComunicacion.completo(estado(id,row,delivery),delivery);}
+        catch(FalloTecnico error){throw error;}catch(RuntimeException invalid){throw new FalloTecnico(503);}
+    }
+    private static Estado retirado(UUID id,cl.nexbyte.siger.custodia.ReciboMinimo.Contenido c){return new Estado(id,"REGISTRADA_SIGER",c.custodia(),c.registro());}
+    private cl.nexbyte.siger.custodia.ReciboMinimo.Contenido minimo(UUID id,Map<String,Object> row){
+        try {var c=cl.nexbyte.siger.custodia.ReciboMinimo.validar(row.get("minimal_receipt").toString(),id,trust,institutional,mapper);
+            if(!"COMPLETO".equals(c.cola())||!c.recorridoId().toString().equals(row.get("journey_id"))||!"CONFIRMADA".equals(row.get("state"))||!c.registro().equals(mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class)))throw new IllegalArgumentException();
+            return c;
+        }catch(RuntimeException invalid){throw new FalloTecnico(503);}
+    }
+    private Estado estado(UUID id,Map<String,Object> row){
+        if(Boolean.TRUE.equals(row.get("content_retired")))return retirado(id,minimo(id,row));
+        return estado(id,row,leer(row.get("body").toString(),id));
+    }
+    private Estado estado(UUID id,Map<String,Object> row,EntregaFormulario delivery){
         if(row.get("ack")==null)return new Estado(id,"PENDIENTE_REGISTRO_SIGER",delivery.custodia(),null);
         try{var ack=mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class);delivery.validarRegistro(ack,institutional,mapper);
             if(!"CONFIRMADA".equals(row.get("state")))throw new FalloTecnico(503);return new Estado(id,"REGISTRADA_SIGER",delivery.custodia(),ack);

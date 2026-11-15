@@ -333,3 +333,9 @@ html[data-theme] .review-dialog :is(.review-note,.review-empty){font-size:.81rem
 html[data-theme] .review-dialog .review-note{padding:12px 14px;border-left:3px solid var(--link-tone);background:var(--surface-muted);border-radius:0 8px 8px 0}
 .receipt-next .receipt-follow-up{margin-top:12px}
 @media(max-width:600px){html[data-theme] dialog.review-dialog[open]{width:calc(100% - 24px)}html[data-theme] .review-dialog .review-section{padding:16px;margin-bottom:14px}html[data-theme] .review-dialog .summary-row{grid-template-columns:minmax(0,1fr);gap:4px}html[data-theme] .review-dialog .summary-row-long dd{padding:12px}.review-dialog .dialog-head p{font-size:.8rem}}
+.receipt-evidence{margin-top:22px;text-align:left;border:1px solid var(--neutral-border);border-radius:11px;background:var(--surface-muted);padding:0 17px}
+.receipt-evidence summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:.84rem;font-weight:600;color:var(--link-tone)}
+.receipt-evidence summary:focus-visible{outline:3px solid var(--link-tone);outline-offset:2px;border-radius:6px}
+.receipt-evidence p{font-size:.8rem;color:var(--subtle);line-height:1.6;margin:0 0 12px}
+.receipt-evidence-actions{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:16px}.receipt-evidence-actions .btn{flex:1 1 210px}
+@media(max-width:600px){.receipt-evidence-actions{flex-direction:column}.receipt-evidence-actions .btn{flex:auto}}

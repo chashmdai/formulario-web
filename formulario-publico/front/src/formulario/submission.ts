@@ -12,7 +12,7 @@ export interface SubmissionState {
 export interface CompleteCapture {campos: Record<string,string>; personas: PersonReference[]; instituciones: InstitutionReference[]; adjuntos: string[]}
 const root = '/api/formulario';
 const journeyPath = (id: string) => `${root}/recorridos/${encodeURIComponent(id)}`;
-function state(value: SubmissionState): SubmissionState {
+export function parseSubmission(value: SubmissionState): SubmissionState {
   if (!value || !['PENDIENTE_REGISTRO_SIGER','REGISTRADA_SIGER'].includes(value.estado) || !value.id || !value.custodia
     || (value.estado === 'REGISTRADA_SIGER' && !value.registro?.registro?.folio) || (value.estado === 'PENDIENTE_REGISTRO_SIGER' && value.registro !== null)) throw new ApiError(502);
   return value;
@@ -20,10 +20,10 @@ function state(value: SubmissionState): SubmissionState {
 export async function getSubmission(id: string): Promise<SubmissionState> {
   const controller=new AbortController();
   const timeout=window.setTimeout(()=>controller.abort(),12000);
-  try {return state(await json<SubmissionState>(`${root}/comunicaciones/${encodeURIComponent(id)}`,{signal:controller.signal}));}
+  try {return parseSubmission(await json<SubmissionState>(`${root}/comunicaciones/${encodeURIComponent(id)}`,{signal:controller.signal}));}
   finally {window.clearTimeout(timeout);}
 }
-export async function getJourneySubmission(id: string): Promise<SubmissionState> {return state(await json<SubmissionState>(`${journeyPath(id)}/comunicacion`));}
+export async function getJourneySubmission(id: string): Promise<SubmissionState> {return parseSubmission(await json<SubmissionState>(`${journeyPath(id)}/comunicacion`));}
 export const getReceptionCapabilities = () => json<{nna: boolean; adultos: boolean; multimedia?: boolean}>(`${root}/recepcion/capacidades`);
 export const listAttachments = (journey:string) => json<Attachment[]>(`${journeyPath(journey)}/adjuntos`);
 export async function submitCapture(journey: string, key: string, body: CompleteCapture): Promise<SubmissionState> {
@@ -31,7 +31,7 @@ export async function submitCapture(journey: string, key: string, body: Complete
   const response = await fetch(`${journeyPath(journey)}/comunicaciones`, {method: 'POST', credentials: 'same-origin', cache: 'no-store',
     headers: {'Content-Type': 'application/json', [csrf.headerName]: csrf.token, 'Idempotency-Key': key}, body: JSON.stringify(body)});
   if (!response.ok) throw new ApiError(response.status);
-  return state(await response.json() as SubmissionState);
+  return parseSubmission(await response.json() as SubmissionState);
 }
 export const submitNna=submitCapture;
 export function attachmentPort(journey: string): AttachmentPort {

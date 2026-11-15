@@ -1,5 +1,6 @@
 import {FormToolbar, FormProgress, LoadingState} from '../ui/FormChrome';
 import {ReceiptPanel} from '../ui/ReceiptPanel';
+import {downloadEvidence} from '../comprobante/evidence';
 import {ExitDialog} from '../ui/ExitDialog';
 import {useUnsavedChanges} from '../ui/useUnsavedChanges';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -23,10 +24,6 @@ import '../prototipo/prototipo.css';
 import '../prototipo/inicio.css';
 import '../ui/experience.css';
 
-function download(data: unknown, filename: string) {
-  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
-  const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url);
-}
 export default function NnaPage() {
   const [mediaEnabled,setMediaEnabled]=useState(false);
   const [dirty,setDirty]=useState(false),[exit,setExit]=useState(false);
@@ -79,7 +76,7 @@ export default function NnaPage() {
             {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
             <NnaFlow mediaEnabled={mediaEnabled} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(campos,identity,attachments)=>{setError('');setReview({campos,identity,attachments});}} />
           </div>}
-          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={check} />}
+          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={downloadEvidence} onCheck={check} />}
         </main>
       </div>
     </div>

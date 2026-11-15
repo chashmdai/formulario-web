@@ -45,6 +45,17 @@ class ReceptorTransitorioTest {
   assertEquals(404,assertThrows(FalloTecnico.class,()->t.f.journeys.consultar(t.f.journey,t.f.session)).status);
   assertEquals(409,assertThrows(FalloTecnico.class,()->t.reception.recibir(t.communication,t.f.journey,t.f.session,new DatosFormulario(Map.of("nna-story","alterado"),List.of(),List.of(),List.of()))).status);
  }
+ @Test void resumenLegibleAntesYDespuesDeRetirarSoloConservaElReciboMinimo()throws Exception{
+  receive(false);var full=t.reception.consultarResumen(t.communication,t.f.session);
+  assertEquals("Relato sintético",full.contenido().campos().get("nna-story"));assertEquals("respaldo.txt",full.contenido().adjuntos().getFirst().nombre());assertTrue(full.archivosRetirados().isEmpty());
+  app=service(true);proofs.aceptar(proof(t.communication,"COMPLETO"));app.ejecutar();t.due();proofs.aceptar(proof(t.communication,"COMPLETO"));
+  assertEquals(1,app.ejecutar().minimizadas());
+  var reduced=t.reception.consultarResumen(t.communication,t.f.session);var json=t.f.mapper.writeValueAsString(reduced);
+  assertNull(reduced.contenido());assertEquals("REGISTRADA_SIGER",reduced.estado());assertEquals(full.custodia(),reduced.custodia());assertEquals(full.registro(),reduced.registro());
+  assertEquals(List.of(new ResumenComunicacion.ArchivoMinimo(t.attachment,full.contenido().adjuntos().getFirst().tamanio(),full.contenido().adjuntos().getFirst().sha256())),reduced.archivosRetirados());
+  for(var gone:List.of("Relato sintético","respaldo.txt","NOMBRE","APELLIDO"))assertFalse(json.contains(gone),"El comprobante reducido no debe reconstituir "+gone);
+  assertEquals(404,assertThrows(FalloTecnico.class,()->t.reception.consultarResumen(t.communication,"c".repeat(64))).status);
+ }
  @Test void firmaDeAckNoEsGarantiaYUnaGarantiaCaducadaNoBorra()throws Exception{
   receive(false);app=service(true);app.ejecutar();t.due();app.ejecutar();t.intact();
   var valid=proof(t.communication,"COMPLETO");proofs.aceptar(valid);t.now.addAndGet(Duration.ofHours(25).toMillis());app.ejecutar();t.intact();assertTrue(t.reserved()>0);

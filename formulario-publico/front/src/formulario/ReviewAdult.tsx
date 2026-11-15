@@ -1,46 +1,21 @@
 import {useDialogFocus} from '../ui/useDialogFocus';
-import {fileSize} from '../ui/AttachmentStatus';
 import { useEffect, useRef } from 'react';
 import type { Session } from '../api';
 import type { IdentityView } from './api';
-import {groupIndexes,groupFields} from './adultRules';
 import type { AdultCapture } from './adultRules';
 import type { Attachment } from './NnaFlow';
-import { regiones } from './territorio';
+import {adultSections} from './reviewModel';
+import {SummarySections} from './SummarySections';
 export interface AdultReview {capture:AdultCapture;presenter:IdentityView;people:ReadonlyMap<string,IdentityView>;files:Attachment[]}
-const labels:Record<string,string>={motivo:'Motivo principal',tema:'Tipo de consulta','consulta-confirmada':'Orientación revisada','stats-confirm':'Fuentes públicas revisadas','consulta-general-detalle':'Consulta general','entrevista-motivo':'Motivo de la entrevista','entrevista-rol':'Perfil de quien solicita','entrevista-rol-otro':'Otro perfil','entrevista-entidad':'Institución o medio','stats-descripcion':'Información solicitada','stats-periodo':'Periodo','stats-desglose':'Desglose','adult-region':'Región de residencia','adult-commune':'Comuna de residencia','adult-address':'Dirección informada',email:'Correo electrónico',telefono:'Celular',relato:'Relato',riesgo:'Riesgo inminente',relacion:'Relación','relacion-familiar':'Parentesco','hechos-region':'Región de los hechos','hechos-commune':'Comuna de los hechos',lugar:'Lugar de referencia','identifica-responsables':'Identifica personas o instituciones',organizacion:'Representa una organización','tipo-organizacion':'Tipo de organización','nombre-organizacion':'Nombre de la organización',actividad:'Actividad',publico:'Público destinatario','fecha-actividad':'Fecha tentativa','promocion-region':'Región de la actividad','promocion-commune':'Comuna de la actividad',primerNombre:'Primer nombre',segundoNombre:'Segundo nombre',primerApellido:'Primer apellido',segundoApellido:'Segundo apellido',fechaNacimiento:'Fecha de nacimiento',sexo:'Sexo registral',edad:'Edad aproximada',alias:'Alias o nombre conocido',rol:'Vínculo con la situación relatada',region:'Región',comuna:'Comuna',datosDesconocidos:'No conoce otros datos del NNA',nombre:'Nombre',tipo:'Tipo','adult-preferred':'Nombre preferido','adult-treatment':'Preferencia de tratamiento','adult-treatment-text':'Tratamiento indicado','afectados-modalidad':'Identificación de afectados',nacionalidad:'Nacionalidad',tipoDocumento:'Tipo de documento',numeroDocumento:'Número de documento',descripcion:'Antecedentes del grupo',cantidad:'Cantidad aproximada de NNA',edades:'Edades o tramo aproximado'};
-const options:Record<string,string>={consulta:'Realizar una consulta',vulneracion:'Informar una vulneración de derechos',promocion:'Actividad de Promoción y Difusión',general:'Consulta general',entrevista:'Entrevista',estadisticas:'Estudios, publicaciones o estadísticas sobre niñez y adolescencia',si:'Sí',no:'No',true:'Sí',false:'No',estudiante:'Estudiante',independiente:'Persona independiente / a título personal',prensa:'Prensa o medio de comunicación',otro:'Otro',madre:'Madre',padre:'Padre',cuidador:'Cuidador o cuidadora','otro-familiar':'Otro familiar',docente:'Docente o profesional educativo',salud:'Profesional de salud',testigo:'Persona testigo',organizacion:'Representante de una organización',individual:'Individualmente',grupal:'Grupos de NNA',mixta:'Personas y grupos',nombre:'Usen mi nombre',ella:'Ella',el:'Él',elle:'Elle',otra:'De otra forma',noresponde:'Prefiero no responder',PASAPORTE:'Pasaporte',IDENTIDAD_EXTRANJERA:'Documento de identidad extranjero',OTRO:'Otro documento de identificación'};
-const enumKeys=new Set(['motivo','tema','consulta-confirmada','stats-confirm','entrevista-rol','riesgo','relacion','identifica-responsables','organizacion','datosDesconocidos','adult-treatment','afectados-modalidad','tipoDocumento']);
-function translated(key:string,value:string){if(key.endsWith('-region')||key==='region')return regiones[value]||value;return enumKeys.has(key)?options[value]||value:value;}
-const contactKeys=new Set(['email','telefono']);
-const locationKeys=new Set(['adult-region','adult-commune','adult-address','hechos-region','hechos-commune','lugar','promocion-region','promocion-commune']);
-const storyKeys=new Set(['relato','consulta-general-detalle','entrevista-motivo','stats-descripcion']);
-const preferenceKeys=new Set(['adult-preferred','adult-treatment','adult-treatment-text']);
-function Section({title,values,description}:{title:string;values:Record<string,string>;description?:string}){
- const rows=Object.entries(values).filter(([,value])=>value);
- return <section className="dialog-section review-section" aria-label={title}><h3>{title}</h3>{description&&<p className="review-note">{description}</p>}{rows.length?<dl>{rows.map(([key,value])=><div className={`summary-row${storyKeys.has(key)||value.length>180||value.includes('\n')?' summary-row-long':''}`} key={key}><dt>{labels[key]||key}</dt><dd>{translated(key,value)}</dd></div>)}</dl>:<p className="review-empty">Sin datos en esta sección.</p>}</section>;
-}
 export function ReviewAdult({review,session,busy,locked,error,onBack,onSend,onCheck}:{review:AdultReview;session:Session|null;busy:boolean;locked:boolean;error:string;onBack:()=>void;onSend:()=>void;onCheck:()=>void}){
   const dialog=useRef<HTMLDialogElement>(null);useDialogFocus(dialog);useEffect(()=>{const current=dialog.current;current?.showModal();return()=>current?.close();},[]);
-  const identity=review.presenter.autenticada&&session?.authenticated&&session.identity?{RUN:session.identity.run,Nombres:session.identity.nombres,Apellidos:session.identity.apellidos}:review.presenter.valoresDeclarados;
   useEffect(()=>{if(error)dialog.current?.querySelector<HTMLElement>('[role=alert]')?.scrollIntoView?.({block:'nearest',behavior:'auto'});},[error]);
-  const counts=new Map<string,number>();
-  const entries=Object.entries(review.capture.campos).filter(([key])=>!key.startsWith('grupo-nna-'));
-  const pick=(keys:Set<string>)=>Object.fromEntries(entries.filter(([key])=>keys.has(key)));
-  const communication=Object.fromEntries(entries.filter(([key])=>![contactKeys,locationKeys,storyKeys,preferenceKeys].some(keys=>keys.has(key))));
-  const identityDescription=review.presenter.autenticada?'Identidad autenticada con ClaveÚnica.':review.presenter.camposFaltantes.includes('tipoDocumento')?'Los antecedentes de tu documento son declarados por ti; no equivalen a una identidad autenticada.':'Identificación declarada. Los antecedentes recuperados del Registro Civil se mantienen protegidos y no se muestran aquí.';
+  const authenticatedIdentity=review.presenter.autenticada&&session?.authenticated&&session.identity?{run:session.identity.run,nombres:session.identity.nombres,apellidos:session.identity.apellidos}:null;
+  const sections=adultSections({campos:review.capture.campos,personas:review.capture.personas,instituciones:review.capture.instituciones,presenter:review.presenter,authenticatedIdentity,people:review.people,files:review.files});
   return <dialog className="dialog review-dialog" id="vista-previa" ref={dialog} aria-labelledby="modal-titulo" aria-describedby="modal-descripcion" onCancel={e=>{if(busy||locked)e.preventDefault();else onBack();}}>
     <div className="dialog-head"><div><h2 id="modal-titulo">Revisión de tu comunicación</h2><p id="modal-descripcion">Este es el resumen de lo que nos contarás. Puedes volver al formulario si necesitas cambiar algo.</p></div><button type="button" className="dialog-close" aria-label="Cerrar revisión" disabled={busy||locked} onClick={onBack}><svg className="icon"><use href="#i-x" /></svg></button></div>
     <div className="dialog-body" id="resumen">
-      <Section title="Identificación" description={identityDescription} values={{...identity,...pick(preferenceKeys)} as Record<string,string>}/>
-      <Section title="Contacto" values={pick(contactKeys)}/>
-      <Section title="Ubicación" values={pick(locationKeys)}/>
-      <Section title="Comunicación" values={communication}/>
-      <Section title="Relato" values={pick(storyKeys)}/>
-      {groupIndexes(review.capture.campos).map(index=><Section key={index} title={'Grupo de NNA '+index} values={Object.fromEntries(groupFields.map(field=>[field,review.capture.campos['grupo-nna-'+index+'-'+field]||'']))}/>)}
-      {review.capture.personas.map(p=>{const kind=p.personaId.split('-')[0],number=(counts.get(kind)||0)+1;counts.set(kind,number);const v=review.people.get(p.personaId);return <Section key={p.personaId} title={`${kind==='afectado'?'NNA':kind==='relacionado'?'Persona adulta relacionada':'Persona señalada'} ${number}`} values={{...v?.valoresDeclarados,RUN:v?.runInformado?'Informado':'No informado',...p.detalles}} />;})}
-      {review.capture.instituciones.map((entity,i)=><Section key={i} title={`Institución ${i+1}`} values={{...entity}} />)}
-      <Section title="Archivos adjuntos" values={Object.fromEntries(review.files.length?review.files.map((file,i)=>[`Archivo ${i+1}`,`${file.nombre} · ${fileSize(file.tamanio)}`]):[['Archivos','Sin archivos adjuntos']])} />
+      <SummarySections sections={sections}/>
       {error&&<p role="alert" className="field-error">{error}</p>}</div>
     <div className="dialog-foot"><p>Al enviar, tu comunicación se conserva para su gestión por la Defensoría.</p><div className="dialog-buttons"><button type="button" className="btn btn-secondary" disabled={busy||locked} onClick={onBack}>Volver al formulario</button>{locked&&error&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={onCheck}>Comprobar recepción</button>}<button type="button" className="btn btn-primary" disabled={busy} aria-busy={busy||undefined} onClick={onSend}>{busy?'Enviando…':locked?'Reintentar el mismo envío':'Enviar comunicación'}</button></div></div>
   </dialog>;

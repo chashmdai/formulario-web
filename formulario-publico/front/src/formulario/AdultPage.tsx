@@ -1,5 +1,6 @@
 import {FormToolbar, FormProgress, LoadingState} from '../ui/FormChrome';
 import {ReceiptPanel} from '../ui/ReceiptPanel';
+import {downloadEvidence} from '../comprobante/evidence';
 import {ExitDialog} from '../ui/ExitDialog';
 import {useUnsavedChanges} from '../ui/useUnsavedChanges';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -80,7 +81,6 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
     finally{sending.current=false;setBusy(false);}
   }
   async function check(){const id=receipt?.id||attempt.current?.key;if(!id||sending.current)return;sending.current=true;setBusy(true);try{setReceipt(await getSubmission(id));setReview(null);setError('');}catch{setError(receipt?'No pudimos actualizar el estado. Volveremos a intentarlo automáticamente. Puedes guardar tu comprobante de recepción; no necesitas enviar nuevamente tu comunicación.':'No pudimos recuperar una recepción confirmada. Puedes reintentar el mismo envío.');}finally{sending.current=false;setBusy(false);}}
-  function download(value:unknown,name:string){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url);}
   const authenticated=journey?.tipo!=='ADULTO_CU'||session?.authenticated;
   return <>
     <a className="skip" href="#principal">Saltar al formulario</a><InstitutionalHeader {...preferences} title="Formulario para personas adultas" sessionAction={session?.authenticated&&kind==='ADULTO_CU'&&csrf&&<form action="/auth/logout" method="post" className="session-action"><input type="hidden" name={csrf.parameterName} value={csrf.token} /><button className="btn btn-secondary" type="submit">Cerrar sesión</button></form>} onHome={()=>{if(dirty&&!receipt)setExit(true);else window.location.assign('/?vista=inicio');}} />
@@ -96,7 +96,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
             {!available&&<p role="status" className="reception-notice">La recepción está temporalmente cerrada. Puedes revisar el formulario, pero no enviarlo.</p>}
             <AdultFlow mediaEnabled={mediaEnabled} key={journey.id} journey={journey} session={session} full={full} filePort={files} initialAttachments={initialFiles} navigationRef={navigation} onStep={setStep} onReview={async(capture,presenter,people,attached)=>{setError('');setReview({capture,presenter,people,files:attached});}} />
           </>}
-          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={download} onCheck={check} />}
+          {receipt&&<ReceiptPanel receipt={receipt} busy={busy} error={error} onDownload={downloadEvidence} onCheck={check} />}
         </main></div></div>
 
     {privacy&&<PrivacyDialog busy={busy} error={error} onClose={()=>window.location.assign('/?vista=inicio')} onAccept={()=>{void accept();}} />}
