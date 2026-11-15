@@ -10,7 +10,11 @@ import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/formulario/recorridos/{id}")
 public class MultimediaController{
  private final ObjectProvider<CargasMultimedia> service;private final ObjectProvider<cl.nexbyte.siger.formulario.AdjuntosFormulario> files;
- public MultimediaController(ObjectProvider<CargasMultimedia> service,ObjectProvider<cl.nexbyte.siger.formulario.AdjuntosFormulario> files){this.service=service;this.files=files;}
+ private final TransferenciaPrivada transferencias;
+ public MultimediaController(ObjectProvider<CargasMultimedia> service,
+         ObjectProvider<cl.nexbyte.siger.formulario.AdjuntosFormulario> files,TransferenciaPrivada transferencias){
+  this.service=service;this.files=files;this.transferencias=transferencias;
+ }
  private CargasMultimedia enabled(HttpServletRequest r){if(!r.isSecure())throw new FalloTecnico(403);var s=service.getIfAvailable();if(s==null)throw new FalloTecnico(503);return s;}
  private static <T>ResponseEntity<T> ok(T value){return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(value);}
  @GetMapping("/multimedia/politica") ResponseEntity<Map<String,Object>> politica(@PathVariable UUID id,HttpServletRequest r){var s=enabled(r);s.lote(id,SesionIngreso.actual(r));return ok(Map.of("habilitada",true,"limites",s.politica(),"formatos",s.politica().formatos(),"deshabilitados",Map.of("doc","Word binario: validación segura no habilitada","heic","Decodificación HEIC no verificada","heif","Decodificación HEIF no verificada")));}
@@ -23,6 +27,6 @@ public class MultimediaController{
  @GetMapping("/multimedia/manifiesto") ResponseEntity<CargasMultimedia.Lote> lote(@PathVariable UUID id,HttpServletRequest r){return ok(enabled(r).lote(id,SesionIngreso.actual(r)));}
  @PostMapping("/multimedia/manifiesto") ResponseEntity<CargasMultimedia.Lote> confirmar(@PathVariable UUID id,@RequestBody CargasMultimedia.Manifest body,HttpServletRequest r){return ok(enabled(r).confirmar(id,SesionIngreso.actual(r),body));}
  @GetMapping("/adjuntos/{adjunto}/vista") ResponseEntity<CargasMultimedia.Vista> vista(@PathVariable UUID id,@PathVariable UUID adjunto,HttpServletRequest r){return ok(enabled(r).vista(id,adjunto,SesionIngreso.actual(r)));}
- @RequestMapping(path="/adjuntos/{adjunto}/representacion",method={RequestMethod.GET,RequestMethod.HEAD}) void representar(@PathVariable UUID id,@PathVariable UUID adjunto,HttpServletRequest r,HttpServletResponse response)throws IOException{var source=enabled(r).representacion(id,adjunto,SesionIngreso.actual(r),files.getObject());TransferenciaPrivada.enviar(source,true,r,response);}
+ @RequestMapping(path="/adjuntos/{adjunto}/representacion",method={RequestMethod.GET,RequestMethod.HEAD}) void representar(@PathVariable UUID id,@PathVariable UUID adjunto,HttpServletRequest r,HttpServletResponse response)throws IOException{var source=enabled(r).representacion(id,adjunto,SesionIngreso.actual(r),files.getObject());transferencias.enviarCiudadano(source,true,r,response);}
 
 }

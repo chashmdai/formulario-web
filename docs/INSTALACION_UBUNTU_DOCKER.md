@@ -42,7 +42,7 @@ sudo docker build -t "ddn-caddy:$REV" -f infra/sandbox/Dockerfile infra/sandbox
 sudo docker image inspect "ddn-formulario:$REV" --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
 ```
 
-Usar SHA candidato revisado H1 o uno posteriormente aprobado, no cualquier main futuro. Build ejecuta npm ci/lint/pruebas/build React y regresión H2 sin carga. Recuentos: [evidencia](VERIFICACION_GATE_H1_2026-11-01.md). Imagen final JRE/curl/JAR, sin fixtures/tests/secretos de etapas anteriores.
+Usar SHA candidato revisado H1 o uno posteriormente aprobado, no cualquier main futuro. Build ejecuta npm ci/lint/pruebas/build React y regresión H2 sin carga. Recuentos: [evidencia](VERIFICACION_GATE_H1_2026-11-01.md). Imagen final JRE/JAR con sonda de salud Java (sin curl desde 15/11/2026), sin fixtures/tests/secretos de etapas anteriores.
 
 Node/Maven/JRE por digest; MySQL8.4.11/Caddy2.11.7 por versión. Se reutiliza el wrapper sin file capabilities de infra/sandbox/Dockerfile para ejecutar8443 con cap_drop ALL. Registrar IDs/digests. apt/firmas AV evolucionan: proceso/fuente reproducibles no significa bytes idénticos en otras fechas. Retener imágenes aprobadas para rollback. docker save/load permite transporte con SHA256 e IDs verificados.
 

@@ -29,7 +29,17 @@
       <resource><directory>../front/dist</directory><targetPath>static</targetPath></resource>
       <resource><directory>../front/src/formulario</directory><targetPath>catalogos</targetPath><includes><include>territorio.json</include><include>paises.json</include></includes></resource>
     </resources>
-    <plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins>
+    <plugins>
+      <plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <siger.build.directory>${project.build.directory}</siger.build.directory>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
   <profiles><profile><id>agente-core</id>
     <properties><project.build.outputTimestamp>2026-10-25T00:00:00Z</project.build.outputTimestamp></properties>

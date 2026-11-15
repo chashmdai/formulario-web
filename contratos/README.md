@@ -1,5 +1,18 @@
 # Referencia vigente para integrar el Formulario Público completo
 
+## Vectores aditivos NNA con procedencia SRCeI (15/11/2026)
+
+La [nota de procedencia del RUN](NOTA_PROCEDENCIA_RUN_SRCEI.md) explica el alcance y la confirmación pendiente del consumidor SIGER. Estos vectores sintéticos nuevos no sustituyen fixtures ni contratos históricos:
+
+| Documento completo | Fixture firmado | ACK sintético |
+|---|---|---|
+| 1.0 · sin adjuntos | [formulario-nna-srcei-v1.0.json](fixtures/formulario-nna-srcei-v1.0.json) | [registro-nna-srcei-v1.0.json](fixtures/registro-nna-srcei-v1.0.json) |
+| 1.1 · TXT sintético | [formulario-nna-srcei-v1.1.json](fixtures/formulario-nna-srcei-v1.1.json) | [registro-nna-srcei-v1.1.json](fixtures/registro-nna-srcei-v1.1.json) |
+
+Confianza exclusivamente de prueba: [clave pública del Formulario](fixtures/public-nna-srcei-test.json) y [clave pública institucional sintética](fixtures/institution-public-nna-srcei-test.json). No instalar estas claves en un ambiente operativo.
+
+## Referencia de integración conservada
+
 El consumidor SIGER debe tomar como base `/integracion/v3/formulario-completo/entregas`, el [baseline evolutivo](../docs/BASELINE_FORMULARIO_PUBLICO_2026-10-24.md), la [custodia completa](../docs/CUSTODIA_FORMULARIO_COMPLETO.md) y la [extensión documental 1.0/1.1](formulario-completo-multimedia-v1.1.md). Sin opt-in se reclama solo 1.0; 1.1 requiere `X-Formulario-Versiones: 1.0,1.1`. No confundir versión documental, versión del comprobante institucional y número de ruta HTTP.
 
 El [cierre de main](../docs/CIERRE_CICLO_MAIN_2026-10-24.md) contiene resultados y banderas; el [visor](../docs/VISOR_INSTITUCIONAL_MULTIMEDIA.md) define separación entre documentos del ingreso y de gestión. SIGER aún debe adaptar y probar su consumidor. Redacciones, opciones y eventuales eliminaciones de campos no congelan este baseline ni impiden iniciar la integración; coordinar solo los efectos contractuales reales.

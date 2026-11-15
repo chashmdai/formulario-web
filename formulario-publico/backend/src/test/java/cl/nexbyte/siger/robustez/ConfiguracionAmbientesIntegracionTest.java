@@ -53,7 +53,10 @@ class ConfiguracionAmbientesIntegracionTest {
         e.setActiveProfiles("jdbc-reception","production");return e;
     }
     RecorridosJdbc journeys(MockEnvironment e,ClientePisee client){
-        return ReflectionTestUtils.invokeMethod(new FormularioConfiguration(),"recorridosJdbc",db,mapper,client,e);
+        // Sin minimización de borradores (apagada por defecto): proveedor vacío.
+        var minimizacion=new org.springframework.beans.factory.support.StaticListableBeanFactory()
+            .getBeanProvider(cl.nexbyte.siger.custodia.MinimizacionBorradores.class);
+        return ReflectionTestUtils.invokeMethod(new FormularioConfiguration(),"recorridosJdbc",db,mapper,client,e,minimizacion);
     }
     ClientePisee fake(){
         var c=mock(ClientePisee.class);

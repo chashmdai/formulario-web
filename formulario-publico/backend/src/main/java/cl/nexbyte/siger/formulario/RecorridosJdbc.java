@@ -21,6 +21,10 @@ public final class RecorridosJdbc {
     private java.util.function.BooleanSupplier admision=()->true;
     public RecorridosJdbc admision(java.util.function.BooleanSupplier guard){this.admision=Objects.requireNonNull(guard);return this;}
     private void capacidad(){if(!admision.getAsBoolean())throw new FalloTecnico(507);}
+    private Consumer<UUID> minimizacionCancelada=id->{};
+    public RecorridosJdbc minimizacionBorradores(Consumer<UUID> minimizar) {
+        this.minimizacionCancelada=Objects.requireNonNull(minimizar);return this;
+    }
     private final BaseJdbc db;
     private final JsonMapper mapper;
     private final Function<RunConsulta,ResultadoSrcei> proveedor;
@@ -41,8 +45,11 @@ public final class RecorridosJdbc {
         if(!aviso(tipo).equals(aviso)||(tipo!=Tipo.NNA&&!acepta))throw new FalloTecnico(409);
         limitar(address,true);
         var id=UUID.randomUUID();long now=clock.millis(),expires=now+Duration.ofHours(4).toMillis();
-        db.sql.update("INSERT INTO citizen_journey(id,owner_session,kind,notice_version,accepted_channel,state,query_count,created_ms,expires_ms) VALUES(?,?,?,?,?,'BORRADOR',0,?,?)",
-            id.toString(),session,tipo.name(),aviso,acepta,now,expires);
+        db.sql.update("""
+            INSERT INTO citizen_journey(id,owner_session,kind,notice_version,accepted_channel,state,
+                query_count,created_ms,expires_ms,media_origin_ref)
+            VALUES(?,?,?,?,?,'BORRADOR',0,?,?,?)
+            """,id.toString(),session,tipo.name(),aviso,acepta,now,expires,bucket(address));
         return new Recorrido(id,tipo,aviso,acepta,"BORRADOR",Instant.ofEpochMilli(expires));
     }
     public Recorrido consultar(UUID id,String session) {return recorrido(fila(id,session,false));}
@@ -53,7 +60,12 @@ public final class RecorridosJdbc {
         if(db.sql.update("UPDATE citizen_journey SET state='RECIBIDO' WHERE id=? AND state='BORRADOR'",id.toString())!=1)throw new FalloTecnico(409);
     }
     public void cancelar(UUID id,String session) {
-        db.transaction(()->{fila(id,session,true);db.sql.update("UPDATE citizen_journey SET state='CANCELADO' WHERE id=? AND state='BORRADOR'",id.toString());return null;});
+        boolean changed=db.transaction(()->{
+            fila(id,session,true);
+            return db.sql.update("UPDATE citizen_journey SET state='CANCELADO' WHERE id=? AND state='BORRADOR'",id.toString())==1;
+        });
+        // Confirmar primero: el minimizador toma gate de almacén antes del lock SQL del recorrido.
+        if(changed)minimizacionCancelada.accept(id);
     }
     private Map<String,Object> fila(UUID id,String session,boolean lock) {
         validarSession(session);if(id==null)throw new FalloTecnico(404);

@@ -25,13 +25,15 @@ RUN mvn -B -ntp -Dtest="*Test,!Carga*Test" -DargLine=-Xmx384m verify \
     && grep -qx "BOOT-INF/classes/static/index.html" /tmp/jar-entries
 
 FROM eclipse-temurin:25-jre@sha256:ecdc0adb37bde1a281c4d245a3cd535004b1fc8322d560f5b09463b248c81df0 AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
 ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/chashmdai/formulario-web" \
       org.opencontainers.image.revision=$SOURCE_REVISION
 WORKDIR /app
 COPY --from=backend --chown=1000:1000 /build/formulario-publico/backend/target/formulario-publico-0.1.0-SNAPSHOT.jar /app/formulario.jar
+# Sonda compilada con el JDK fijado; el runtime no instala paquetes adicionales.
+COPY --from=backend --chown=1000:1000 \
+    /build/formulario-publico/backend/target/classes/cl/nexbyte/siger/config/SaludHttp.class \
+    /app/healthcheck/cl/nexbyte/siger/config/SaludHttp.class
 USER 1000:1000
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65 -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8080

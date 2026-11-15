@@ -1,0 +1,21 @@
+{
+  "registro" : {
+    "version" : "1.1",
+    "emisor" : "SIGER_DDN",
+    "hecho" : "COMUNICACION_REGISTRADA",
+    "operacionPublicaId" : "66666666-6666-4666-8666-666666666670",
+    "comunicacionId" : "66666666-6666-4666-8666-666666666680",
+    "numeroFolio" : 1,
+    "folio" : "COM-1",
+    "registradaEn" : "2026-11-15T12:00:00Z",
+    "canalOrigen" : "FORMULARIO_WEB_NNA",
+    "sha256" : "277f40bf49f67c6ffecdcd31ee8de29d3c612f5821533020441f72c83840ec56",
+    "huellaProcedencia" : "dfa631787f07fee7d3b6e80d615f4086a214986f8192687ea29a8929cadcf91f"
+  },
+  "comprobante" : {
+    "algoritmo" : "Ed25519",
+    "keyId" : "nna-srcei-institution-test",
+    "payload" : "eyJ2ZXJzaW9uIjoiMS4xIiwiZW1pc29yIjoiU0lHRVJfREROIiwiaGVjaG8iOiJDT01VTklDQUNJT05fUkVHSVNUUkFEQSIsIm9wZXJhY2lvblB1YmxpY2FJZCI6IjY2NjY2NjY2LTY2NjYtNDY2Ni04NjY2LTY2NjY2NjY2NjY3MCIsImNvbXVuaWNhY2lvbklkIjoiNjY2NjY2NjYtNjY2Ni00NjY2LTg2NjYtNjY2NjY2NjY2NjgwIiwibnVtZXJvRm9saW8iOjEsImZvbGlvIjoiQ09NLTEiLCJyZWdpc3RyYWRhRW4iOiIyMDI2LTExLTE1VDEyOjAwOjAwWiIsImNhbmFsT3JpZ2VuIjoiRk9STVVMQVJJT19XRUJfTk5BIiwic2hhMjU2IjoiMjc3ZjQwYmY0OWY2N2M2ZmZlY2RjZDMxZWU4ZGUyOWQzYzYxMmY1ODIxNTMzMDIwNDQxZjcyYzgzODQwZWM1NiIsImh1ZWxsYVByb2NlZGVuY2lhIjoiZGZhNjMxNzg3ZjA3ZmVlN2QzYjZlODBkNjE1ZjQwODZhMjE0OTg2ZjgxOTI2ODdlYTI5YTg5MjljYWRjZjkxZiJ9",
+    "firma" : "Ou1rxdd4mijNaz2C8E6zFBXqV0RbauwdqUSZmfg5ZgL_WZGtZb2bT_jrPlOM7BPnQOVX7-QbmeDxWddCLX8VDQ"
+  }
+}

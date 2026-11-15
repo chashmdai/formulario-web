@@ -41,6 +41,9 @@ python3 scripts/qa/test_media_archive.py
 python3 scripts/qa/test_media_storage_report.py
 python3 scripts/qa/test_runtime_jar.py
 python3 scripts/qa/test_ubuntu_prepare.py
+python3 scripts/qa/test_ubuntu_backup.py
+python3 scripts/qa/test_ubuntu_preflight.py
+python3 scripts/qa/test_simulacro_restauracion.py
 
 # Empaquetado: valida Compose sin crear servicios y construye la imagen completa
 docker compose --env-file infra/ubuntu/.env.example -f infra/ubuntu/compose.yml config --quiet
@@ -71,6 +74,6 @@ docker build --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" -t formulario-h
 - `agente-custodia/`: agente Java nativo para Windows Server (lab 1.1.0), auxiliar y opcional para la recepción; la emisión hacia un Formulario en servicio está bloqueada.
 - `contratos/`: especificaciones firmadas y fixtures (inmutables en las versiones 1.0/1.1).
 - `infra/ubuntu/`: Compose integrado (MySQL 8.4, aplicación, Caddy, inspector, ClamAV), Caddyfiles, unidades systemd y plantillas. El origen privado publica solo `127.0.0.1:24443`. Los demás `infra/compose.*.yml` y `infra/sandbox` corresponden a laboratorios.
-- `scripts/ubuntu/`: `preparar.py` (inicializa **solo** un destino nuevo fuera de Git; no arranca ni migra), `estado.py`, `respaldo*.py`, `transicion.py`, `acceso-temporal.py`, `validar-rc1.py`. `scripts/linux/`: archivo de medios y lanzador del JAR. `scripts/qa/`: regresiones sintéticas.
+- `scripts/ubuntu/`: `preparar.py` (inicializa **solo** un destino nuevo fuera de Git; no arranca ni migra), `estado.py`, `respaldo*.py`, `transicion.py`, `acceso-temporal.py`, `validar-rc1.py`, `preflight-actualizacion.py` (solo lectura) y `simulacro-restauracion.py` (proyecto Docker aislado `ddn-simulacro-*`). Actualización productiva: `docs/ACTUALIZACION_UBUNTU_PRODUCCION.md`. `scripts/linux/empaquetar-release.py` genera el paquete de release desde `git archive`. `scripts/linux/`: archivo de medios y lanzador del JAR. `scripts/qa/`: regresiones sintéticas.
 - Los scripts `.ps1`/`FORMULARIO.cmd` son lanzadores históricos del laboratorio Windows.
 - `.local/` (ignorado por Git) contiene material de trabajo local; no versionarlo.

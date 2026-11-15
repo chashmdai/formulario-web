@@ -13,6 +13,13 @@ formulario.acceso-temporal.expira=2026-12-15T00:00:00-03:00[America/Santiago]
 formulario.acceso-temporal.hash-path=/run/keys/acceso-temporal-password.hash
 formulario.acceso-temporal.apertura-path=/run/keys/acceso-temporal-apertura.json
 formulario.acceso-temporal.limites-path=/var/lib/acceso-temporal/limites.json
+# 5 fallos por origen y, por defecto, 500 globales por ventana de 15 min.
+# Rango global permitido: 50..1000; hasta 1000 orígenes HMAC, sin IP en claro.
+# Usa formulario.origen.* (cabecera interna solo desde proxy confiable; IPv6 /64).
+# limites.json conserva el formato anterior; la ventana vencida se descarta al siguiente intento.
+formulario.acceso-temporal.max-fallos-globales=500
+# Al vencer, con aprobación de apertura y recepción vigente, continúa en OPEN.
+# Sin ambas aprobaciones queda UNAVAILABLE. La contraseña y el hash pbkdf2-v5_8 no cambian.
 publico.db.url=jdbc:mysql://mysql:3306/formulario_publico?sslMode=VERIFY_IDENTITY&connectTimeout=5000&socketTimeout=30000
 publico.db.user=formulario_app
 publico.db.pool=8
@@ -58,8 +65,46 @@ formulario.multimedia.antivirus-config=/run/config/clamd.conf
 formulario.multimedia.inspector-socket=/ipc/inspector/inspector.sock
 formulario.multimedia.cuota-global=10GB
 formulario.multimedia.minimo-libre=2GB
+# Reservas activas por origen confiable (HMAC del origen de inicio del recorrido; IPv6 /64).
+# Los recorridos anteriores a V13 comparten un grupo conservador de origen desconocido.
+# origen-bytes se calcula como cuota-global / 4 si se omite; debe ser menor que cuota-global.
+# formulario.multimedia.origen-bytes=2560MB
+formulario.multimedia.origen-reservas=24
+# Sin bloques recibidos: vence a los 15 min. Limpieza perezosa antes de reservar,
+# independiente de ciclo-vida.online-habilitado, hasta 20 candidatos por llamada (más antiguos primero).
+formulario.multimedia.sin-progreso-ms=900000
+# RECIBIENDO con cualquier offset vence a los 30 min desde el último bloque aceptado.
+# inactividad-ms debe ser >= sin-progreso-ms y <= venceMs (plazo absoluto actual: 24 h).
+formulario.multimedia.inactividad-ms=1800000
+# También libera reservas vencidas por expires_ms. ANALIZANDO sin worker vivo y con lease
+# vencido pasa a REINTENTABLE conservando bytes/cuota; sólo los libera al vencer expires_ms.
 capacidad.minimo-libre=4GB
+# Minimización de identidad de borradores: autorización institucional y plazo aprobado requeridos.
+# Independiente del ciclo de vida/retirada de custodia. No habilitar como parte de un despliegue.
+formulario.minimizacion-borradores.habilitada=false
+# ISO-8601; desde expires_ms (caducidad del recorrido), entre PT1H y P90D.
+# formulario.minimizacion-borradores.plazo=PT48H
+# ISO-8601; entre PT1M y P1D. Primera pasada un minuto después del arranque.
+# formulario.minimizacion-borradores.intervalo=PT5M
 ciclo-vida.online-habilitado=false
 ciclo-vida.eliminacion.habilitada=false
 ciclo-vida.modalidad=GARANTIA_INDEPENDIENTE
 ciclo-vida.ack-riesgo-aceptado=false
+
+# U4: transferencias concurrentes. Cupos SIGER exclusivos, sin cuota ciudadana por origen.
+# OrigenCliente aplica formulario.origen.*; sin proxy confiable usa el par TCP (IPv6 /64).
+# Cada cupo admite 1..16. Los contadores de origen desaparecen al liberar el último permiso.
+formulario.transferencias.cargas=6
+formulario.transferencias.cargas-por-origen=1
+formulario.transferencias.descargas=8
+formulario.transferencias.descargas-por-origen=2
+formulario.transferencias.descargas-siger=2
+# Plazos totales ISO-8601 (100 ms..24 h), independientes de los timeouts de inactividad.
+# Bloques: lectura Servlet no bloqueante, hasta 8 MiB por cupo; no conserva cuerpos parciales.
+# Descargas: escritura Servlet no bloqueante; SIGER dispone de su propio plazo para archivos grandes.
+formulario.transferencias.plazo-carga=PT3M
+formulario.transferencias.plazo-descarga=PT10M
+formulario.transferencias.plazo-siger=PT15M
+# Caddy: FORM_BODY_TIMEOUT=5m cubre también multipart clásico (26 MiB) y debe ser >= plazo-carga; FORM_WRITE_TIMEOUT=15m
+# debe ser >= plazo-siger. Si se amplían plazos, ajustar también transport read/write_timeout
+# en Caddyfile*. Tomcat connection-timeout=10s es inactividad, no el plazo total.

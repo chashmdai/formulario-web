@@ -1,4 +1,5 @@
 package cl.nexbyte.siger.robustez;
+import cl.nexbyte.siger.soporte.SalidaPruebas;
 
 import cl.nexbyte.siger.identidad.*;
 import cl.nexbyte.siger.entrega.SobreComunicacion;
@@ -169,9 +170,9 @@ class RecepcionJdbcTest {
     @Test void generaVectorDeContratoV2SinVersionarClavePrivada()throws Exception{
         var id=UUID.fromString("22222222-2222-4222-8222-222222222222");receive(id,"Vector sintético de contrato v2");
         var json=db.sql.queryForObject("SELECT body FROM public_delivery WHERE id=?",String.class,id.toString());
-        Files.writeString(Path.of("target/entrega-v2-generada.json"),json);
+        Files.writeString(SalidaPruebas.archivo("entrega-v2-generada.json"),json);
         var pem="-----BEGIN PUBLIC KEY-----\n"+Base64.getMimeEncoder(64,new byte[]{'\n'}).encodeToString(keys.getPublic().getEncoded())+"\n-----END PUBLIC KEY-----\n";
-        Files.writeString(Path.of("target/receipt-public-test.json"),mapper.writeValueAsString(Map.of("test-ed25519-v1",pem)));
+        Files.writeString(SalidaPruebas.archivo("receipt-public-test.json"),mapper.writeValueAsString(Map.of("test-ed25519-v1",pem)));
     }
 
  static final cl.nexbyte.siger.contrato.DeclaracionNna NNA=new cl.nexbyte.siger.contrato.DeclaracionNna("María José",null,"Del Río",null,null,null," Calle  sintética ",null,"Región sintética");
@@ -196,7 +197,7 @@ class RecepcionJdbcTest {
   var changed=new HashMap<>(saved.procedencia());changed.put("primerNombre",new EntregaVerificada.Atributo("CLAVE_UNICA_USERINFO","IDENTIDAD_AUTENTICADA",body.recibidaEn(),id));
   assertThatThrownBy(()->new EntregaVerificada("2.1",body,changed,saved.comprobante()).validar(Map.of("nna-fixture-v1",keys.getPublic()),mapper)).isInstanceOf(IllegalArgumentException.class);
   assertThatThrownBy(()->new EntregaVerificada("2.0",body,saved.procedencia(),saved.comprobante())).isInstanceOf(IllegalArgumentException.class);
-  Files.writeString(Path.of("target/entrega-nna-v2.1.json"),mapper.writeValueAsString(saved));
-  Files.writeString(Path.of("target/public-nna-test.json"),mapper.writeValueAsString(Map.of("nna-fixture-v1","-----BEGIN PUBLIC KEY-----\n"+Base64.getMimeEncoder(64,new byte[]{'\n'}).encodeToString(keys.getPublic().getEncoded())+"\n-----END PUBLIC KEY-----\n")));
+  Files.writeString(SalidaPruebas.archivo("entrega-nna-v2.1.json"),mapper.writeValueAsString(saved));
+  Files.writeString(SalidaPruebas.archivo("public-nna-test.json"),mapper.writeValueAsString(Map.of("nna-fixture-v1","-----BEGIN PUBLIC KEY-----\n"+Base64.getMimeEncoder(64,new byte[]{'\n'}).encodeToString(keys.getPublic().getEncoded())+"\n-----END PUBLIC KEY-----\n")));
  }
 }

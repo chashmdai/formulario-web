@@ -17,6 +17,8 @@ server:
       min-spare: 8
     max-connections: 512
     accept-count: 256
+    # Inactividad de lectura; los plazos totales de bloques/descargas viven en formulario.transferencias.*.
+    # No elevar a minutos para acomodar SIGER: las descargas usan escritura Servlet no bloqueante.
     connection-timeout: 10s
     max-swallow-size: 8KB
   address: ${SIGER_BIND_ADDRESS:127.0.0.1}

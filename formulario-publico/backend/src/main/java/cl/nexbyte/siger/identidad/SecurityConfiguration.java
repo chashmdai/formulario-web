@@ -1,5 +1,6 @@
 package cl.nexbyte.siger.identidad;
 
+import cl.nexbyte.siger.config.OrigenCliente;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import org.springframework.context.annotation.Bean;
@@ -101,7 +102,7 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain security(HttpSecurity http, ClientRegistrationRepository registrations,
             RestClientAuthorizationCodeTokenResponseClient tokenClient, ClaveUnicaOidcUserService userService,
-            ClaveUnicaProperties properties,Environment environment,AccesoTemporal accesoTemporal) throws Exception {
+            ClaveUnicaProperties properties,Environment environment,AccesoTemporal accesoTemporal,OrigenCliente origenCliente) throws Exception {
         var contextRepository = new HttpSessionSecurityContextRepository();
         if (properties.getEnvironment() == ClaveUnicaProperties.Stage.PRODUCTION) {
             http.redirectToHttps(org.springframework.security.config.Customizer.withDefaults());
@@ -124,7 +125,7 @@ public class SecurityConfiguration {
                     response.setContentType("application/problem+json");
                     response.getWriter().write("{\"title\":\"Sesión requerida o expirada\",\"status\":401}");
                 }));
-        http.addFilterAfter(new AccesoTemporalFilter(accesoTemporal),org.springframework.security.web.csrf.CsrfFilter.class);
+        http.addFilterAfter(new AccesoTemporalFilter(accesoTemporal,origenCliente),org.springframework.security.web.csrf.CsrfFilter.class);
         if (properties.isHabilitada()) {
             var resolver = new DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization");
             resolver.setAuthorizationRequestCustomizer(builder -> builder.scopes(new java.util.LinkedHashSet<>(java.util.List.of("openid", "run", "name"))));

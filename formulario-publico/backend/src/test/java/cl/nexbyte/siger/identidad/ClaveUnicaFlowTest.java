@@ -243,7 +243,8 @@ class ClaveUnicaFlowTest {
                 .withProperty("formulario.acceso-temporal.limites-path",dir.resolve("limits").toString());
         var gate=new AccesoTemporal(env,java.time.Clock.fixed(Instant.parse("2026-11-03T20:00:00Z"),java.time.ZoneOffset.UTC),()->false,tools.jackson.databind.json.JsonMapper.builder().build());
         var protectedMvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(application)
-                .addFilters(new AccesoTemporalFilter(gate)).apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
+                .addFilters(new AccesoTemporalFilter(gate,new cl.nexbyte.siger.config.OrigenCliente(env)))
+                .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
         var session=new MockHttpSession();assertThat(gate.authenticate(password,"127.0.0.1",session)).isEqualTo(AccesoTemporal.Result.ACCEPTED);
         protectedMvc.perform(get("/api/session").secure(true).session(session)).andExpect(jsonPath("$.authenticated").value(false));
         var start=protectedMvc.perform(get("/oauth2/authorization/claveunica").secure(true).session(session)).andExpect(status().is3xxRedirection()).andReturn();

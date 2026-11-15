@@ -4,6 +4,7 @@ Requires=docker.service
 After=docker.service ddn-formulario-produccion.service
 
 [Service]
+# Retención opt-in del operador; ExecStart distribuido no elimina copias.
 Type=oneshot
 UMask=0077
 ExecStart=/usr/bin/python3 /srv/ddn-formulario-produccion/release/scripts/ubuntu/respaldo-programado.py --root /srv/ddn-formulario-produccion

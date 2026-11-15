@@ -1,6 +1,7 @@
 package cl.nexbyte.siger.robustez;
 import jakarta.servlet.*;import jakarta.servlet.http.*;
-import java.io.*;import java.nio.charset.StandardCharsets;import java.util.*;import java.util.concurrent.Semaphore;import java.util.concurrent.atomic.LongAdder;
+import java.io.*;import java.nio.charset.StandardCharsets;import java.util.*;import java.util.concurrent.Semaphore;import java.util.concurrent.atomic.AtomicBoolean;import java.util.concurrent.atomic.LongAdder;
+import cl.nexbyte.siger.multimedia.CuposTransferencia;
 import org.springframework.stereotype.Component;import org.springframework.core.annotation.Order;import org.springframework.core.env.Environment;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -8,9 +9,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component @Order(-200)
 public final class LimitesCarga extends OncePerRequestFilter{
     private final Semaphore admission;private final int capacity;private final int maxBytes;
-    private final Semaphore uploads=new Semaphore(2);
+    private final CuposTransferencia transferencias;
     private final LongAdder rejected=new LongAdder(),oversized=new LongAdder();
-    public LimitesCarga(Environment env){
+    public LimitesCarga(Environment env,CuposTransferencia transferencias){
+        this.transferencias=transferencias;
         capacity=env.getProperty("recepcion.limites.concurrentes",Integer.class,64);maxBytes=env.getProperty("recepcion.limites.bytes",Integer.class,8192);
         if(capacity<1||capacity>256||maxBytes<4096||maxBytes>65536)throw new IllegalArgumentException("Límites inválidos");
         admission=new Semaphore(capacity);
@@ -25,8 +27,12 @@ public final class LimitesCarga extends OncePerRequestFilter{
         int limit=block?8*1024*1024:upload?26*1024*1024:uri.matches("/api/formulario/recorridos/[a-fA-F0-9-]{36}/comunicaciones")?65536:maxBytes;
         if(upload&&request.getContentLengthLong()<0){reject(response,411);return;}
         if(request.getContentLengthLong()>limit){oversized.increment();reject(response,413);return;}
-        if((upload||block)&&!uploads.tryAcquire()){rejected.increment();reject(response,429);return;}
-        if(!admission.tryAcquire()){if(upload||block)uploads.release();rejected.increment();reject(response,429);return;}
+        CuposTransferencia.Permiso permiso;
+        try{permiso=upload||block?transferencias.carga(request):null;}
+        catch(FalloTecnico lleno){rejected.increment();reject(response,429);return;}
+        if(!admission.tryAcquire()){if(permiso!=null)permiso.close();rejected.increment();reject(response,429);return;}
+        var liberado=new AtomicBoolean();
+        Runnable liberar=()->{if(liberado.compareAndSet(false,true)){admission.release();if(permiso!=null)permiso.close();}};
         try{
             // Solo JSON: no consumir formularios de logout/CSRF ni cambiar su semántica.
             if(type!=null&&type.toLowerCase(Locale.ROOT).startsWith("application/json")){
@@ -43,7 +49,15 @@ public final class LimitesCarga extends OncePerRequestFilter{
                 };
                 chain.doFilter(wrapped,response);
             }else chain.doFilter(request,response);
-        }finally{admission.release();if(upload||block)uploads.release();}
+        }finally{
+            if(request.isAsyncStarted())request.getAsyncContext().addListener(new AsyncListener(){
+                public void onComplete(AsyncEvent e){liberar.run();}
+                public void onError(AsyncEvent e){liberar.run();}
+                public void onTimeout(AsyncEvent e){/* El lector completa la petición; onComplete libera. */}
+                public void onStartAsync(AsyncEvent e){e.getAsyncContext().addListener(this);}
+            });
+            else liberar.run();
+        }
     }
     private static void reject(HttpServletResponse response,int status)throws IOException{
         response.setStatus(status);response.setContentType("application/problem+json");response.setCharacterEncoding("UTF-8");

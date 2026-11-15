@@ -40,7 +40,7 @@ ClamAV: StreamMaxLength 160M, MaxFileSize 150M, MaxScanSize 300M y AlertExceedsM
 
 ## Proxy, Spring, MySQL y capacidad
 
-El PUT raw de bloques admite hasta 8 388 608 bytes; el filtro de admisión conserva dos cargas concurrentes. No depende de ampliar multipart: el camino histórico mantiene 10/26 MiB y se rechaza para cargas nuevas con multimedia activa. `infra/media/Caddyfile.bloques` se importa dentro del sitio HTTPS existente y limita ese PUT a 8 MiB. Se validó su sintaxis con Caddy 2.11.7; no se recargó el proxy del baseline. La finalización devuelve 202 sin mantener una respuesta HTTP abierta durante el análisis.
+El PUT raw de bloques admite hasta 8 388 608 bytes; el filtro de admisión aplica los cupos `formulario.transferencias.*` (6 cargas globales, 1 por origen, plazo total PT3M por bloque; desde 2026-11-15). No depende de ampliar multipart: el camino histórico mantiene 10/26 MiB y se rechaza para cargas nuevas con multimedia activa. `infra/media/Caddyfile.bloques` se importa dentro del sitio HTTPS existente y limita ese PUT a 8 MiB. Se validó su sintaxis con Caddy 2.11.7; no se recargó el proxy del baseline. La finalización devuelve 202 sin mantener una respuesta HTTP abierta durante el análisis.
 
 El navegador integrado se verificó contra TLS nativo 19443, sin Cloudflare. Bloques de 8 MiB están por debajo de los límites por petición publicados por [Cloudflare](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/4xx-client-error/error-413/); no se configuró ni probó ese servicio. Deben verificarse timeouts, WAF, buffering y publicación real antes de habilitarlo.
 

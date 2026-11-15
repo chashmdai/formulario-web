@@ -1,4 +1,5 @@
 package cl.nexbyte.siger.robustez;
+import cl.nexbyte.siger.soporte.SalidaPruebas;
 
 import cl.nexbyte.siger.identidad.*;
 import jakarta.servlet.*;import jakarta.servlet.http.*;
@@ -80,9 +81,9 @@ class CargaAcumuladaTest {
         report.put("generacionSegundos",generationSeconds);report.put("generacionPorSegundo",count/generationSeconds);report.put("primeraConfirmacionSegundos",first);
         report.put("recuperacionIncluyendoArranqueSegundos",seconds);report.put("confirmacionesPorSegundo",count/seconds);report.put("foliosUnicos",folios.size());report.put("comunicacionesUnicas",communications.size());
         report.put("respuestaAckPerdidaDespuesDelCommit",true);report.put("comprobanteEstableTrasReintento",true);report.put("fuentesExternasContactadas",false);
-        Files.writeString(Path.of("target/carga-acumulada.json"),mapper.writerWithDefaultPrettyPrinter().writeValueAsString(report));
+        Files.writeString(SalidaPruebas.archivo("carga-acumulada.json"),mapper.writerWithDefaultPrettyPrinter().writeValueAsString(report));
         Files.writeString(output.resolve("resultado-publico.json"),mapper.writeValueAsString(report));
-        Files.writeString(Path.of("target/registro-institucional-v3.json"),mapper.writeValueAsString(store.consultar(ids.getFirst(),identity.run()).registroInstitucional()));
+        Files.writeString(SalidaPruebas.archivo("registro-institucional-v3.json"),mapper.writeValueAsString(store.consultar(ids.getFirst(),identity.run()).registroInstitucional()));
         waitFor(output.resolve("fin.signal"),120); // Coordinador comprueba inbox/ACK antes de cerrar Tomcat.
     }
     static void waitFor(Path signal,int seconds)throws Exception{long until=System.nanoTime()+Duration.ofSeconds(seconds).toNanos();while(!Files.exists(signal)){if(System.nanoTime()>until)throw new AssertionError("Falta señal del coordinador de pruebas");Thread.sleep(100);}}

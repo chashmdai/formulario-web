@@ -84,7 +84,10 @@ class ReceptorTransitorioTest {
   assertEquals(1,app.ejecutar().minimizadas());assertEquals("NORMAL",new ControlesOperacion(t.f.db).estado().contingencia());assertTrue(new ControlesOperacion(t.f.db).estado().aceptarNuevos());
  }
  @Test void abandonoSinArchivosTambienRetiraIdentidadYElPendienteSeConserva()throws Exception{
-  app=service(true);t.due();assertNotNull(t.f.db.sql.queryForObject("SELECT body FROM citizen_person",String.class));app.ejecutar();assertEquals(0,t.f.db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person",Integer.class));
+  app=service(true);t.due();assertNotNull(t.f.db.sql.queryForObject("SELECT body FROM citizen_person",String.class));
+  app.ejecutar();assertEquals(1,t.f.db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person",Integer.class));
+  var borradores=new MinimizacionBorradores(t.f.db,t.f.store,t.clock,Duration.ofHours(48));
+  assertEquals(1,borradores.ejecutar().minimizadas());assertEquals(0,t.f.db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person",Integer.class));
  }
  @Test void pendienteNoSeMinimizaAunqueVenzaElRecorrido()throws Exception{
   receive(false);t.f.db.sql.update("UPDATE citizen_submission SET state='PENDIENTE',ack=NULL WHERE id=?",t.communication.toString());app=service(true);t.due();app.ejecutar();assertEquals(t.signed,t.f.db.sql.queryForObject("SELECT body FROM citizen_submission WHERE id=?",String.class,t.communication.toString()));assertTrue(Files.exists(t.f.store.original(t.attachment)));
@@ -127,7 +130,10 @@ class ReceptorTransitorioTest {
  }
 
  @Test void metadatosDeBorradorVencenSinBorrarRecibosDeComunicaciones()throws Exception{
-  app=service(true);t.due();app.ejecutar();assertEquals(0,t.f.db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person",Integer.class));
+  app=service(true);t.due();
+  var borradores=new MinimizacionBorradores(t.f.db,t.f.store,t.clock,Duration.ofHours(48));
+  assertEquals(1,borradores.ejecutar().minimizadas());
+  app.ejecutar();assertEquals(0,t.f.db.sql.queryForObject("SELECT COUNT(*) FROM citizen_person",Integer.class));
   t.now.addAndGet(Duration.ofDays(8).toMillis());app.ejecutar();assertEquals(0,t.f.db.sql.queryForObject("SELECT COUNT(*) FROM citizen_journey",Integer.class));assertFalse(app.ejecutar().solapada());
  }
 

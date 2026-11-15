@@ -10,7 +10,16 @@ import org.springframework.util.unit.DataSize;
 import tools.jackson.databind.json.JsonMapper;
 @Configuration @Profile("jdbc-reception") @ConditionalOnProperty(name={"formulario.habilitado","formulario.multimedia.habilitada"},havingValue="true")
 public class MultimediaConfiguration{
- @Bean PoliticaMultimedia politicaMultimedia(Environment e){var p=PoliticaMultimedia.propuesta();return new PoliticaMultimedia(e.getProperty("formulario.multimedia.cantidad",Integer.class,p.cantidad()),size(e,"total",p.total()),size(e,"bloque",p.bloque()),size(e,"imagen",p.imagen()),size(e,"documento",p.documento()),size(e,"audio",p.audio()),size(e,"video",p.video()),size(e,"cuota-global",p.global()),size(e,"minimo-libre",p.libreMinimo()),p.venceMs());}
+ @Bean PoliticaMultimedia politicaMultimedia(Environment e){
+  var p=PoliticaMultimedia.propuesta();long global=size(e,"cuota-global",p.global());
+  return new PoliticaMultimedia(e.getProperty("formulario.multimedia.cantidad",Integer.class,p.cantidad()),
+      size(e,"total",p.total()),size(e,"bloque",p.bloque()),size(e,"imagen",p.imagen()),
+      size(e,"documento",p.documento()),size(e,"audio",p.audio()),size(e,"video",p.video()),
+      global,size(e,"minimo-libre",p.libreMinimo()),p.venceMs(),size(e,"origen-bytes",Math.max(1,global/4)),
+      e.getProperty("formulario.multimedia.origen-reservas",Integer.class,p.origenReservas()),
+      e.getProperty("formulario.multimedia.sin-progreso-ms",Long.class,p.sinProgresoMs()),
+      e.getProperty("formulario.multimedia.inactividad-ms",Long.class,p.inactividadMs()));
+ }
  private static long size(Environment e,String key,long fallback){return DataSize.parse(e.getProperty("formulario.multimedia."+key,Long.toString(fallback)+"B")).toBytes();}
  @Bean AlmacenPrivado almacenPrivado(Environment e)throws java.io.IOException{return new AlmacenPrivado(Path.of(e.getRequiredProperty("formulario.multimedia.directorio")));}
  @Bean(destroyMethod="close") CargasMultimedia cargasMultimedia(BaseJdbc db,RecorridosJdbc journeys,AlmacenPrivado store,PoliticaMultimedia policy,JsonMapper mapper,Environment e)throws java.io.IOException{

@@ -1,6 +1,8 @@
 package cl.nexbyte.siger.formulario;
 
 import cl.nexbyte.siger.robustez.BaseJdbc;
+import cl.nexbyte.siger.custodia.MinimizacionBorradores;
+import org.springframework.beans.factory.ObjectProvider;
 import cl.nexbyte.siger.srcei.*;
 import java.nio.file.*;
 import java.time.Clock;
@@ -35,11 +37,15 @@ public class FormularioConfiguration {
                 && env.getProperty("PISEE_CONTROLLED_TEST_AUTHORIZED",Boolean.class,false)
                 && env.getProperty("formulario.srcei.envio-sintetico-autorizado",Boolean.class,false));
     }
-    @Bean RecorridosJdbc recorridosJdbc(BaseJdbc db,JsonMapper mapper,ClientePisee client,Environment env) throws java.io.IOException {
+    @Bean RecorridosJdbc recorridosJdbc(BaseJdbc db,JsonMapper mapper,ClientePisee client,Environment env,
+            ObjectProvider<MinimizacionBorradores> minimizacion) throws java.io.IOException {
         var keyPath=Path.of(env.getRequiredProperty("formulario.abuso-key-path"));
         if(Files.size(keyPath)<32||Files.size(keyPath)>128)throw new IllegalArgumentException("Clave antiabuso inválida");
         var permits=PoliticaPisee.autorizados(env,mapper);
-        return new RecorridosJdbc(db,mapper,client::consultar,permits,Clock.systemUTC(),Files.readAllBytes(keyPath),
+        var recorridos=new RecorridosJdbc(db,mapper,client::consultar,permits,Clock.systemUTC(),Files.readAllBytes(keyPath),
             env.getRequiredProperty("formulario.aviso-adulto"),env.getRequiredProperty("formulario.aviso-nna")).admision(cl.nexbyte.siger.custodia.GuardiaCapacidad.desde(env));
+        var minimizador=minimizacion.getIfAvailable();
+        if(minimizador!=null)recorridos.minimizacionBorradores(minimizador::alCancelar);
+        return recorridos;
     }
 }

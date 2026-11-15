@@ -1,4 +1,5 @@
 package cl.nexbyte.siger.robustez;
+import cl.nexbyte.siger.soporte.SalidaPruebas;
 import cl.nexbyte.siger.identidad.*;import cl.nexbyte.siger.entrega.RecepcionPublica;
 import jakarta.servlet.http.*;import java.net.*;import java.net.http.*;import java.nio.file.*;import java.security.*;import java.time.*;import java.util.*;import java.util.concurrent.*;
 import org.junit.jupiter.api.*;import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -51,7 +52,7 @@ class CargaHttpTest {
    results.put("http256",httpPhase(client,1000,256,header,token));
   }
   results.put("base",System.getenv("ROBUST_DB_URL")==null?"H2-file":"MySQL 8.4.11 loopback, fsync commit, pool12");results.put("at",Instant.now().toString());results.put("cpus",Runtime.getRuntime().availableProcessors());results.put("java",System.getProperty("java.version"));
-  Files.writeString(Path.of("target/carga-http.json"),mapper.writerWithDefaultPrettyPrinter().writeValueAsString(results));
+  Files.writeString(SalidaPruebas.archivo("carga-http.json"),mapper.writerWithDefaultPrettyPrinter().writeValueAsString(results));
  }
  HttpRequest.Builder request(String path){return HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).timeout(Duration.ofSeconds(20));}
  HttpResponse<String> post(HttpClient client,UUID key,String text,String header,String token)throws Exception{

@@ -1,6 +1,8 @@
 package cl.nexbyte.siger.robustez;
 
 import cl.nexbyte.siger.formulario.*;
+import cl.nexbyte.siger.custodia.FirmaOperativa;
+import cl.nexbyte.siger.custodia.ReciboMinimo;
 import cl.nexbyte.siger.srcei.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +14,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 import static cl.nexbyte.siger.formulario.IdentificacionCiudadana.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,6 +44,17 @@ class FormularioCompletoJdbcTest {
     DatosFormulario datos(Map<String,String> fields,List<UUID> attachments){return new DatosFormulario(fields,List.of(),List.of(),attachments);}
     AdjuntosFormulario.Archivo texto(String name,String text){return new AdjuntosFormulario.Archivo(name,text.getBytes(StandardCharsets.UTF_8));}
     RecepcionFormularioJdbc.Estado enviar(){return service.recibir(UUID.randomUUID(),journey,session,datos());}
+    @Test void recorridoVencidoRechazaRecepcionAntesDeLeerIdentidadYRevalidacionNna() {
+        now.set(now.get().plus(Duration.ofHours(4)));
+        assertEquals(404,assertThrows(FalloTecnico.class,this::enviar).status);
+        // La ausencia de identidad no cambia el rechazo: la vigencia se valida primero.
+        db.sql.update("DELETE FROM citizen_person WHERE journey_id=?",journey.toString());
+        assertEquals(404,assertThrows(FalloTecnico.class,this::enviar).status);
+        assertEquals(404,assertThrows(FalloTecnico.class,()->journeys.persona(journey,"presentador-nna",session)).status);
+        assertEquals(404,assertThrows(FalloTecnico.class,()->journeys.exigirVigenciaNna(journey,session)).status);
+        assertEquals(0,db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission",Integer.class));
+    }
+
     @Test void recepcionDurableSinSigerConservaPendienteYFirmaHastaImportarAck()throws Exception {
         var c=new ControlesOperacion(db,true,false);c.cambiar(c.estado().revision(),true,false,"NORMAL","PRUEBA_LOCAL");
         service=new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),"publico",signer.getPrivate(),Map.of("publico",signer.getPublic()),Map.of(),clock,true);
@@ -122,17 +137,220 @@ class FormularioCompletoJdbcTest {
     }
     @Test void recuperacionYRegistroSoloCambianEstadoConAckInstitucionalValido()throws Exception {
         var received=enviar();var reservation=service.reclamar(1).getFirst();var signed=ack(reservation.entrega(),institution,"institucion");
-        assertEquals(409,assertThrows(FalloTecnico.class,()->service.confirmar(received.id(),UUID.randomUUID(),signed)).status);
         var falseAck=ack(reservation.entrega(),signer,"publico");assertEquals(409,assertThrows(FalloTecnico.class,()->service.confirmar(received.id(),reservation.reserva(),falseAck)).status);
-        service.confirmar(received.id(),reservation.reserva(),signed);service.confirmar(received.id(),reservation.reserva(),signed);
+        service.confirmar(received.id(),UUID.randomUUID(),signed);service.confirmar(received.id(),reservation.reserva(),signed);
         var state=service.consultar(received.id(),session);assertEquals("REGISTRADA_SIGER",state.estado());assertEquals("COM-1",state.registro().registro().folio());assertEquals(0,service.reclamar(1).size());
         service=crear();assertEquals(state,service.consultar(received.id(),session));
     }
-    @Test void ackDeOtraComunicacionYReservaVencidaNoSeConfirman(){
-        var received=enviar();var r=service.reclamar(1).getFirst();var signed=ack(r.entrega(),institution,"institucion");now.set(now.get().plusSeconds(301));
-        assertEquals(409,assertThrows(FalloTecnico.class,()->service.confirmar(received.id(),r.reserva(),signed)).status);
-        var retry=service.reclamar(1).getFirst();assertNotEquals(r.reserva(),retry.reserva());assertEquals(2,retry.intento());
-        service.confirmar(received.id(),retry.reserva(),signed);assertEquals("REGISTRADA_SIGER",service.consultar(received.id(),session).estado());
+    RecepcionFormularioJdbc.Reserva prepararEstado(UUID id,String state){
+        if(state.equals("PENDIENTE")){
+            var delivery=mapper.readValue(db.sql.queryForObject(
+                "SELECT body FROM citizen_submission WHERE id=?",String.class,id.toString()),EntregaFormulario.class);
+            return new RecepcionFormularioJdbc.Reserva(UUID.randomUUID(),0,0,delivery);
+        }
+        var first=service.reclamar(1).getFirst();
+        switch(state){
+            case "PENDIENTE_REINTENTO" -> service.fallo(id,first.reserva(),"TRANSITORIO");
+            case "RESERVADA" -> { }
+            case "RESERVADA_VENCIDA" -> now.set(now.get().plusSeconds(301));
+            case "RESERVADA_NUEVA" -> {
+                now.set(now.get().plusSeconds(301));
+                var next=service.reclamar(1).getFirst();
+                assertNotEquals(first.reserva(),next.reserva());
+            }
+            case "CUARENTENA_LEASES" -> {
+                for(int i=0;i<10;i++){
+                    now.set(now.get().plusSeconds(301));
+                    var next=service.reclamar(1);
+                    assertEquals(i==9?0:1,next.size());
+                }
+            }
+            case "CUARENTENA_FALLO" -> {
+                var current=first;
+                for(int i=1;i<=10;i++){
+                    service.fallo(id,current.reserva(),"TRANSITORIO");
+                    if(i<10){now.set(now.get().plusSeconds(301));current=service.reclamar(1).getFirst();}
+                }
+            }
+            default -> throw new AssertionError("Estado de prueba desconocido");
+        }
+        return first;
+    }
+    @ParameterizedTest
+    @ValueSource(strings={"PENDIENTE","PENDIENTE_REINTENTO","RESERVADA","RESERVADA_VENCIDA",
+        "RESERVADA_NUEVA","CUARENTENA_LEASES","CUARENTENA_FALLO"})
+    void ackValidoConfirmaSinDependerDelLeaseYConservaIdempotencia(String state){
+        var received=enviar();var first=prepararEstado(received.id(),state);
+        var signed=ack(first.entrega(),institution,"institucion");
+        long confirmedAt=clock.millis();service.confirmar(received.id(),first.reserva(),signed);
+        var saved=service.consultar(received.id(),session);
+        assertEquals("REGISTRADA_SIGER",saved.estado());assertEquals(signed,saved.registro());
+        assertEquals(signed.comprobante(),service.consultarResumen(received.id(),session).registro().comprobante());
+        assertEquals("CONFIRMADA",db.sql.queryForObject(
+            "SELECT state FROM citizen_submission WHERE id=?",String.class,received.id().toString()));
+        assertEquals(confirmedAt,db.sql.queryForObject(
+            "SELECT first_ack_ms FROM citizen_submission WHERE id=?",Long.class,received.id().toString()));
+        String event=state.equals("RESERVADA")?"REGISTRO_SIGER_CONFIRMADO":"REGISTRO_SIGER_CONFIRMADO_TARDIO";
+        assertEquals(1,db.sql.queryForObject(
+            "SELECT COUNT(*) FROM operational_event WHERE aggregate_id=? AND code=?",
+            Integer.class,received.id().toString(),event));
+        now.set(now.get().plusSeconds(20));service.confirmar(received.id(),UUID.randomUUID(),signed);
+        assertEquals(saved,service.consultar(received.id(),session));
+        assertEquals(confirmedAt,db.sql.queryForObject(
+            "SELECT first_ack_ms FROM citizen_submission WHERE id=?",Long.class,received.id().toString()));
+        assertEquals(1,db.sql.queryForObject(
+            "SELECT COUNT(*) FROM operational_event WHERE aggregate_id=? AND code LIKE 'REGISTRO_SIGER_CONFIRMADO%'",
+            Integer.class,received.id().toString()));
+        var different=ack(first.entrega(),institution,"institucion");
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.confirmar(received.id(),first.reserva(),different)).status);
+        assertTrue(service.reclamar(1).isEmpty());
+    }
+    @ParameterizedTest
+    @ValueSource(strings={"PENDIENTE","PENDIENTE_REINTENTO","RESERVADA","RESERVADA_VENCIDA",
+        "RESERVADA_NUEVA","CUARENTENA_LEASES","CUARENTENA_FALLO"})
+    void ackInvalidoONoLigadoSeRechazaEnTodosLosEstados(String state){
+        var received=enviar();var first=prepararEstado(received.id(),state);
+        var signed=ack(first.entrega(),institution,"institucion");var original=signed.registro();
+        var invalid=new ArrayList<RegistroInstitucional>();
+        invalid.add(new RegistroInstitucional(original,
+            ComprobanteInstitucional.firmar(original,"institucion",signer.getPrivate(),mapper)));
+        for(String field:List.of("id","sha256","procedencia","canal")){
+            var changed=new ComprobanteInstitucional.Contenido(field.equals("canal")?"1.0":"1.1",
+                original.emisor(),original.hecho(),field.equals("id")?UUID.randomUUID():original.operacionPublicaId(),
+                original.comunicacionId(),original.numeroFolio(),original.folio(),original.registradaEn(),
+                field.equals("canal")?"FORMULARIO_WEB_PUBLICO":original.canalOrigen(),
+                field.equals("sha256")?"0".repeat(64):original.sha256(),
+                field.equals("procedencia")?"0".repeat(64):original.huellaProcedencia());
+            invalid.add(new RegistroInstitucional(changed,
+                ComprobanteInstitucional.firmar(changed,"institucion",institution.getPrivate(),mapper)));
+        }
+        var before=db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString());
+        for(var bad:invalid){
+            assertEquals(409,assertThrows(FalloTecnico.class,
+                ()->service.confirmar(received.id(),first.reserva(),bad)).status);
+            assertEquals(before,db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString()));
+        }
+    }
+    @Test void reciboMinimoRetiradoConservaIdempotenciaYRechazaAckDistintoYReposicion(){
+        var received=enviar();var first=service.reclamar(1).getFirst();
+        var signed=ack(first.entrega(),institution,"institucion");service.confirmar(received.id(),first.reserva(),signed);
+        var minimo=new ReciboMinimo.Contenido(received.id(),journey,"COMPLETO",
+            received.custodia(),signed,List.of());
+        var firma=FirmaOperativa.firmar(minimo,ReciboMinimo.DOMAIN,
+            "publico",signer.getPrivate(),mapper);
+        // Estado durable posterior a la retirada; sin ejecutar mantenimiento ni un almacén de originales.
+        db.sql.update("UPDATE citizen_submission SET content_retired=TRUE,body=NULL,minimal_receipt=? WHERE id=?",
+            mapper.writeValueAsString(firma),received.id().toString());
+        var before=db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString());
+        service.confirmar(received.id(),UUID.randomUUID(),signed);
+        assertEquals(signed,service.consultar(received.id(),session).registro());
+        var different=ack(first.entrega(),institution,"institucion");
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.confirmar(received.id(),first.reserva(),different)).status);
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.reponer(received.id(),1,"RECEPTOR_RECUPERADO")).status);
+        assertEquals(before,db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString()));
+    }
+    @Test void sinConfianzaInstitucionalNoAceptaAckAunqueLaFirmaSeaCorrecta()throws Exception {
+        var received=enviar();var first=service.reclamar(1).getFirst();
+        var signed=ack(first.entrega(),institution,"institucion");
+        service=new RecepcionFormularioJdbc(db,journeys,files,mapper,new ValidacionFormulario(new TerritorioFormulario(mapper)),
+            "publico",signer.getPrivate(),Map.of("publico",signer.getPublic()),Map.of(),clock,true);
+        assertEquals(503,assertThrows(FalloTecnico.class,
+            ()->service.confirmar(received.id(),first.reserva(),signed)).status);
+        assertNull(service.consultar(received.id(),session).registro());
+    }
+    @Test void falloSigueExigiendoElLeaseDeLaReservaActual(){
+        var received=enviar();var first=prepararEstado(received.id(),"RESERVADA_NUEVA");
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.fallo(received.id(),first.reserva(),"TRANSITORIO")).status);
+        assertEquals(400,assertThrows(FalloTecnico.class,
+            ()->service.fallo(received.id(),null,"TRANSITORIO")).status);
+        assertEquals("RESERVADA",db.sql.queryForObject(
+            "SELECT state FROM citizen_submission WHERE id=?",String.class,received.id().toString()));
+    }
+    @ParameterizedTest
+    @ValueSource(strings={"CORRECCION_ADAPTADOR","RECEPTOR_RECUPERADO"})
+    void reposicionConCasRevalidaCuerpoYRestableceLaCola(String reason){
+        var received=enviar();var first=prepararEstado(received.id(),"CUARENTENA_FALLO");
+        var original=db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString());
+        assertEquals(10,((Number)original.get("attempts")).intValue());
+        assertEquals(409,assertThrows(FalloTecnico.class,()->service.reponer(received.id(),9,reason)).status);
+        assertEquals(original,db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString()));
+        service.reponer(received.id(),10,reason);
+        var row=db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString());
+        assertEquals("PENDIENTE",row.get("state"));assertEquals(0,((Number)row.get("attempts")).intValue());
+        assertNull(row.get("lease_id"));assertEquals(0L,((Number)row.get("lease_until_ms")).longValue());
+        assertNull(row.get("ack"));assertNull(row.get("first_ack_ms"));assertNull(row.get("last_error"));
+        assertEquals(clock.millis(),((Number)row.get("next_attempt_ms")).longValue());
+        assertEquals(original.get("body"),row.get("body"));
+        assertEquals(1,db.sql.queryForObject(
+            "SELECT COUNT(*) FROM operational_event WHERE aggregate_id=? AND category='FORMULARIO_COMPLETO' AND code=?",
+            Integer.class,received.id().toString(),"REINTENTO_"+reason));
+        assertEquals(409,assertThrows(FalloTecnico.class,()->service.reponer(received.id(),10,reason)).status);
+        var next=service.reclamar(1).getFirst();assertEquals(1,next.intento());
+        assertEquals(first.entrega(),next.entrega());assertNotEquals(first.reserva(),next.reserva());
+    }
+    @Test void reposicionConcurrenteConElMismoCasSoloRegistraUnEvento()throws Exception {
+        var received=enviar();prepararEstado(received.id(),"CUARENTENA_FALLO");var gate=new CountDownLatch(1);
+        try(var pool=Executors.newFixedThreadPool(2)){
+            Callable<Integer> work=()->{
+                gate.await();
+                try{service.reponer(received.id(),10,"RECEPTOR_RECUPERADO");return 204;}
+                catch(FalloTecnico conflict){return conflict.status;}
+            };
+            var first=pool.submit(work);var second=pool.submit(work);gate.countDown();
+            assertEquals(Set.of(204,409),Set.of(first.get(10,TimeUnit.SECONDS),second.get(10,TimeUnit.SECONDS)));
+        }
+        assertEquals(1,db.sql.queryForObject(
+            "SELECT COUNT(*) FROM operational_event WHERE aggregate_id=? AND code='REINTENTO_RECEPTOR_RECUPERADO'",
+            Integer.class,received.id().toString()));
+    }
+    @Test void reposicionRechazaCuerpoAlteradoODeOtroIdSinMutarLaFila(){
+        var received=enviar();var first=prepararEstado(received.id(),"CUARENTENA_FALLO");
+        var c=first.entrega().comunicacion();
+        var other=new EntregaFormulario.Contenido(c.version(),UUID.randomUUID(),c.recorridoId(),c.tipo(),c.recibidaEn(),
+            c.avisoVersion(),c.aceptaCanalDigital(),c.datos(),c.personas(),c.adjuntos());
+        var hash=CanonFormulario.huella("CONTENIDO",other,mapper);
+        var proof=ComprobanteDigital.firmar(new ComprobanteDigital.Contenido("1.0",other.id(),other.recibidaEn(),
+            "CUSTODIA_PUBLICA",hash,first.entrega().huellaProcedencia(),"FORMULARIO_PUBLICO_DDN",other.avisoVersion()),
+            "publico",signer.getPrivate(),mapper);
+        var wrongId=new EntregaFormulario(other,hash,first.entrega().huellaProcedencia(),proof);
+        for(var body:List.of(mapper.writeValueAsString(first.entrega()).replace("Relato sintético completo","Alterado"),
+                mapper.writeValueAsString(wrongId))){
+            db.sql.update("UPDATE citizen_submission SET body=? WHERE id=?",body,received.id().toString());
+            var before=db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString());
+            assertEquals(409,assertThrows(FalloTecnico.class,
+                ()->service.reponer(received.id(),10,"CORRECCION_ADAPTADOR")).status);
+            assertEquals(before,db.sql.queryForMap("SELECT * FROM citizen_submission WHERE id=?",received.id().toString()));
+        }
+    }
+    @Test void reposicionRechazaConfirmadaAckORetiradaInclusoSiElEstadoEsIncoherente(){
+        var received=enviar();var first=prepararEstado(received.id(),"CUARENTENA_FALLO");
+        var signed=ack(first.entrega(),institution,"institucion");service.confirmar(received.id(),first.reserva(),signed);
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.reponer(received.id(),10,"RECEPTOR_RECUPERADO")).status);
+        db.sql.update("UPDATE citizen_submission SET state='CUARENTENA' WHERE id=?",received.id().toString());
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.reponer(received.id(),10,"RECEPTOR_RECUPERADO")).status);
+        db.sql.update("UPDATE citizen_submission SET ack=NULL,content_retired=TRUE,body=NULL WHERE id=?",received.id().toString());
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.reponer(received.id(),10,"RECEPTOR_RECUPERADO")).status);
+    }
+    @Test void reposicionExigeIdExistenteCasNoNegativoYMotivoCerrado(){
+        assertEquals(404,assertThrows(FalloTecnico.class,
+            ()->service.reponer(UUID.randomUUID(),0,"RECEPTOR_RECUPERADO")).status);
+        var received=enviar();
+        assertEquals(400,assertThrows(FalloTecnico.class,
+            ()->service.reponer(null,0,"RECEPTOR_RECUPERADO")).status);
+        assertEquals(400,assertThrows(FalloTecnico.class,
+            ()->service.reponer(received.id(),-1,"RECEPTOR_RECUPERADO")).status);
+        for(String reason:Arrays.asList(null,"","OTRO")){
+            assertEquals(400,assertThrows(FalloTecnico.class,()->service.reponer(received.id(),0,reason)).status);
+        }
+        assertEquals(409,assertThrows(FalloTecnico.class,
+            ()->service.reponer(received.id(),0,"RECEPTOR_RECUPERADO")).status);
     }
     @Test void alteracionDeCuerpoProduceCuarentenaSinDevolverContenido(){
         var received=enviar();db.sql.update("UPDATE citizen_submission SET body=REPLACE(body,?,?) WHERE id=?","Relato sintético completo","Relato alterado",received.id().toString());

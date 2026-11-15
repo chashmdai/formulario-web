@@ -155,14 +155,36 @@ public final class RecepcionFormularioJdbc {
     }
     public void confirmar(UUID id,UUID lease,RegistroInstitucional ack){
         if(id==null||lease==null||ack==null)throw new FalloTecnico(400);
+        if(institutional.isEmpty())throw new FalloTecnico(503);
         db.transaction(()->{
             var rows=db.sql.queryForList("SELECT * FROM citizen_submission WHERE id=? FOR UPDATE",id.toString());if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();
             if(Boolean.TRUE.equals(row.get("content_retired"))) {if(!estado(id,row).registro().equals(ack))throw new FalloTecnico(409);return null;}
             var delivery=leer(row.get("body").toString(),id);
             try{delivery.validarRegistro(ack,institutional,mapper);}catch(IllegalArgumentException invalid){throw new FalloTecnico(409);}
             if(row.get("ack")!=null){var previous=mapper.readValue(row.get("ack").toString(),RegistroInstitucional.class);delivery.validarRegistro(previous,institutional,mapper);if(!previous.equals(ack))throw new FalloTecnico(409);return null;}
-            if(!"RESERVADA".equals(row.get("state"))||!lease.toString().equals(row.get("lease_id"))||((Number)row.get("lease_until_ms")).longValue()<=clock.millis())throw new FalloTecnico(409);
-            db.sql.update("UPDATE citizen_submission SET state='CONFIRMADA',ack=?,first_ack_ms=COALESCE(first_ack_ms,?),lease_until_ms=0,last_error=NULL WHERE id=?",mapper.writeValueAsString(ack),clock.millis(),id.toString());db.event("FORMULARIO_COMPLETO",id.toString(),"REGISTRO_SIGER_CONFIRMADO");return null;
+            if(!Set.of("PENDIENTE","RESERVADA","CUARENTENA").contains(row.get("state")))throw new FalloTecnico(409);
+            // El ACK firmado prueba un registro ya ocurrido; el lease no añade autenticidad a ese hecho.
+            boolean vigente="RESERVADA".equals(row.get("state"))&&lease.toString().equals(row.get("lease_id"))
+                &&((Number)row.get("lease_until_ms")).longValue()>clock.millis();
+            db.sql.update("UPDATE citizen_submission SET state='CONFIRMADA',ack=?,first_ack_ms=COALESCE(first_ack_ms,?),"
+                +"lease_until_ms=0,last_error=NULL WHERE id=?",mapper.writeValueAsString(ack),clock.millis(),id.toString());
+            db.event("FORMULARIO_COMPLETO",id.toString(),vigente?"REGISTRO_SIGER_CONFIRMADO":"REGISTRO_SIGER_CONFIRMADO_TARDIO");
+            return null;
+        });
+    }
+    public void reponer(UUID id,int intentosEsperados,String motivo){
+        if(id==null||intentosEsperados<0
+                ||!Set.of("CORRECCION_ADAPTADOR","RECEPTOR_RECUPERADO").contains(motivo==null?"":motivo))throw new FalloTecnico(400);
+        db.transaction(()->{
+            var rows=db.sql.queryForList("SELECT state,attempts,body,ack,content_retired FROM citizen_submission WHERE id=? FOR UPDATE",
+                id.toString());
+            if(rows.isEmpty())throw new FalloTecnico(404);var row=rows.getFirst();
+            if(!"CUARENTENA".equals(row.get("state"))||((Number)row.get("attempts")).intValue()!=intentosEsperados
+                    ||row.get("ack")!=null||Boolean.TRUE.equals(row.get("content_retired")))throw new FalloTecnico(409);
+            try{leer(row.get("body").toString(),id);}catch(RuntimeException invalid){throw new FalloTecnico(409);}
+            db.sql.update("UPDATE citizen_submission SET state='PENDIENTE',attempts=0,next_attempt_ms=?,"
+                +"lease_id=NULL,lease_until_ms=0,last_error=NULL WHERE id=?",clock.millis(),id.toString());
+            db.event("FORMULARIO_COMPLETO",id.toString(),"REINTENTO_"+motivo);return null;
         });
     }
     public void fallo(UUID id,UUID lease,String code){

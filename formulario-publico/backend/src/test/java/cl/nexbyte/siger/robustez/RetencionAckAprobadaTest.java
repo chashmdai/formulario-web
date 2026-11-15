@@ -174,7 +174,8 @@ class RetencionAckAprobadaTest {
  @Test void agotamientoDeCuotaNoAcortaRetencionYRecuperaAdmisionTrasLiberar()throws Exception{
   receive(false);long quota=r.t.reserved();r.app.cuotaMultimedia(quota);
   var next=r.t.f.journeys.iniciar(IdentificacionCiudadana.Tipo.NNA,false,"NNA_TEST_1",r.t.f.other,"127.0.0.8").id();
-  var small=new PoliticaMultimedia(12,quota/2,4,512,512,512,512,quota,0,60000);
+  // Aísla la cuota global de retención: permite una reserva por origen, siempre por debajo de la global.
+  var small=new PoliticaMultimedia(12,quota/2,4,512,512,512,512,quota,0,60000,quota-1,24,60000);
   try(var media=new CargasMultimedia(r.t.f.db,r.t.f.journeys,r.t.f.store,small,p->true,(p,f)->new CargasMultimedia.Inspeccion(f.tipo(),"DESCARGA",null),r.t.f.clock,r.t.f.mapper)){
    var input=new CargasMultimedia.Inicio("sintetico.txt",r.t.f.text().length,MultimediaJdbcTest.sha(r.t.f.text()));
    assertEquals(507,assertThrows(FalloTecnico.class,()->media.iniciar(next,r.t.f.other,input)).status);

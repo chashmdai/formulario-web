@@ -6,6 +6,17 @@
 
 Estado ejecutado el 04/11/2026, America/Santiago. **Comenzar aquí al retomar este mismo chat. No repetir el despliegue ni crear otro entorno.** Repositorio `chashmdai/formulario-web`, rama `release/formulario-produccion-2026-11`, referencia anterior `6d47760c`. Main y la rama histórica de certificación no se modificaron.
 
+## Conciliación documental — 2026-11-15
+
+La actualización del [07/11](ACTUALIZACION_ANTIABUSO_PRODUCCION_2026-11-07.md#operación-y-reversión)
+describe «recepción y recuperación abiertas» al restaurar el CAS. Esa frase no acredita recuperación efectiva:
+sin clave pública ACK institucional, la recuperación sigue efectivamente cerrada y devuelve **503**, aunque
+el permiso CAS de recuperación figure abierto. El `recuperar=false` conservado más abajo corresponde al
+corte original del 04/11; no se sobrescriben ninguno de los dos registros históricos.
+
+El último commit desplegado **documentado** es `c16d135` (actualización del 07/11), **no verificado en servidor**
+en esta conciliación. No se inspeccionaron servicios ni se modificaron controles operacionales.
+
 ## Estado vigente
 
 **Publicado:** `https://formulario.defensorianinez.gob.cl`. **Recepción habilitada**, protegida por contraseña temporal. Adultos con/sin CU, NNA definitivo y multimedia disponibles. SQL/custodia propios de `/srv/ddn-formulario-produccion`; no se usan las QA históricas ni U4.

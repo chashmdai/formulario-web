@@ -70,7 +70,12 @@ public final class CustodiaTransitoria implements AutoCloseable {
     }
    }
    if(policy.eliminar()&&!stopped) {
-    try(var backup=store.guardia()) {motor.abandonar(true);limpiarBorradores();motor.compactarReservas(true);depurarMetadatosTecnicos();var temporales=store.limpiarIncoming(clock.millis()-Duration.ofHours(24).toMillis(),20);if(temporales.archivos()>0)db.event("TRANSITORIO_TECNICO",clock.instant().toString().substring(0,10),"TEMPORALES_HUERFANOS_RETIRADOS");drafts=1;}
+    try(var backup=store.guardia()) {
+     motor.abandonar(true);motor.compactarReservas(true);depurarMetadatosTecnicos();
+     var temporales=store.limpiarIncoming(clock.millis()-Duration.ofHours(24).toMillis(),20);
+     if(temporales.archivos()>0)db.event("TRANSITORIO_TECNICO",clock.instant().toString().substring(0,10),"TEMPORALES_HUERFANOS_RETIRADOS");
+     drafts=1;
+    }
    }
    db.sql.update("UPDATE transient_maintenance SET last_ms=?,last_code=? WHERE id=1 AND lease_id=?",clock.millis(),policy.eliminar()?(blocked>0?"CONSERVADOS_POR_CONTROL":"CORRECTO"):"ELIMINACION_CERRADA",lease.toString());
    return new Resultado(done,blocked,drafts,!policy.eliminar(),false);
@@ -98,13 +103,7 @@ public final class CustodiaTransitoria implements AutoCloseable {
    db.event("CUSTODIA_TRANSITORIA",id.toString(),"PAYLOAD_Y_IDENTIDAD_RETIRADOS");return null;
   });
  }
- private void scrubJourney(UUID journey){
-  db.sql.update("DELETE FROM citizen_person WHERE journey_id=?",journey.toString());
-  db.sql.update("DELETE FROM citizen_identity_history WHERE journey_id=?",journey.toString());
-  db.sql.update("UPDATE citizen_attachment SET name='retirado' WHERE journey_id=? AND bytes_retired=TRUE",journey.toString());
-  db.sql.update("UPDATE media_upload SET name='retirado',error_code=NULL WHERE journey_id=? AND released=TRUE",journey.toString());
-  db.sql.update("UPDATE citizen_journey SET state='MINIMIZADO' WHERE id=?",journey.toString());
- }
+ private void scrubJourney(UUID journey){MinimizacionRecorrido.retirar(db,journey);}
  private boolean minimizarHistorica(UUID id)throws IOException {
   var r=db.sql.queryForMap("SELECT * FROM public_delivery WHERE id=?",id.toString());
   if(Boolean.TRUE.equals(r.get("retention_hold")))return false;
@@ -135,20 +134,8 @@ public final class CustodiaTransitoria implements AutoCloseable {
    db.event("CUSTODIA_TRANSITORIA",id.toString(),"PAYLOAD_HISTORICO_RETIRADO");return true;
   });
  }
- private void limpiarBorradores()throws IOException {
-  for(String id:db.sql.queryForList("SELECT j.id FROM citizen_journey j WHERE j.state IN ('BORRADOR','CANCELADO') AND j.expires_ms<? AND NOT EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=j.id) LIMIT 50",String.class,clock.millis()-policy.abandono().toMillis())) {
-   UUID journey=UUID.fromString(id);try(var gate=store.mantenimiento(journey)){if(gate==null)continue;
-    db.transaction(()->{
-     var row=db.sql.queryForMap("SELECT state FROM citizen_journey WHERE id=? FOR UPDATE",id);
-     if(!Set.of("BORRADOR","CANCELADO").contains(row.get("state"))||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",Integer.class,id)>0)return null;
-     if(db.sql.queryForObject("SELECT COUNT(*) FROM media_upload WHERE journey_id=? AND released=FALSE",Integer.class,id)>0||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE journey_id=? AND bytes_retired=FALSE",Integer.class,id)>0)return null;
-     scrubJourney(journey);db.sql.update("UPDATE citizen_journey SET owner_session=? WHERE id=?","0".repeat(64),id);db.event("CUSTODIA_TRANSITORIA",id,"BORRADOR_PERSONAL_RETIRADO");return null;
-    });
-   }
-  }
-  db.sql.update("UPDATE media_upload SET name='retirado' WHERE released=TRUE AND name<>'retirado' AND journey_id IN (SELECT journey_id FROM citizen_submission WHERE content_retired=TRUE)");
- }
  private void depurarMetadatosTecnicos()throws IOException {
+  db.sql.update("UPDATE media_upload SET name='retirado' WHERE released=TRUE AND name<>'retirado' AND journey_id IN (SELECT journey_id FROM citizen_submission WHERE content_retired=TRUE)");
   for(String id:db.sql.queryForList("SELECT j.id FROM citizen_journey j WHERE j.state='MINIMIZADO' AND j.expires_ms<? AND NOT EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=j.id) ORDER BY j.expires_ms,j.id LIMIT 20",String.class,clock.millis()-draftMetadata.toMillis())) {
    UUID journey=UUID.fromString(id);try(var gate=store.mantenimiento(journey)){if(gate==null)continue;
     var ids=new HashSet<String>(db.sql.queryForList("SELECT id FROM media_upload WHERE journey_id=?",String.class,id));ids.addAll(db.sql.queryForList("SELECT id FROM citizen_attachment WHERE journey_id=?",String.class,id));

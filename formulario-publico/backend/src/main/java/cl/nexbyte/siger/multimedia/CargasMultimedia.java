@@ -6,6 +6,7 @@ import java.nio.file.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import tools.jackson.databind.json.JsonMapper;
 /** Cargas privadas reanudables; no publica metadatos hasta completar hash, antivirus e inspección. */
 public final class CargasMultimedia implements AutoCloseable{
@@ -18,8 +19,20 @@ public final class CargasMultimedia implements AutoCloseable{
  public record Lote(String revision,List<AdjuntosFormulario.Descriptor> archivos){}
  private final BaseJdbc db;private final RecorridosJdbc journeys;private final AlmacenPrivado store;private final PoliticaMultimedia policy;private final Antivirus scanner;private final Inspector inspector;private final Clock clock;private final JsonMapper mapper;
  private final Set<UUID> running=ConcurrentHashMap.newKeySet();
- private final Semaphore analyzing=new Semaphore(1);private final ExecutorService executor=Executors.newSingleThreadExecutor(r->{var t=new Thread(r,"multimedia-inspeccion");t.setDaemon(true);return t;});
- public CargasMultimedia(BaseJdbc db,RecorridosJdbc journeys,AlmacenPrivado store,PoliticaMultimedia policy,Antivirus scanner,Inspector inspector,Clock clock,JsonMapper mapper){this.db=db;this.journeys=journeys;this.store=store;this.policy=policy;this.scanner=scanner;this.inspector=inspector;this.clock=clock;this.mapper=mapper;}
+ private final Semaphore analyzing=new Semaphore(1);
+ private final ExecutorService executor;
+ public CargasMultimedia(BaseJdbc db,RecorridosJdbc journeys,AlmacenPrivado store,PoliticaMultimedia policy,
+         Antivirus scanner,Inspector inspector,Clock clock,JsonMapper mapper){
+  this(db,journeys,store,policy,scanner,inspector,clock,mapper,
+      new ThreadPoolExecutor(1,1,0,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(1),r->{
+       var t=new Thread(r,"multimedia-inspeccion");t.setDaemon(true);return t;
+      },new ThreadPoolExecutor.AbortPolicy()));
+ }
+ CargasMultimedia(BaseJdbc db,RecorridosJdbc journeys,AlmacenPrivado store,PoliticaMultimedia policy,
+         Antivirus scanner,Inspector inspector,Clock clock,JsonMapper mapper,ExecutorService executor){
+  this.db=db;this.journeys=journeys;this.store=store;this.policy=policy;this.scanner=scanner;
+  this.inspector=inspector;this.clock=clock;this.mapper=mapper;this.executor=executor;
+ }
  public PoliticaMultimedia politica(){return policy;}
  private static UUID uuid(Object v){return v==null?null:UUID.fromString(v.toString());}
  private static long number(Map<String,Object> r,String key){return ((Number)r.get(key)).longValue();}
@@ -28,6 +41,8 @@ public final class CargasMultimedia implements AutoCloseable{
  private static void hash(String value){if(value==null||!value.matches("[a-f0-9]{64}"))throw new IllegalArgumentException("SHA-256 requerido");}
  public Estado iniciar(UUID journey,String session,Inicio request){
   if(request==null)throw new IllegalArgumentException("Archivo requerido");var name=policy.nombre(request.nombre());policy.tamanio(name,request.tamanio());hash(request.sha256());
+  journeys.consultar(journey,session);
+  sanearReservas();
   return guard(journey,()->db.transaction(()->{
    journeys.bloquearBorrador(journey,session);var cap=db.sql.queryForMap("SELECT reserved_bytes FROM media_capacity WHERE id=1 FOR UPDATE");
    var same=db.sql.queryForList("SELECT id FROM media_upload WHERE journey_id=? AND expected_size=? AND expected_sha256=? AND state NOT IN ('CANCELADO','RECHAZADO','EXPIRADO')",journey.toString(),request.tamanio(),request.sha256());if(!same.isEmpty())return estado(journey,uuid(same.getFirst().get("id")),session);
@@ -37,7 +52,15 @@ public final class CargasMultimedia implements AutoCloseable{
    long reserved=number(cap,"reserved_bytes"),needed=Math.addExact(Math.multiplyExact(request.tamanio(),2L),Math.min(2*1024*1024L,policy.total()));
    long own=db.sql.queryForObject("SELECT COALESCE(SUM(u.expected_size),0) FROM media_upload u JOIN citizen_journey j ON j.id=u.journey_id WHERE j.owner_session=? AND u.released=FALSE",Long.class,session);
    if(own+request.tamanio()>2*policy.total())throw new FalloTecnico(413);
-   if(reserved+needed>policy.global()||store.espacio()<needed+policy.libreMinimo())throw new FalloTecnico(507);
+   if(needed>policy.global()-reserved||needed>store.espacio()-policy.libreMinimo())throw new FalloTecnico(507);
+   // El lock global serializa suma, comprobación e incremento entre sesiones del mismo origen.
+   var origin=db.sql.queryForMap("""
+       SELECT COUNT(*) AS active_count,COALESCE(SUM(u.reserved_bytes),0) AS active_bytes
+       FROM media_upload u JOIN citizen_journey j ON j.id=u.journey_id
+       WHERE u.released=FALSE AND j.media_origin_ref=(SELECT media_origin_ref FROM citizen_journey WHERE id=?)
+       """,journey.toString());
+   if(number(origin,"active_count")>=policy.origenReservas()
+       ||needed>policy.origenBytes()-number(origin,"active_bytes"))throw new FalloTecnico(429);
    var id=UUID.randomUUID();long now=clock.millis();db.sql.update("UPDATE media_capacity SET reserved_bytes=reserved_bytes+? WHERE id=1",needed);
    db.sql.update("INSERT INTO media_upload(id,journey_id,name,expected_size,expected_sha256,state,created_ms,touched_ms,expires_ms,reserved_bytes) VALUES(?,?,?,?,?,'RECIBIENDO',?,?,?,?)",id.toString(),journey.toString(),name,request.tamanio(),request.sha256(),now,now,now+policy.venceMs(),needed);db.event("MULTIMEDIA",id.toString(),"CARGA_INICIADA");return estado(journey,id,session);
   }));
@@ -61,24 +84,76 @@ public final class CargasMultimedia implements AutoCloseable{
      long offset=number(r,"offset_bytes");var existing=db.sql.queryForList("SELECT sha256 FROM media_chunk WHERE upload_id=? AND chunk_index=?",id.toString(),index);
      if(start>offset||start<offset&&(existing.isEmpty()||!checksum.equals(existing.getFirst().get("sha256"))))throw new FalloTecnico(409);
      try{store.publicar(temp,store.bloque(id,index));}catch(IOException e){throw new FalloTecnico(503);}
-     if(existing.isEmpty()){db.sql.update("INSERT INTO media_chunk(upload_id,chunk_index,size_bytes,sha256) VALUES(?,?,?,?)",id.toString(),index,blockLength,checksum);db.sql.update("UPDATE media_upload SET offset_bytes=?,touched_ms=? WHERE id=?",start+blockLength,clock.millis(),id.toString());}
+     if(existing.isEmpty()){
+      db.sql.update("INSERT INTO media_chunk(upload_id,chunk_index,size_bytes,sha256) VALUES(?,?,?,?)",
+          id.toString(),index,blockLength,checksum);
+     }
+     db.sql.update("UPDATE media_upload SET offset_bytes=?,touched_ms=? WHERE id=?",
+         Math.max(offset,start+blockLength),clock.millis(),id.toString());
      return estado(journey,id,session);
     });
    }catch(IOException e){throw new FalloTecnico(503);}finally{try{store.liberarTemporal(temp);}catch(IOException ignored){}}
   });
  }
+ /** El worker o el descarte previo a ejecución adquieren la propiedad una sola vez. */
+ private final class TrabajoAnalisis implements Runnable{
+  private final UUID journey,id,lease;
+  private final String session;
+  private final AtomicBoolean claimed=new AtomicBoolean();
+  TrabajoAnalisis(UUID journey,UUID id,String session,UUID lease){
+   this.journey=journey;this.id=id;this.session=session;this.lease=lease;
+  }
+  public void run(){
+   if(!claimed.compareAndSet(false,true))return;
+   try{analizar(journey,id,session,lease);}finally{terminar();}
+  }
+  void descartar(){
+   if(!claimed.compareAndSet(false,true))return;
+   try{
+    db.sql.update("""
+        UPDATE media_upload SET state='REINTENTABLE',error_code='INSPECCION_NO_DISPONIBLE',lease_until_ms=0
+        WHERE id=? AND lease_id=? AND state='ANALIZANDO'
+        """,id.toString(),lease.toString());
+   }finally{terminar();}
+  }
+  private void terminar(){
+   running.remove(id);analyzing.release();
+   try{liberarCancelado(id);}catch(RuntimeException retained){/* Reintentar mediante saneamiento. */}
+  }
+ }
  public Estado finalizar(UUID journey,UUID id,String session){
-  var before=row(journey,id,session,false);if("VALIDADO".equals(before.get("state")))return estado(journey,id,session);
-  if("ANALIZANDO".equals(before.get("state"))&&number(before,"lease_until_ms")>clock.millis())return estado(journey,id,session);
-  if(!analyzing.tryAcquire())throw new FalloTecnico(429);var lease=UUID.randomUUID();
-  try{guard(journey,()->db.transaction(()->{journeys.bloquearBorrador(journey,session);var r=row(journey,id,session,true);
-   if(number(r,"expires_ms")<=clock.millis()||!Set.of("RECIBIENDO","REINTENTABLE","ANALIZANDO").contains(r.get("state"))||"ANALIZANDO".equals(r.get("state"))&&number(r,"lease_until_ms")>clock.millis()||number(r,"offset_bytes")!=number(r,"expected_size")||!estado(journey,id,session).bloquesFaltantes().isEmpty())throw new FalloTecnico(409);
-   db.sql.update("UPDATE media_upload SET state='ANALIZANDO',lease_id=?,lease_until_ms=?,error_code=NULL WHERE id=?",lease.toString(),clock.millis()+180000,id.toString());return null;
-  }));running.add(id);executor.execute(()->{try{analizar(journey,id,session,lease);}finally{running.remove(id);analyzing.release();try{liberarCancelado(id);}catch(RuntimeException retained){/* Se conserva para saneamiento controlado. */}}});return estado(journey,id,session);}catch(RuntimeException e){running.remove(id);analyzing.release();throw e;}
+  var before=row(journey,id,session,false);
+  if("VALIDADO".equals(before.get("state")))return estado(journey,id,session);
+  if("ANALIZANDO".equals(before.get("state"))&&number(before,"lease_until_ms")>clock.millis())
+   return estado(journey,id,session);
+  if(!analyzing.tryAcquire())throw new FalloTecnico(429);
+  var lease=UUID.randomUUID();var trabajo=new TrabajoAnalisis(journey,id,session,lease);
+  try{
+   guard(journey,()->db.transaction(()->{
+    journeys.bloquearBorrador(journey,session);var r=row(journey,id,session,true);
+    if(number(r,"expires_ms")<=clock.millis()
+        ||!Set.of("RECIBIENDO","REINTENTABLE","ANALIZANDO").contains(r.get("state"))
+        ||"ANALIZANDO".equals(r.get("state"))&&number(r,"lease_until_ms")>clock.millis()
+        ||number(r,"offset_bytes")!=number(r,"expected_size")
+        ||!estado(journey,id,session).bloquesFaltantes().isEmpty())throw new FalloTecnico(409);
+    db.sql.update("""
+        UPDATE media_upload SET state='ANALIZANDO',lease_id=?,lease_until_ms=?,error_code=NULL WHERE id=?
+        """,lease.toString(),clock.millis()+180000,id.toString());return null;
+   }));
+   running.add(id);
+   executor.execute(trabajo);
+  }catch(RuntimeException|Error e){
+   try{trabajo.descartar();}catch(RuntimeException retained){e.addSuppressed(retained);}
+   throw e;
+  }
+  // Un fallo al construir la respuesta no cancela el trabajo ya aceptado ni libera su permiso.
+  return estado(journey,id,session);
  }
  private void analizar(UUID journey,UUID id,String session,UUID lease){
   String phase="ENSAMBLAR";try(var route=store.lectura(journey);var lock=store.guardia()){
-   var r=row(journey,id,session,false);var file=store.ensamblar(id,number(r,"expected_size"),policy.bloque());if(Files.size(file)!=number(r,"expected_size")||!AlmacenPrivado.huella(file).equals(r.get("expected_sha256")))throw new IllegalArgumentException("Integridad completa inválida");
+   var r=row(journey,id,session,false);
+   if(!"ANALIZANDO".equals(r.get("state"))||!lease.toString().equals(r.get("lease_id")))return;
+   var file=store.ensamblar(id,number(r,"expected_size"),policy.bloque());if(Files.size(file)!=number(r,"expected_size")||!AlmacenPrivado.huella(file).equals(r.get("expected_sha256")))throw new IllegalArgumentException("Integridad completa inválida");
    phase="ANTIVIRUS";if(!scanner.limpio(file))throw new IllegalArgumentException("Archivo rechazado");phase="INSPECTOR";var result=inspector.examinar(file,policy.formato(r.get("name").toString()));
    if(!policy.formato(r.get("name").toString()).tipo().equals(result.tipo()))throw new IllegalArgumentException("Tipo distinto");String pngHash=null;long pngSize=0;
    phase="DERIVADA";if(result.png()!=null){if(result.png().length>2*1024*1024)throw new IOException("Representación excesiva");var temp=store.temporal();try{Files.write(temp,result.png(),StandardOpenOption.TRUNCATE_EXISTING);try(var c=java.nio.channels.FileChannel.open(temp,StandardOpenOption.WRITE)){c.force(true);}store.publicar(temp,store.derivada(id));pngHash=AlmacenPrivado.huella(store.derivada(id));pngSize=Files.size(store.derivada(id));}finally{store.liberarTemporal(temp);}}
@@ -116,22 +191,89 @@ public final class CargasMultimedia implements AutoCloseable{
   });});
  }
  public record Limpieza(UUID id,String estado,long reservado){}
- public List<Limpieza> sanear(boolean apply){
-  var candidates=db.sql.queryForList("SELECT id,journey_id,state,reserved_bytes FROM media_upload u WHERE expires_ms<=? AND released=FALSE AND state IN ('RECIBIENDO','REINTENTABLE','RECHAZADO','CANCELADO','EXPIRADO') AND NOT EXISTS(SELECT 1 FROM citizen_attachment a WHERE a.id=u.id) AND NOT EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=u.journey_id)",clock.millis());var result=new ArrayList<Limpieza>();
-  if(apply&&analyzing.availablePermits()==0)throw new FalloTecnico(409);
-  for(var c:candidates){UUID id=uuid(c.get("id")),journey=uuid(c.get("journey_id"));result.add(new Limpieza(id,c.get("state").toString(),number(c,"reserved_bytes")));if(!apply)continue;
-   guard(journey,()->{boolean marked=db.transaction(()->{
-    // Mantenimiento operacional: una sesión/recorrido vencido no puede autorizar al ciudadano,
-    // pero tampoco debe impedir limpiar un temporal abandonado. Serializar con recepción por journey.
-    var owners=db.sql.queryForList("SELECT state FROM citizen_journey WHERE id=? FOR UPDATE",journey.toString());
-    if(owners.isEmpty()||!Set.of("BORRADOR","CANCELADO").contains(owners.getFirst().get("state"))||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",Integer.class,journey.toString())>0)return false;
-    var uploads=db.sql.queryForList("SELECT * FROM media_upload WHERE id=? AND journey_id=? FOR UPDATE",id.toString(),journey.toString());if(uploads.isEmpty())return false;var live=uploads.getFirst();
-    if(number(live,"expires_ms")>clock.millis()||!Set.of("RECIBIENDO","REINTENTABLE","RECHAZADO","CANCELADO","EXPIRADO").contains(live.get("state"))||Boolean.TRUE.equals(live.get("released"))||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=?",Integer.class,id.toString())>0)return false;
-    db.sql.update("UPDATE media_upload SET state='EXPIRADO' WHERE id=?",id.toString());return true;});
-    if(!marked)return null;try{store.borrarNoRecibido(id);}catch(IOException e){throw new FalloTecnico(503);}
-    db.transaction(()->{db.sql.queryForMap("SELECT reserved_bytes FROM media_capacity WHERE id=1 FOR UPDATE");var live=db.sql.queryForMap("SELECT reserved_bytes,released FROM media_upload WHERE id=? FOR UPDATE",id.toString());if(!Boolean.TRUE.equals(live.get("released"))){db.sql.update("UPDATE media_capacity SET reserved_bytes=reserved_bytes-? WHERE id=1",number(live,"reserved_bytes"));db.sql.update("UPDATE media_upload SET released=TRUE WHERE id=?",id.toString());db.event("MULTIMEDIA",id.toString(),"TEMPORAL_EXPIRADO_ELIMINADO");}return null;});return null;
-   });
-  }return List.copyOf(result);
+ /** Recuperación perezosa independiente del mantenimiento de custodia y de la sesión vencida. */
+ private void sanearReservas(){sanear(true,true);}
+ public List<Limpieza> sanear(boolean apply){return sanear(apply,false);}
+ private boolean inspeccionInterrumpida(Map<String,Object> row){
+  return "ANALIZANDO".equals(row.get("state"))&&number(row,"lease_until_ms")<=clock.millis();
+ }
+ private boolean vencida(Map<String,Object> row){
+  String state=row.get("state").toString();
+  if("EXPIRADO".equals(state))return true; // Reintento tras una interrupción al borrar/liberar.
+  if("ANALIZANDO".equals(state))return inspeccionInterrumpida(row)&&number(row,"expires_ms")<=clock.millis();
+  if("RECIBIENDO".equals(state)
+      &&(number(row,"offset_bytes")==0&&number(row,"created_ms")<=clock.millis()-policy.sinProgresoMs()
+          ||number(row,"touched_ms")<=clock.millis()-policy.inactividadMs()))return true;
+  return Set.of("RECIBIENDO","REINTENTABLE","RECHAZADO","CANCELADO").contains(state)
+      &&number(row,"expires_ms")<=clock.millis();
+ }
+ private List<Limpieza> sanear(boolean apply,boolean automatic){
+  var candidates=db.sql.queryForList("""
+      SELECT u.* FROM media_upload u JOIN citizen_journey j ON j.id=u.journey_id
+      WHERE u.released=FALSE AND j.state IN ('BORRADOR','CANCELADO')
+       AND (u.state='EXPIRADO' OR (u.state='ANALIZANDO' AND u.lease_until_ms<=?)
+        OR (u.state='RECIBIENDO' AND u.offset_bytes=0 AND u.created_ms<=?)
+        OR (u.state='RECIBIENDO' AND u.touched_ms<=?)
+        OR (u.expires_ms<=? AND u.state IN ('RECIBIENDO','REINTENTABLE','RECHAZADO','CANCELADO')))
+       AND NOT EXISTS(SELECT 1 FROM citizen_attachment a WHERE a.id=u.id)
+       AND NOT EXISTS(SELECT 1 FROM citizen_submission s WHERE s.journey_id=u.journey_id)
+      ORDER BY u.created_ms,u.id
+      """+(automatic?" LIMIT 20":""),clock.millis(),clock.millis()-policy.sinProgresoMs(),
+      clock.millis()-policy.inactividadMs(),clock.millis());
+  var result=new ArrayList<Limpieza>();
+  for(var c:candidates){
+   UUID id=uuid(c.get("id")),journey=uuid(c.get("journey_id"));
+   if(!apply){result.add(new Limpieza(id,c.get("state").toString(),number(c,"reserved_bytes")));continue;}
+   // Exclusión con recepción, bloques e inspección; un worker vivo conserva sus archivos aun tras vencer el lease.
+   try(var route=store.mantenimiento(journey)){
+    if(route==null||running.contains(id))continue;
+    guard(journey,()->{
+     boolean marked=db.transaction(()->{
+      var owners=db.sql.queryForList("SELECT state FROM citizen_journey WHERE id=? FOR UPDATE",journey.toString());
+      if(owners.isEmpty()||!Set.of("BORRADOR","CANCELADO").contains(owners.getFirst().get("state"))
+          ||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",
+              Integer.class,journey.toString())>0)return false;
+      var uploads=db.sql.queryForList("SELECT * FROM media_upload WHERE id=? AND journey_id=? FOR UPDATE",
+          id.toString(),journey.toString());
+      if(uploads.isEmpty())return false;var live=uploads.getFirst();
+      if(Boolean.TRUE.equals(live.get("released"))
+          ||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=?",Integer.class,id.toString())>0)
+       return false;
+      if(inspeccionInterrumpida(live)&&number(live,"expires_ms")>clock.millis()){
+       // El lease sólo caduca el intento de inspección; conserva bloques y cuota para finalizar de nuevo.
+       db.sql.update("""
+           UPDATE media_upload SET state='REINTENTABLE',error_code='INSPECCION_INTERRUMPIDA',
+               lease_id=NULL,lease_until_ms=0 WHERE id=?
+           """,id.toString());
+       return false;
+      }
+      if(!vencida(live))return false;
+      db.sql.update("UPDATE media_upload SET state='EXPIRADO',lease_id=NULL,lease_until_ms=0 WHERE id=?",id.toString());
+      return true;
+     });
+     if(!marked)return null;
+     boolean freed=db.transaction(()->{
+      // Recepción también bloquea esta fila: no puede pasar a RECIBIDO entre la comprobación y el borrado.
+      var owner=db.sql.queryForMap("SELECT state FROM citizen_journey WHERE id=? FOR UPDATE",journey.toString());
+      if(!Set.of("BORRADOR","CANCELADO").contains(owner.get("state"))
+          ||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_submission WHERE journey_id=?",
+              Integer.class,journey.toString())>0
+          ||db.sql.queryForObject("SELECT COUNT(*) FROM citizen_attachment WHERE id=?",Integer.class,id.toString())>0)
+       return false;
+      db.sql.queryForMap("SELECT reserved_bytes FROM media_capacity WHERE id=1 FOR UPDATE");
+      var live=db.sql.queryForMap("SELECT reserved_bytes,released FROM media_upload WHERE id=? FOR UPDATE",id.toString());
+      if(Boolean.TRUE.equals(live.get("released")))return false;
+      try{store.borrarNoRecibido(id);}catch(IOException e){throw new FalloTecnico(503);}
+      db.sql.update("UPDATE media_capacity SET reserved_bytes=reserved_bytes-? WHERE id=1",number(live,"reserved_bytes"));
+      db.sql.update("UPDATE media_upload SET released=TRUE WHERE id=?",id.toString());
+      db.event("MULTIMEDIA",id.toString(),"TEMPORAL_EXPIRADO_ELIMINADO");return true;
+     });
+     if(freed)result.add(new Limpieza(id,c.get("state").toString(),number(c,"reserved_bytes")));
+     return null;
+    });
+   }catch(IOException e){throw new FalloTecnico(503);}
+  }
+  return List.copyOf(result);
  }
  public record Vista(String version,String origen,AdjuntosFormulario.Descriptor original,String representacion,boolean originalInline,boolean descargable,String huellaDerivada,Long tamanioDerivada){}
  public Vista vista(UUID journey,UUID id,String session){journeys.consultar(journey,session);var all=activos(journey);var descriptor=all.stream().filter(d->d.id().equals(id)).findFirst().orElseThrow(()->new FalloTecnico(404));
@@ -146,5 +288,13 @@ public final class CargasMultimedia implements AutoCloseable{
   if(view.originalInline())return files.recurso(journey,id,session);throw new FalloTecnico(415);
  }
  public Map<String,Object> capacidad(){return Map.of("reservados",db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class),"limite",policy.global(),"libresFilesystem",store.espacio(),"minimoLibre",policy.libreMinimo(),"analisisActivos",1-analyzing.availablePermits(),"alertaCuota",db.sql.queryForObject("SELECT reserved_bytes FROM media_capacity WHERE id=1",Long.class)>=policy.global()*8/10,"alertaEspacio",store.espacio()<policy.libreMinimo()+2*policy.video());}
- public void close(){executor.shutdownNow();try{if(!executor.awaitTermination(5,TimeUnit.SECONDS))throw new IllegalStateException("Análisis aún activo; conservar lock de almacén");}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("Cierre de análisis interrumpido",e);}}
+ public void close(){
+  for(var pending:executor.shutdownNow())if(pending instanceof TrabajoAnalisis trabajo)trabajo.descartar();
+  try{
+   if(!executor.awaitTermination(5,TimeUnit.SECONDS))
+    throw new IllegalStateException("Análisis aún activo; conservar lock de almacén");
+  }catch(InterruptedException e){
+   Thread.currentThread().interrupt();throw new IllegalStateException("Cierre de análisis interrumpido",e);
+  }
+ }
 }

@@ -1,4 +1,5 @@
 package cl.nexbyte.siger.nna;
+import cl.nexbyte.siger.config.OrigenCliente;
 import jakarta.servlet.*;import jakarta.servlet.http.*;
 import java.io.IOException;import java.time.Clock;import java.util.*;
 import org.springframework.stereotype.Component;import org.springframework.core.annotation.Order;
@@ -7,8 +8,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component @Order(-190)
 public final class LimiteAbusoNna extends OncePerRequestFilter {
     private final Map<String,Window> windows=new HashMap<>();private final Clock clock;
+    private final OrigenCliente origen;
     private record Window(long minuto,int solicitudes){}
-    public LimiteAbusoNna(){this(Clock.systemUTC());} LimiteAbusoNna(Clock clock){this.clock=clock;}
+    @org.springframework.beans.factory.annotation.Autowired
+    public LimiteAbusoNna(OrigenCliente origen){this(Clock.systemUTC(),origen);}
+    LimiteAbusoNna(Clock clock,OrigenCliente origen){this.clock=clock;this.origen=origen;}
     synchronized boolean admitir(String ip,String session){
         long now=clock.millis()/60000;windows.entrySet().removeIf(e->e.getValue().minuto()!=now);
         if(windows.size()>4096)return false;
@@ -19,7 +23,8 @@ public final class LimiteAbusoNna extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest q,HttpServletResponse r,FilterChain chain)throws IOException,ServletException{
         if(q.getMethod().equals("POST")&&q.getRequestURI().startsWith("/api/nna/")){
             var session=q.getSession(false);
-            if(!admitir(q.getRemoteAddr(),session==null?"SIN_SESION:"+q.getRemoteAddr():session.getId())){
+            var ip=origen.de(q);
+            if(!admitir(ip,session==null?"SIN_SESION:"+ip:session.getId())){
                 r.setStatus(429);r.setHeader("Retry-After","60");r.setHeader("Cache-Control","no-store");return;
             }
         }

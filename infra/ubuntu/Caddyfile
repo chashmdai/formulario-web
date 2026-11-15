@@ -1,6 +1,16 @@
 {
     admin off
     auto_https off
+    servers {
+        # Plazos totales de cuerpo/respuesta (no se renuevan con cada byte).
+        # Mantener coherencia con formulario.transferencias.plazo-* en application.properties.
+        timeouts {
+            read_header 10s
+            read_body {$FORM_BODY_TIMEOUT:5m}
+            write {$FORM_WRITE_TIMEOUT:15m}
+            idle 1m
+        }
+    }
 }
 (backend) {
     reverse_proxy https://app:8443 {
@@ -9,6 +19,9 @@
         header_up X-Forwarded-Proto https
         header_up X-Forwarded-Port 443
         transport http {
+            dial_timeout 5s
+            read_timeout 15m
+            write_timeout 60s
             tls_server_name app
             tls_trust_pool file /run/pki/ca.crt
         }

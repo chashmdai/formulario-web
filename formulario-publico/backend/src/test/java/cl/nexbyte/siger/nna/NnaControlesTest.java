@@ -29,7 +29,8 @@ class NnaControlesTest {
         assertThatThrownBy(()->new DeclaracionNna("A\u0000",null,"B",null,null,null,null,null,"R")).isInstanceOf(IllegalArgumentException.class);
     }
     @Test void cuotaResisteRotacionDeSesionesYSeRecuperaPorVentana(){
-        var limiter=new LimiteAbusoNna(Clock.fixed(Instant.EPOCH,ZoneOffset.UTC));
+        var limiter=new LimiteAbusoNna(Clock.fixed(Instant.EPOCH,ZoneOffset.UTC),
+            new cl.nexbyte.siger.config.OrigenCliente(new MockEnvironment()));
         for(int i=0;i<6;i++)assertThat(limiter.admitir("ip","sesion")).isTrue();
         assertThat(limiter.admitir("ip","sesion")).isFalse();
         for(int i=0;i<24;i++)assertThat(limiter.admitir("ip","rotada"+i)).isTrue();

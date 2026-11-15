@@ -8,13 +8,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: npm
@@ -38,13 +38,16 @@ jobs:
           python3 scripts/qa/test_media_storage_report.py
           python3 scripts/qa/test_runtime_jar.py
           python3 scripts/qa/test_ubuntu_prepare.py
+          python3 scripts/qa/test_ubuntu_backup.py
+          python3 scripts/qa/test_ubuntu_preflight.py
+          python3 scripts/qa/test_simulacro_restauracion.py
 
   agente-windows:
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           distribution: temurin
           java-version: '25'
@@ -78,7 +81,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Validar Compose sin crear servicios
         run: docker compose --env-file infra/ubuntu/.env.example -f infra/ubuntu/compose.yml config --quiet
       - name: Verificar configuración de proxy con la imagen sin file capabilities

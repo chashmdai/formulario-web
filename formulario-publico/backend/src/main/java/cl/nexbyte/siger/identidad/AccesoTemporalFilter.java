@@ -1,5 +1,6 @@
 package cl.nexbyte.siger.identidad;
 
+import cl.nexbyte.siger.config.OrigenCliente;
 import java.io.IOException;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
@@ -10,7 +11,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /** Solo se instala en la cadena ciudadana, después de CSRF y antes de OAuth. */
 final class AccesoTemporalFilter extends OncePerRequestFilter {
     private final AccesoTemporal access;
-    AccesoTemporalFilter(AccesoTemporal access){this.access=access;}
+    private final OrigenCliente origin;
+    AccesoTemporalFilter(AccesoTemporal access,OrigenCliente origin){this.access=access;this.origin=origin;}
     @Override protected void doFilterInternal(HttpServletRequest q,HttpServletResponse r,FilterChain chain)throws IOException,ServletException {
         String path=q.getRequestURI().substring(q.getContextPath().length());
         boolean read=q.getMethod().equals("GET")||q.getMethod().equals("HEAD");
@@ -38,7 +40,7 @@ final class AccesoTemporalFilter extends OncePerRequestFilter {
         if(path.equals("/acceso-temporal")) {
             if(q.getMethod().equals("POST")) {
                 if(q.getContentType()==null||!q.getContentType().startsWith("application/x-www-form-urlencoded")||q.getContentLengthLong()>4096){r.setStatus(400);return;}
-                var result=access.authenticate(q.getParameter("password"),q.getRemoteAddr(),q.getSession());
+                var result=access.authenticate(q.getParameter("password"),origin.de(q),q.getSession());
                 if(result==AccesoTemporal.Result.ACCEPTED){q.changeSessionId();new HttpSessionCsrfTokenRepository().saveToken(null,q,r);redirect(r);return;}
                 if(result==AccesoTemporal.Result.UNAVAILABLE){unavailable(q,r);return;}
                 r.setStatus(result==AccesoTemporal.Result.LIMITED?429:401);

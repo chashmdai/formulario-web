@@ -1,4 +1,5 @@
 package cl.nexbyte.siger.entrega;
+import cl.nexbyte.siger.soporte.SalidaPruebas;
 
 import java.nio.file.*;
 import java.util.*;
@@ -36,7 +37,7 @@ class CargaBaseTest {
         var result=Map.of("adapter","archivos-base","registros",total,"concurrencia",workers,"segundos",elapsed,
             "operacionesSegundo",total/elapsed,"p50ms",sorted.get(total/2),"p95ms",sorted.get((int)(total*.95)),
             "p99ms",sorted.get((int)(total*.99)),"exportar20PromedioMs",exportMs);
-        Path output=Path.of("target/carga-base.json"); Files.writeString(output,JsonMapper.builder().build().writeValueAsString(result));
+        Path output=SalidaPruebas.archivo("carga-base.json"); Files.writeString(output,JsonMapper.builder().build().writeValueAsString(result));
         System.out.println("CARGA_BASE "+JsonMapper.builder().build().writeValueAsString(result));
     }
 }

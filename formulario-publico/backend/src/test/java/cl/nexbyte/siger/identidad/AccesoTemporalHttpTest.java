@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.json.JsonMapper;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -21,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(properties={"siger.claveunica.habilitada=false","siger.claveunica.callback-approved=false",
+    "formulario.origen.cabecera=X-Ddn-Client-Ip","formulario.origen.proxies-confiables=192.0.2.0/24",
     "formulario.acceso-temporal.habilitado=true","publico.integracion.habilitada=false","publico.integracion.preparada=true",
     "publico.integracion.token=synthetic-temporal-machine-token-2026"})
 @AutoConfigureMockMvc
@@ -66,6 +68,41 @@ class AccesoTemporalHttpTest {
         for(int i=0;i<5;i++)mvc.perform(post("/acceso-temporal").secure(true).with(csrf()).contentType("application/x-www-form-urlencoded").param("password","WRONG-SYNTHETIC-PASSWORD"))
             .andExpect(status().isUnauthorized()).andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("WRONG-SYNTHETIC-PASSWORD"))));
         mvc.perform(post("/acceso-temporal").secure(true).with(csrf()).contentType("application/x-www-form-urlencoded").param("password",PASSWORD)).andExpect(status().isTooManyRequests());
+    }
+    private MockHttpServletRequestBuilder attemptFrom(String peer,String origin,String password) {
+        return post("/acceso-temporal").secure(true).with(csrf())
+            .with(request->{request.setRemoteAddr(peer);return request;})
+            .header("X-Ddn-Client-Ip",origin).contentType("application/x-www-form-urlencoded")
+            .param("password",password);
+    }
+    @Test void proxyConfiableLimitaAUnOrigenSinBloquearAOtro()throws Exception {
+        for(int i=0;i<5;i++)
+            mvc.perform(attemptFrom("192.0.2.10","198.51.100.1","WRONG-SYNTHETIC-PASSWORD"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(attemptFrom("192.0.2.10","198.51.100.1",PASSWORD))
+            .andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After","900"));
+        var session=new MockHttpSession();
+        mvc.perform(attemptFrom("192.0.2.10","198.51.100.2",PASSWORD).session(session))
+            .andExpect(status().isSeeOther());
+        mvc.perform(get("/api/session").secure(true).session(session)).andExpect(status().isOk());
+    }
+    @Test void ipv6ComparteLimiteSoloDentroDelMismoPrefijo64()throws Exception {
+        for(int i=0;i<5;i++)
+            mvc.perform(attemptFrom("192.0.2.10","2001:db8:1:2::1","WRONG-SYNTHETIC-PASSWORD"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(attemptFrom("192.0.2.10","2001:db8:1:2::abcd",PASSWORD))
+            .andExpect(status().isTooManyRequests());
+        mvc.perform(attemptFrom("192.0.2.10","2001:db8:1:3::1",PASSWORD))
+            .andExpect(status().isSeeOther());
+    }
+    @Test void cabeceraDeParNoConfiableNoPermiteEludirLimite()throws Exception {
+        for(int i=0;i<5;i++)
+            mvc.perform(attemptFrom("198.51.100.10","203.0.113."+(i+1),"WRONG-SYNTHETIC-PASSWORD"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(attemptFrom("198.51.100.10","203.0.113.99",PASSWORD))
+            .andExpect(status().isTooManyRequests());
+        mvc.perform(attemptFrom("198.51.100.11","203.0.113.99",PASSWORD))
+            .andExpect(status().isSeeOther());
     }
     @Test void correctaNavegaSinAutenticarCiudadanoNiCompartirOtraSesion()throws Exception {
         var session=login();mvc.perform(get("/api/session").secure(true).session(session)).andExpect(status().isOk()).andExpect(jsonPath("$.authenticated").value(false));

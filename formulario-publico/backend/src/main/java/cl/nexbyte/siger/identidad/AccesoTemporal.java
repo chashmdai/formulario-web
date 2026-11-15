@@ -20,6 +20,9 @@ public final class AccesoTemporal {
     static final String SESSION = AccesoTemporal.class.getName()+".grant";
     static final String PREFIX = "pbkdf2-v5_8:";
     public static final String EXPIRATION = "2026-12-15T00:00:00-03:00[America/Santiago]";
+    private static final int WINDOW_SECONDS = 900;
+    private static final int MAX_FAILURES_PER_CLIENT = 5;
+    private static final int MAX_CLIENTS = 1000;
     enum Mode { OPEN, PASSWORD, UNAVAILABLE }
     enum Result { ACCEPTED, REJECTED, LIMITED, UNAVAILABLE }
     record Grant(String version, Instant until) implements java.io.Serializable {}
@@ -30,6 +33,7 @@ public final class AccesoTemporal {
     private final Pbkdf2PasswordEncoder encoder = Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8();
     private final boolean enabled;
     private final Instant expires;
+    private final int maxGlobalFailures;
 
     public AccesoTemporal(Environment env, Clock clock, BooleanSupplier receptionApproved, JsonMapper mapper) {
         this.env=env;this.clock=clock;this.receptionApproved=receptionApproved;this.mapper=mapper;
@@ -37,6 +41,9 @@ public final class AccesoTemporal {
         var date=ZonedDateTime.parse(env.getProperty("formulario.acceso-temporal.expira",EXPIRATION));
         if(!date.getZone().equals(ZoneId.of("America/Santiago")))throw new IllegalArgumentException("Zona de acceso temporal requerida");
         expires=date.toInstant();
+        maxGlobalFailures=env.getProperty("formulario.acceso-temporal.max-fallos-globales",Integer.class,500);
+        if(maxGlobalFailures<50||maxGlobalFailures>MAX_CLIENTS)
+            throw new IllegalArgumentException("El límite global de acceso temporal debe estar entre 50 y 1000");
     }
     Instant expires(){return expires;}
     Instant now(){return clock.instant();}
@@ -77,28 +84,37 @@ public final class AccesoTemporal {
         } catch(Exception ignored) { /* Ausencia/rotación revoca, nunca concede. */ }
         session.removeAttribute(SESSION);return false;
     }
-    /** Ventana durable: 5 fallos/origen y 100 globales/15 min. No confía en X-Forwarded-For. */
-    private boolean attempt(String remote, String credential, boolean record) throws Exception {
+    /** Ventana durable compartida de 15 min: 5 fallos/origen y un tope global superior configurable. */
+    private boolean attempt(String origin, String credential, boolean record) throws Exception {
         Path path=Path.of(env.getRequiredProperty("formulario.acceso-temporal.limites-path"));
         String custody=env.getProperty("formulario.multimedia.directorio");
         if(custody!=null&&path.toAbsolutePath().normalize().startsWith(Path.of(custody).toAbsolutePath().normalize()))
             throw new IOException("Estado de acceso separado de la custodia requerido");
         Files.createDirectories(path.getParent());
-        long end=now().plusSeconds(900).getEpochSecond();int global=0;Map<String,Integer> clients=new TreeMap<>();
+        long end=now().plusSeconds(WINDOW_SECONDS).getEpochSecond();
+        int global=0;
+        Map<String,Integer> clients=new TreeMap<>();
         if(Files.exists(path)) {
-            if(Files.size(path)>32768)throw new IOException("Estado inválido");
+            if(Files.size(path)>128*1024)throw new IOException("Estado inválido");
             var stored=mapper.readTree(Files.readString(path));
-            if(!stored.path("windowEnds").isNumber()||!stored.path("global").isNumber()||!stored.path("clients").isObject())throw new IOException("Estado inválido");
+            // Se conserva el formato anterior, incluidos sus HMAC y su ventana aún vigente.
+            if(!stored.path("windowEnds").isNumber()||!stored.path("global").isNumber()||!stored.path("clients").isObject())
+                throw new IOException("Estado inválido");
             if(stored.path("windowEnds").asLong()>now().getEpochSecond()) {
                 end=stored.path("windowEnds").asLong();global=stored.path("global").asInt();
                 for(var entry:stored.path("clients").properties())clients.put(entry.getKey(),entry.getValue().asInt());
-                if(global<0||global>100||clients.size()>100||clients.values().stream().anyMatch(v->v<0||v>5))throw new IOException("Estado inválido");
+                if(global<0||global>MAX_CLIENTS||clients.size()>MAX_CLIENTS
+                        ||clients.values().stream().anyMatch(v->v<0||v>MAX_FAILURES_PER_CLIENT))
+                    throw new IOException("Estado inválido");
             }
         }
-        var mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(version(credential).getBytes(StandardCharsets.US_ASCII),"HmacSHA256"));
-        String key=HexFormat.of().formatHex(mac.doFinal(remote.getBytes(StandardCharsets.UTF_8)));
+        // La credencial local ya incorpora una sal aleatoria; su derivada conserva las claves históricas.
+        var mac=Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(version(credential).getBytes(StandardCharsets.US_ASCII),"HmacSHA256"));
+        String key=HexFormat.of().formatHex(mac.doFinal(origin.getBytes(StandardCharsets.UTF_8)));
         int count=clients.getOrDefault(key,0);
-        if(global>=100||count>=5)return false;
+        if(global>=maxGlobalFailures||count>=MAX_FAILURES_PER_CLIENT)return false;
+        if(!clients.containsKey(key)&&clients.size()>=MAX_CLIENTS)return false;
         if(!record)return true;
         clients.put(key,count+1);
         Path tmp=Files.createTempFile(path.getParent(),".limites-",".tmp");
@@ -109,13 +125,13 @@ public final class AccesoTemporal {
         } finally {Files.deleteIfExists(tmp);}
         return true;
     }
-    synchronized Result authenticate(String password, String remote, HttpSession session) {
+    synchronized Result authenticate(String password, String origin, HttpSession session) {
         if(mode()!=Mode.PASSWORD)return Result.UNAVAILABLE;
         try {
             String credential=credential();
-            if(!attempt(remote,credential,false))return Result.LIMITED;
+            if(!attempt(origin,credential,false))return Result.LIMITED;
             if(password==null||password.length()<16||password.length()>256||!encoder.matches(password,credential.substring(PREFIX.length()))) {
-                attempt(remote,credential,true);return Result.REJECTED;
+                attempt(origin,credential,true);return Result.REJECTED;
             }
             session.setAttribute(SESSION,new Grant(version(credential),now().plusSeconds(8*3600).isBefore(expires)?now().plusSeconds(8*3600):expires));
             return Result.ACCEPTED;

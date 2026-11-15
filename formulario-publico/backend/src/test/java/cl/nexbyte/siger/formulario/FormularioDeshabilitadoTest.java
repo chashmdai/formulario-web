@@ -13,6 +13,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(print=org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint.NONE)
 class FormularioDeshabilitadoTest {
     @Autowired MockMvc mvc;
+    @Test void bloqueSinCsrfSeRechazaAntesDeIniciarLecturaAsincrona()throws Exception {
+        mvc.perform(put("/api/formulario/recorridos/00000000-0000-0000-0000-000000000001/"
+                + "cargas/00000000-0000-0000-0000-000000000002/bloques/0")
+                .secure(true).contentType("application/octet-stream").content(new byte[]{1}))
+            .andExpect(status().isForbidden()).andExpect(request().asyncNotStarted());
+    }
     @Test void sinAlmacenRealNoHayRecorridoNiFallbackEnMemoria()throws Exception {
         mvc.perform(get("/api/formulario/capacidades")).andExpect(status().isOk()).andExpect(jsonPath("$.disponible").value(false)).andExpect(header().string("Cache-Control","no-store"));
         mvc.perform(post("/api/formulario/recorridos").secure(true).with(csrf()).contentType("application/json")

@@ -29,7 +29,7 @@ La aceptación acredita los controles implementados; no garantiza ausencia unive
 
 ## Cuotas y transferencia
 
-- Bloques secuenciales de hasta 8 MiB. Dos peticiones de carga simultáneas por instancia; análisis único, sin cola ilimitada; hasta cuatro descargas concurrentes.
+- Bloques secuenciales de hasta 8 MiB. Cargas y descargas con cupos globales y por origen configurables (`formulario.transferencias.*`, desde 2026-11-15: 6 cargas/1 por origen, 8 descargas/2 por origen y un pool exclusivo de 2 para SIGER, con plazos totales); análisis único, sin cola ilimitada.
 - Por sesión: hasta 48 inicios en 24 h, 24 cargas activas por recorrido y un volumen reservado de originales de hasta dos lotes. Se conservan los límites antiabuso de creación de recorridos. Duplicación por hash/tamaño solo dentro del recorrido propio, sin oráculo entre ciudadanos.
 - Cuota global inicial reservada de 10 GiB y mínimo libre de 512 MiB. Se reserva conservadoramente `2 × tamaño + hasta 2 MiB de derivada`; se conserva esa reserva tras validar aunque se hayan retirado los bloques. Por tanto 10 GiB reservados no equivalen a 10 GiB de originales útiles. No aumentar cuotas sin inventario, disco y presupuesto de respaldo.
 - Alertas agregadas: reserva ≥ 80 % o espacio libre inferior al mínimo más dos videos máximos. El sondeo devuelve código de atención; no se ha instalado un canal automático de notificación ni tarea programada.

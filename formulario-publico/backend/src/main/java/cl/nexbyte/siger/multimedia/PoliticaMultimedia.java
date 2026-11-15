@@ -2,11 +2,26 @@ package cl.nexbyte.siger.multimedia;
 import java.text.Normalizer;
 import java.util.*;
 /** Límites efectivos del camino de flujo, independientes del multipart histórico. */
-public record PoliticaMultimedia(int cantidad,long total,long bloque,long imagen,long documento,long audio,long video,long global,long libreMinimo,long venceMs){
+public record PoliticaMultimedia(int cantidad,long total,long bloque,long imagen,long documento,long audio,long video,
+        long global,long libreMinimo,long venceMs,long origenBytes,int origenReservas,long sinProgresoMs,
+        long inactividadMs){
  public static final long MIB=1024*1024;
  public record Formato(String extension,String tipo,String categoria,long maximo){}
  public PoliticaMultimedia{
   if(cantidad<1||cantidad>12||total<1||total>1024*MIB||bloque<1||bloque>8*MIB||imagen<1||documento<1||audio<1||video<1||Math.max(Math.max(imagen,documento),Math.max(audio,video))>150*MIB||Math.max(Math.max(imagen,documento),Math.max(audio,video))>bloque*1024||global<2*total||libreMinimo<0||venceMs<60000)throw new IllegalArgumentException("Política multimedia inválida");
+  if(origenBytes<1||origenBytes>=global||origenReservas<1||sinProgresoMs<1000||sinProgresoMs>venceMs
+      ||inactividadMs<sinProgresoMs||inactividadMs>venceMs)
+   throw new IllegalArgumentException("Límites de reserva multimedia inválidos");
+ }
+ public PoliticaMultimedia(int cantidad,long total,long bloque,long imagen,long documento,long audio,long video,
+         long global,long libreMinimo,long venceMs,long origenBytes,int origenReservas,long sinProgresoMs){
+  this(cantidad,total,bloque,imagen,documento,audio,video,global,libreMinimo,venceMs,
+      origenBytes,origenReservas,sinProgresoMs,Math.max(sinProgresoMs,Math.min(30*60000L,venceMs)));
+ }
+ public PoliticaMultimedia(int cantidad,long total,long bloque,long imagen,long documento,long audio,long video,
+         long global,long libreMinimo,long venceMs){
+  this(cantidad,total,bloque,imagen,documento,audio,video,global,libreMinimo,venceMs,
+      Math.max(1,global/4),24,Math.min(15*60000L,venceMs));
  }
  public static PoliticaMultimedia propuesta(){return new PoliticaMultimedia(12,250*MIB,8*MIB,25*MIB,50*MIB,75*MIB,150*MIB,10*1024*MIB,512*MIB,24*3600000L);}
  public List<Formato> formatos(){return List.of(new Formato("pdf","application/pdf","documento",documento),new Formato("txt","text/plain","documento",documento),new Formato("docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document","documento",documento),new Formato("odt","application/vnd.oasis.opendocument.text","documento",documento),new Formato("xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","documento",documento),new Formato("pptx","application/vnd.openxmlformats-officedocument.presentationml.presentation","documento",documento),new Formato("jpg","image/jpeg","imagen",imagen),new Formato("jpeg","image/jpeg","imagen",imagen),new Formato("png","image/png","imagen",imagen),new Formato("webp","image/webp","imagen",imagen),new Formato("mp3","audio/mpeg","audio",audio),new Formato("m4a","audio/mp4","audio",audio),new Formato("wav","audio/wav","audio",audio),new Formato("ogg","audio/ogg","audio",audio),new Formato("mp4","video/mp4","video",video),new Formato("mov","video/quicktime","video",video),new Formato("webm","video/webm","video",video));}

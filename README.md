@@ -48,7 +48,7 @@ Los enlaces de la tabla corresponden a la ejecución verificada del 04/11; el ba
 ## Estado del proyecto
 
 > [!NOTE]
-> **RC1 publicado · 04/11/2026** — [formulario.defensorianinez.gob.cl](https://formulario.defensorianinez.gob.cl). Recepción habilitada para personas autorizadas mediante contraseña temporal. Estado y evidencias: [checkpoint operativo](docs/CHECKPOINT_PRODUCCION_SIGER_2026-11-04.md) · [manifiesto de publicación](docs/PUBLICACION_RC1_MANIFIESTO_2026-11-04.json).
+> **RC1 publicado · 04/11/2026** — [formulario.defensorianinez.gob.cl](https://formulario.defensorianinez.gob.cl). Recepción habilitada para personas autorizadas mediante contraseña temporal. Estado y evidencias: [checkpoint operativo](docs/CHECKPOINT_PRODUCCION_SIGER_2026-11-04.md) · [manifiesto de publicación](docs/PUBLICACION_RC1_MANIFIESTO_2026-11-04.json). Próxima actualización (no ejecutada): [procedimiento Ubuntu](docs/ACTUALIZACION_UBUNTU_PRODUCCION.md), con preflight de solo lectura, respaldo previo y simulacro de recuperación aislado.
 
 **Producción · corte documentado del 04/11/2026**
 

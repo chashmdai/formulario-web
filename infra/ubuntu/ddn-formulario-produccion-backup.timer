@@ -2,6 +2,7 @@
 Description=Respaldo diario del Formulario (America/Santiago)
 
 [Timer]
+# Mantener DESHABILITADO: requiere decisión operacional tras revisar capacidad/copia externa.
 OnCalendar=*-*-* 03:15:00 America/Santiago
 RandomizedDelaySec=300
 Persistent=true
