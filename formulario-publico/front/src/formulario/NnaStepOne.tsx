@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {ReadableSelect} from '../ui/ReadableSelect';
 import {MobileInput} from '../ui/MobileInput';
 import {EmailInput} from '../ui/EmailInput';
@@ -7,6 +8,11 @@ import { GeoFields } from "./GeoFields";
 
 /** Estructura y textos del mockup institucional; la lógica reside en NnaFlow. */
 export function NnaStepOne({ctx}: {ctx: NnaContext}) {
+  // Región y comuna se insertan dentro de la identificación (memorizada). El elemento solo se recrea cuando cambia
+  // algo que muestran; sus manejadores usan actualizaciones funcionales, así que una versión previa sigue siendo válida.
+  const region = ctx.bind('nna-region'), commune = ctx.bind('nna-commune');
+  const geo = useMemo(() => <GeoFields ctx={ctx} />, [region.value, region.disabled, region.required, region['aria-invalid'], commune.value, commune.disabled,
+    commune.required, commune['aria-invalid'], ctx.errors['nna-region'], ctx.errors['nna-commune']]);
   return (<section aria-labelledby="nna-ident-title" className="paper" data-section-tone="identity" id="nna-step-one" hidden={!ctx.full && ctx.step !== 1}>
 {" "}<div className="paper-top">
 {" "}<div className="paper-heading">
@@ -19,7 +25,7 @@ export function NnaStepOne({ctx}: {ctx: NnaContext}) {
 {" "}</div>
 {" "}<div className="paper-body">
 {" "}<IdentificationControls journey={ctx.journey} session={ctx.session} nna identityRef={ctx.identityRef}>
-<GeoFields ctx={ctx} />
+{geo}
 </IdentificationControls>{" "}{" "}{" "}<div className="nna-help-identity" id="nna-identity-help-panel">
 <p id="nna-assistance-policy"><strong>¿Necesitas ayuda para completar tus datos?</strong> Puedes pedir apoyo a alguien de confianza. Para continuar necesitamos tu primer nombre, primer apellido y región.</p>
 </div>

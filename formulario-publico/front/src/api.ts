@@ -16,11 +16,39 @@ export class ApiError extends Error {
 
 export async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...init });
+  if (response.status === 401 || response.status === 403) forgetCsrf();
   if (!response.ok) throw new ApiError(response.status);
   return response.json() as Promise<T>;
 }
 export const getSession = () => json<Session>('/api/session');
-export const getCsrf = () => json<Csrf>('/api/csrf');
+let csrf: Promise<Csrf> | null = null;
+/**
+ * Token CSRF de la sesión vigente. Se conserva solo en memoria durante la vida de la página (nunca en almacenamiento):
+ * el servidor lo sigue validando en cada mutación; evita un viaje de ida y vuelta previo a cada envío.
+ */
+export function getCsrf(): Promise<Csrf> {
+  if (!csrf) {
+    const pending = json<Csrf>('/api/csrf');
+    csrf = pending;
+    pending.catch(() => { if (csrf === pending) csrf = null; });
+  }
+  return csrf;
+}
+/** Descarta el token en memoria (sesión renovada, expirada o rechazo del servidor). */
+export function forgetCsrf() { csrf = null; }
+/**
+ * Mutación con el token CSRF en cabecera. Si el servidor rechaza el token (403, por ejemplo tras renovarse la sesión),
+ * se obtiene uno nuevo y se reintenta una sola vez; un 403 legítimo vuelve a fallar igual que antes.
+ */
+export async function csrfFetch(url: string, init: RequestInit & { headers?: Record<string, string> }): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const token = await getCsrf();
+    init.signal?.throwIfAborted();
+    const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...init, headers: { ...init.headers, [token.headerName]: token.token } });
+    if (response.status === 401 || response.status === 403) forgetCsrf();
+    if (response.status !== 403 || attempt > 0) return response;
+  }
+}
 export const getCapabilities = () => json<Capabilities>('/api/comunicaciones/capacidades');
 export const getDelivery = (id: string) => json<Delivery>(`/api/comunicaciones/${encodeURIComponent(id)}`);
 export async function sendCommunication(mensaje: string, key: string, avisoVersion: string): Promise<Delivery> {

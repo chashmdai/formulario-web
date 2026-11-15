@@ -1,7 +1,7 @@
 import {NationalitySelect} from '../ui/NationalitySelect';
 import {canonicalNationality,validNationality} from './nationality';
 import {ReadableSelect} from '../ui/ReadableSelect';
-import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { memo, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode, Ref } from 'react';
 import type { Session } from '../api';
 import { ApiError } from '../api';
@@ -10,7 +10,11 @@ import type { Declarations, IdentificationRequest, IdentityField, IdentityView, 
 import { formatRunNumber, pastedRun, runNumber, validRun } from './run';
 import { DOCUMENT_MAX_LENGTH, NAME_MAX_LENGTH, birthDateProblem, documentNumberProblem, isNameField, isUnderage, nameProblem, normalizeDocumentNumber, normalizeName, typingProblem } from './personalData';
 
-export interface IdentificationHandle { save: () => Promise<IdentityView | null> }
+/**
+ * `save()` confirma siempre con el servidor. `save({reuse: true})` (cambio de paso) valida localmente igual, pero
+ * omite el POST cuando las declaraciones coinciden exactamente con la última vista confirmada por el servidor.
+ */
+export interface IdentificationHandle { save: (options?: {reuse?: boolean}) => Promise<IdentityView | null> }
 interface Props {
   journey: Journey; session: Session | null; nna?: boolean; children?: ReactNode;
   identityRef?: Ref<IdentificationHandle>; onResolved?: (view: IdentityView | null) => void;
@@ -29,7 +33,7 @@ const metadata: {key: IdentityField; suffix: string; label: string; type?: strin
 ];
 
 /** Estructura del mockup; solo muestra declaraciones propias o identidad CU de sesión. */
-export function IdentificationControls({journey, session, nna = false, children, identityRef, onResolved}: Props) {
+function IdentificationControlsView({journey, session, nna = false, children, identityRef, onResolved}: Props) {
   const prefix = nna ? 'nna' : 'adult';
   const person = nna ? 'presentador-nna' : 'presentador-adulto';
   const cu = journey.tipo === 'ADULTO_CU';
@@ -199,7 +203,7 @@ export function IdentificationControls({journey, session, nna = false, children,
     return()=>{active=false;window.clearTimeout(timer);};
   },[view,phase,journey.id,person]);
 
-  async function save(): Promise<IdentityView | null> {
+  async function save({reuse = false}: {reuse?: boolean} = {}): Promise<IdentityView | null> {
     if (busy || !restored) return null;
     const current = view?.estado === 'REVISADO' ? view : await review();
     if (!current || current.estado !== 'REVISADO') return null;
@@ -221,11 +225,13 @@ export function IdentificationControls({journey, session, nna = false, children,
       if (first) document.getElementById(`${prefix}-${first.suffix}`)?.focus();
       return null;
     }
+    // Solo se envían los campos que el servidor indicó como faltantes o ya declarados por la persona.
+    const allowed = Object.fromEntries(current.camposFaltantes.filter(k => input[k] !== undefined).map(k => [k, input[k]])) as Declarations;
+    // Al cambiar de paso, una declaración idéntica a la ya confirmada no se reenvía (el servidor solo la volvería a fechar).
+    if (reuse && view === current && Object.entries(allowed).every(([k, v]) => (v || '').trim() === (current.valoresDeclarados[k as IdentityField] || ''))) return current;
     const token = ++generation.current;
     setPhase('CONSULTANDO');
     try {
-      // Solo se envían los campos que el servidor indicó como faltantes o ya declarados por la persona.
-      const allowed = Object.fromEntries(current.camposFaltantes.filter(k => input[k] !== undefined).map(k => [k, input[k]])) as Declarations;
       const next = await declarePerson(journey.id, person, allowed);
       if (token !== generation.current) return null;
       received(next); return next;
@@ -340,3 +346,8 @@ export function IdentificationControls({journey, session, nna = false, children,
     </div>}
   </>;
 }
+/**
+ * Sus propiedades (recorrido, sesión, referencia) son estables durante el llenado: memorizarlo evita volver a
+ * renderizar la identificación y el selector de 249 países en cada pulsación de otras secciones.
+ */
+export const IdentificationControls = memo(IdentificationControlsView);

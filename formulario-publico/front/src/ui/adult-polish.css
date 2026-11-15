@@ -47,7 +47,7 @@ html[data-theme] .btn[aria-busy=true]::after{content:"";width:1em;height:1em;fle
 html[data-theme] .btn:not(:disabled):active{transform:translateY(1px)}
 
 /* Progreso: la barra y los números de etapa acompañan el avance. */
-html[data-theme] #form-experience .journey-track span{transition:width .45s cubic-bezier(.2,.7,.2,1)}
+html[data-theme] #form-experience .journey-track span{transition:width .32s cubic-bezier(.22,.8,.3,1)}
 html[data-theme] #form-experience .journey-num{transition:background-color .25s ease,color .25s ease,transform .25s ease}
 html[data-theme] #form-experience .journey .active .journey-num{transform:scale(1.06)}
 html[data-theme] #adult-step-message{text-align:center}
@@ -57,8 +57,7 @@ html[data-theme] #adult-step-message strong{color:var(--content);font-weight:600
 html[data-theme] #form-experience .char-counter{transition:color .2s ease}
 html[data-theme] #form-experience .char-counter.is-near-limit{color:var(--ui-warning);font-weight:600}
 
-/* Revisión final: el resumen entra con suavidad y el pie queda visible. */
-html[data-theme] .review-dialog .review-section{animation:ui-enter .22s ease-out both}
+/* Revisión final: el diálogo ya entra con su propia transición; las secciones no se animan por separado. */
 
 /* Móvil: menos aire vertical y botones de paso a todo el ancho, en orden lógico. */
 @media(max-width:600px){

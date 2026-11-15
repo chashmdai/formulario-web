@@ -17,6 +17,7 @@ import { activeCards, adultCapture, adultMaxLength, adultRequired, groupIndexes,
 import type { AdultCapture, AdultPersonCard as Card } from './adultRules';
 import type { FormErrors } from './nnaRules';
 import { comunas } from './territorio';
+import { useCommitFocus } from '../ui/reveal';
 
 type Control={value:string;onChange:(e:ChangeEvent<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>)=>void;required:boolean;disabled:boolean;'aria-invalid':boolean;'aria-errormessage'?:string};
 type Check={checked:boolean;onChange:(e:ChangeEvent<HTMLInputElement>)=>void;disabled:boolean;'aria-invalid'?:boolean;'aria-errormessage'?:string};
@@ -43,8 +44,6 @@ const reasonCopy:Record<string,[string,string]>={
   promocion:['Actividad de Promoción y Difusión','Charlas, talleres o capacitaciones para tu comunidad u organización.'],
 };
 const stepNames=['Tus datos','Motivo de contacto','Tu comunicación'];
-/** Desplazamiento suave solo si la persona no pidió reducir el movimiento. */
-function smoothScroll():ScrollBehavior{try{return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===false?'smooth':'auto';}catch{return 'auto';}}
 /** Recorrido adulto del mockup. El contenedor revisa/envía la captura; aquí no se fabrican comprobantes. */
 export function AdultFlow({journey,session,full,filePort,initialAttachments=[],mediaEnabled=false,navigationRef,onStep,onReview}:Props) {
   const [step,setStep]=useState(1),[values,setValues]=useState<Record<string,string>>({}),[errors,setErrors]=useState<FormErrors>({});
@@ -56,18 +55,19 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],m
   const sequence=useRef<Record<RelatedRole,number>>({AFECTADO_NNA:0,ADULTO_RELACIONADO:0,PERSONA_SENALADA:0});
   const mounted=useRef(true),promotionRegionManual=useRef(false);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  const focusAfterCommit=useCommitFocus(working||uploading);
+  const focusStep=(target:number)=>focusAfterCommit(()=>{const section=document.getElementById(['identificacion','motivo-seccion','informacion'][target-1]);return {section,target:section?.querySelector<HTMLElement>('h2')??null};});
   const value=(id:string)=>values[id]||'';
   const required=adultRequired(values),reason=value('motivo'),topic=value('tema');
   const ready=!!reason&&(reason!=='consulta'||value('consulta-confirmada')==='true'&&['general','entrevista','estadisticas'].includes(topic)&&(topic!=='estadisticas'||value('stats-confirm')==='true'));
   const blockIdentity=reason==='consulta'&&(topic==='empleo'||topic==='estadisticas'&&!ready);
-  function focusStep(target:number){requestAnimationFrame(()=>{const element=document.getElementById(['identificacion','motivo-seccion','informacion'][target-1]);element?.scrollIntoView?.({block:'start',behavior:smoothScroll()});element?.querySelector<HTMLElement>('h2')?.focus({preventScroll:true});});}
   function focusField(id:string){
     const element=document.getElementById(id)||form.current?.querySelector<HTMLElement>(`[name="${id}"]`);
     const section=element?.closest<HTMLElement>('section.paper');
     if(section&&!full){const target=[`identificacion`,`motivo-seccion`,`informacion`].indexOf(section.id)+1;if(target){setStep(target);onStep?.(target);}}
     requestAnimationFrame(()=>{element?.scrollIntoView?.({block:'center',behavior:'auto'});element?.focus();});
   }
-  function report(next:FormErrors){setErrors(next);if(Object.keys(next).length)requestAnimationFrame(()=>document.getElementById('adult-errors')?.focus());}
+  function report(next:FormErrors){setErrors(next);if(Object.keys(next).length)focusAfterCommit(()=>{const summary=document.getElementById('adult-errors');return {section:summary,target:summary};});}
   function add(role:RelatedRole){
     if(cards.length>=29||sequence.current[role]>=99){setFailure('Has alcanzado el límite de personas de este recorrido. Continúa con las tarjetas existentes.');return;}
     const number=++sequence.current[role],prefix=role==='AFECTADO_NNA'?'afectado':role==='ADULTO_RELACIONADO'?'relacionado':'senalado';
@@ -112,7 +112,8 @@ export function AdultFlow({journey,session,full,filePort,initialAttachments=[],m
     if(pending.current||uploading)return;if(blockIdentity&&target===1)target=2;
     pending.current=true;setWorking(true);setFailure('');
     try {
-      if(target>1&&!blockIdentity&&!await identityRef.current?.save())return;
+      // Entre pasos se valida igual, pero sin reenviar una identificación idéntica a la ya confirmada.
+      if(target>1&&!blockIdentity&&!await identityRef.current?.save({reuse:true}))return;
       if(!mounted.current)return;
       if(target>2){const next=validateAdult(values,false);report(next);if(Object.keys(next).length){setStep(2);onStep?.(2);return;}}
       setStep(target);onStep?.(target);focusStep(target);

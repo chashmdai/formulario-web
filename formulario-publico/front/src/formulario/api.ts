@@ -1,4 +1,4 @@
-import { ApiError, getCsrf, json } from '../api';
+import { ApiError, csrfFetch, json } from '../api';
 
 export type JourneyKind = 'ADULTO_CU' | 'ADULTO_DECLARADO' | 'NNA';
 export type PersonRole = 'PRESENTADOR' | 'AFECTADO_NNA' | 'ADULTO_RELACIONADO' | 'PERSONA_SENALADA';
@@ -16,11 +16,9 @@ const path = (journey: string, person: string) => `${root}/recorridos/${encodeUR
 export const getJourneyCapabilities = () => json<JourneyCapabilities>(`${root}/capacidades`);
 export const getCurrentJourney = () => json<Journey>(`${root}/actual`);
 async function mutation<T>(url: string, method: 'POST' | 'DELETE', body?: unknown, signal?: AbortSignal): Promise<T> {
-  const csrf = await getCsrf();
-  signal?.throwIfAborted();
-  const response = await fetch(url, {method, credentials: 'same-origin', cache: 'no-store',
+  const response = await csrfFetch(url, {method,
     ...(signal ? {signal} : {}),
-    headers: {'Content-Type': 'application/json', [csrf.headerName]: csrf.token},
+    headers: {'Content-Type': 'application/json'},
     ...(body === undefined ? {} : {body: JSON.stringify(body)}),
   });
   if (!response.ok) throw new ApiError(response.status);

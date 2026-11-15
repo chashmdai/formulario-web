@@ -1,4 +1,4 @@
-import {ApiError,getCsrf,json} from '../api';
+import {ApiError,csrfFetch,json} from '../api';
 import type {Attachment} from './NnaFlow';
 export interface MediaPolicy{habilitada:boolean;limites:{cantidad:number;total:number;bloque:number;imagen:number;documento:number;audio:number;video:number};formatos:{extension:string;tipo:string;categoria:string;maximo:number}[];deshabilitados:Record<string,string>}
 export interface UploadState{id:string;nombre:string;tamanio:number;sha256:string;recibidos:number;bloque:number;estado:string;error:string|null;bloquesFaltantes:number[];archivo:Attachment|null}
@@ -11,7 +11,7 @@ export const pendingMedia=(journey:string)=>json<UploadState[]>(root(journey)+'/
 export const mediaView=(journey:string,id:string)=>json<MediaView>(root(journey)+`/adjuntos/${encodeURIComponent(id)}/vista`);
 export const mediaUrl=(journey:string,id:string,preview=false)=>root(journey)+`/adjuntos/${encodeURIComponent(id)}`+(preview?'/representacion':'');
 async function mutation<T>(journey:string,path:string,method:string,body?:unknown,signal?:AbortSignal):Promise<T>{
- const csrf=await getCsrf();const response=await fetch(root(journey)+path,{method,credentials:'same-origin',cache:'no-store',signal,headers:{[csrf.headerName]:csrf.token,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});if(!response.ok)throw new ApiError(response.status);return response.status===204?undefined as T:await response.json() as T;
+ const response=await csrfFetch(root(journey)+path,{method,signal,headers:body===undefined?{}:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});if(!response.ok)throw new ApiError(response.status);return response.status===204?undefined as T:await response.json() as T;
 }
 export const commitMedia=(journey:string,ids:string[],base:string)=>mutation<Manifest>(journey,'/multimedia/manifiesto','POST',{ids,base});
 export const cancelMedia=(journey:string,id:string)=>mutation<void>(journey,`/cargas/${encodeURIComponent(id)}`,'DELETE');
@@ -34,7 +34,7 @@ export async function uploadMedia(journey:string,file:File,policy:MediaPolicy,si
   progress({fase:'CARGANDO',bytes:state.recibidos,id});let completed=false;
   for(let attempt=0;attempt<3&&!completed;attempt++){
    if(signal.aborted)abort();try{
-    const csrf=await getCsrf();const response=await fetch(root(journey)+`/cargas/${id}/bloques/${index}`,{method:'PUT',credentials:'same-origin',cache:'no-store',signal,headers:{[csrf.headerName]:csrf.token,'Content-Type':'application/octet-stream','X-SHA256':hash.blocks[index]},body:file.slice(start,end)});if(!response.ok)throw new ApiError(response.status);state=await response.json() as UploadState;completed=true;
+    const response=await csrfFetch(root(journey)+`/cargas/${id}/bloques/${index}`,{method:'PUT',signal,headers:{'Content-Type':'application/octet-stream','X-SHA256':hash.blocks[index]},body:file.slice(start,end)});if(!response.ok)throw new ApiError(response.status);state=await response.json() as UploadState;completed=true;
    }catch(error){if(signal.aborted)abort();if(error instanceof ApiError&&![429,503].includes(error.status))throw error;if(attempt===2)throw error;await delay(500*(attempt+1),signal);state=await json<UploadState>(root(journey)+`/cargas/${id}`);completed=state.recibidos>=end&&!state.bloquesFaltantes.includes(index);}
   }
   progress({fase:'CARGANDO',bytes:state.recibidos,id});

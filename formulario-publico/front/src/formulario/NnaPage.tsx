@@ -23,8 +23,9 @@ import { usePreferences } from './preferences';
 import '../prototipo/prototipo.css';
 import '../prototipo/inicio.css';
 import '../ui/experience.css';
+import '../ui/flow-polish.css';
 
-export default function NnaPage() {
+export default function NnaPage({initialSession}:{initialSession?:Session}={}) {
   const [mediaEnabled,setMediaEnabled]=useState(false);
   const [dirty,setDirty]=useState(false),[exit,setExit]=useState(false);
   const [journey,setJourney]=useState<Journey|null>(null),[session,setSession]=useState<Session|null>(null);
@@ -39,13 +40,14 @@ export default function NnaPage() {
   const files=useMemo(()=>journey?attachmentPort(journey.id):null,[journey]);
   useEffect(()=>{let active=true;
     document.title='Formulario para niños, niñas y adolescentes | Defensoría de la Niñez';
-    void Promise.all([enterNna(),getSession(),getReceptionCapabilities()]).then(async([j,s,c])=>{
+    // La sesión consultada al abrir el sitio se reutiliza en la primera carga; un reintento vuelve a consultarla.
+    void Promise.all([enterNna(),initialSession&&retry===0?Promise.resolve(initialSession):getSession(),getReceptionCapabilities()]).then(async([j,s,c])=>{
       const restored=j.estado==='RECIBIDO'?await getJourneySubmission(j.id):null;
       const restoredFiles=restored?[]:await listAttachments(j.id);
       if(active){setJourney(j);setSession(s);setAvailable(c.nna);setMediaEnabled(c.multimedia===true);setReceipt(restored);setInitialFiles(restoredFiles);setFatal('');}
     }).catch(e=>{if(active)setFatal(e instanceof ApiError&&e.status===429?'Se iniciaron muchos formularios desde esta conexión en la última hora. Espera unos minutos e inténtalo nuevamente.':'No pudimos abrir tu formulario. Inténtalo nuevamente.');}).finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
-  },[retry]);
+  },[retry]); // initialSession solo siembra la primera carga; no es dependencia del efecto.
   async function send() {
     if(!journey||!review||sending.current)return;
     if(!available){setError('La recepción está temporalmente cerrada. Vuelve a intentarlo más tarde.');return;}

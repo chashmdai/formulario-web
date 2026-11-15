@@ -1,4 +1,4 @@
-import { ApiError, getCsrf, json } from '../api';
+import { ApiError, csrfFetch, json } from '../api';
 import { getCurrentJourney, getJourneyCapabilities, startJourney } from './api';
 import type { Journey } from './api';
 import type { Attachment, AttachmentPort } from './NnaFlow';
@@ -27,9 +27,8 @@ export async function getJourneySubmission(id: string): Promise<SubmissionState>
 export const getReceptionCapabilities = () => json<{nna: boolean; adultos: boolean; multimedia?: boolean}>(`${root}/recepcion/capacidades`);
 export const listAttachments = (journey:string) => json<Attachment[]>(`${journeyPath(journey)}/adjuntos`);
 export async function submitCapture(journey: string, key: string, body: CompleteCapture): Promise<SubmissionState> {
-  const csrf = await getCsrf();
-  const response = await fetch(`${journeyPath(journey)}/comunicaciones`, {method: 'POST', credentials: 'same-origin', cache: 'no-store',
-    headers: {'Content-Type': 'application/json', [csrf.headerName]: csrf.token, 'Idempotency-Key': key}, body: JSON.stringify(body)});
+  const response = await csrfFetch(`${journeyPath(journey)}/comunicaciones`, {method: 'POST',
+    headers: {'Content-Type': 'application/json', 'Idempotency-Key': key}, body: JSON.stringify(body)});
   if (!response.ok) throw new ApiError(response.status);
   return parseSubmission(await response.json() as SubmissionState);
 }
@@ -38,15 +37,15 @@ export function attachmentPort(journey: string): AttachmentPort {
   return {
     async replace(files: File[]) {
       if (!files.length) {await this.clear();return [];}
-      const csrf = await getCsrf(), body = new FormData();files.forEach(file => body.append('archivos', file));
-      const response = await fetch(`${journeyPath(journey)}/adjuntos`, {method:'POST', credentials:'same-origin', cache:'no-store', headers:{[csrf.headerName]:csrf.token}, body});
+      const body = new FormData();files.forEach(file => body.append('archivos', file));
+      const response = await csrfFetch(`${journeyPath(journey)}/adjuntos`, {method:'POST', body});
       if (!response.ok) throw new ApiError(response.status);
       const result = await response.json() as Attachment[];
       if (!Array.isArray(result) || result.length !== files.length || result.some(f => f.estado !== 'VALIDADO' || !f.id || !/^[a-f0-9]{64}$/.test(f.sha256))) throw new ApiError(502);
       return result;
     },
     async clear() {
-      const csrf = await getCsrf();const response = await fetch(`${journeyPath(journey)}/adjuntos`, {method:'DELETE', credentials:'same-origin', cache:'no-store', headers:{[csrf.headerName]:csrf.token}});
+      const response = await csrfFetch(`${journeyPath(journey)}/adjuntos`, {method:'DELETE'});
       if (!response.ok) throw new ApiError(response.status);
     },
   };

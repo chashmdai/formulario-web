@@ -1,0 +1,75 @@
+/*
+ * Fluidez y pulido común (15/11/2026). Solo tokens institucionales de experience.css: paleta, Cabin y activos
+ * de la Defensoría no cambian. Movimiento breve basado en opacity/transform; prefers-reduced-motion
+ * (experience.css y prototipo.css) anula animaciones y transiciones de este archivo.
+ */
+
+/* Lenguaje de movimiento: dos duraciones (aparición y entrada de etapa) y una curva de salida para todo el recorrido. */
+html[data-theme]{--motion-base:.18s;--motion-enter:.26s;--ease-out:cubic-bezier(.22,.8,.3,1);
+  /* Los cambios de paso y los enlaces internos llevan al destino sin recorrer la página. */
+  scroll-behavior:auto;scroll-padding-top:24px}
+
+/* Cambio de etapa: la sección nueva entra en su lugar, sin desplazamiento largo. */
+html[data-theme] #form-experience .paper:not([hidden]){animation:flow-step-in var(--motion-enter) var(--ease-out)}
+/* Preguntas condicionales: aparecen con un fundido corto; el contenido siguiente no se anima. */
+html[data-theme] #form-experience .conditional:not([hidden]){animation:ui-fade var(--motion-base) ease-out}
+@keyframes flow-step-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* Apertura del formulario: la tarjeta reserva su espacio; el texto de espera solo aparece si la espera es real. */
+html[data-theme] .loading-state{display:block;padding:0;margin:0 0 22px;background:none;border:0;border-radius:0;color:var(--subtle);
+  /* El pie queda bajo el pliegue desde el inicio: el formulario real no lo empuja dentro de la vista. */
+  min-height:min(760px,calc(100vh - 140px))}
+html[data-theme] .skeleton-paper{border:1px solid var(--neutral-border);border-radius:17px;background:var(--surface);box-shadow:var(--sombra);overflow:hidden;animation:flow-skeleton 1.6s ease-in-out .3s infinite both}
+html[data-theme] .skeleton-top{display:flex;gap:16px;align-items:center;padding:23px 26px;border-bottom:1px solid var(--neutral-border)}
+html[data-theme] .skeleton-num{flex:none;width:36px;height:36px;border-radius:11px;background:var(--ui-accent-soft)}
+html[data-theme] .skeleton-lines{flex:1;display:grid;gap:9px}
+html[data-theme] .skeleton-lines span,html[data-theme] .skeleton-body span{display:block;height:12px;border-radius:6px;background:var(--surface-muted)}
+html[data-theme] .skeleton-lines span:first-child{width:min(340px,75%);height:18px}
+html[data-theme] .skeleton-lines span:last-child{width:min(240px,55%)}
+html[data-theme] .skeleton-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 18px;padding:26px}
+html[data-theme] .skeleton-body span{height:50px;border-radius:10px;border:1px solid var(--neutral-border);background:var(--field-bg)}
+html[data-theme] .loading-label{display:flex;gap:10px;align-items:center;justify-content:center;margin:14px 0 0;font-size:.88rem;color:var(--subtle);animation:ui-fade .25s ease-out .45s both}
+html[data-theme] .loading-label .ui-spinner{width:16px;height:16px;color:var(--link-tone)}
+@keyframes flow-skeleton{50%{opacity:.62}}
+@media(max-width:600px){
+  html[data-theme] .skeleton-top{padding:19px 18px}
+  html[data-theme] .skeleton-body{grid-template-columns:minmax(0,1fr);padding:20px 16px}
+}
+html[data-theme=contrast] .skeleton-paper{box-shadow:none;border-color:#fff}
+
+/* Tarjetas de etapa: acento de marca superior, el mismo recurso de las tarjetas de la portada. */
+html[data-theme] #form-experience .paper[data-section-tone]{border-top:3px solid var(--marca-celeste)}
+html[data-theme] #form-experience .paper[data-section-tone=reason]{border-top-color:var(--marca-ciruela)}
+html[data-theme=contrast] #form-experience .paper[data-section-tone]{border-top-color:#ffed55}
+
+/* Paso 3: cada panel conserva su altura natural, sin un recuadro vacío junto al relato. */
+html[data-theme] #informacion .paper-body>.form-grid{align-items:start}
+
+/* Último paso: «Volver» y «Revisar respuestas» se leen como una sola barra de cierre. */
+html[data-theme] #form-experience .adult-step-nav:not([hidden]):has(+ .review-bar:not([hidden])){margin-bottom:0;border-bottom:0;border-radius:13px 13px 0 0;padding-bottom:10px}
+html[data-theme] #form-experience .adult-step-nav:not([hidden])+.review-bar:not([hidden]){margin-top:0;border-top:0;border-radius:0 0 13px 13px;padding-top:10px}
+html[data-theme] #form-experience .adult-step-nav:not([hidden]):has(+ .review-bar:not([hidden])) #adult-step-message{display:none}
+
+/* El levantamiento al pasar el cursor solo existe con puntero real: en pantallas táctiles no queda «pegado» tras tocar.
+   (:root eleva la especificidad: experience.css se carga después de esta hoja.) */
+@media(hover:none){
+  html[data-theme]:root .audience-card:hover,html[data-theme]:root .btn-primary:hover,html[data-theme]:root #form-experience .resource-link:hover{transform:none}
+  html[data-theme]:root .audience-card:hover .audience-action svg{transform:none}
+}
+
+/* Móvil: el formulario aparece antes. La etapa ya figura en la tarjeta de progreso; el texto de la barra
+   queda solo para lectores de pantalla (conserva su anuncio aria-live). */
+@media(max-width:600px){
+  html[data-theme] #form-experience .form-toolbar{padding:12px 14px;gap:10px;margin-bottom:14px}
+  html[data-theme] #form-experience .toolbar-controls{justify-content:flex-end}
+  html[data-theme] #form-experience .step-info{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+  html[data-theme] #form-experience .view-toggle{width:100%}
+  html[data-theme] #form-experience .view-toggle button{flex:1}
+  html[data-theme] #form-experience .side-card{padding:12px 14px}
+  html[data-theme] #form-experience .progress-heading{margin-bottom:8px}
+  html[data-theme] #form-experience .journey-track{margin-bottom:12px}
+  html[data-theme] #form-experience .page-layout{gap:14px}
+  html[data-theme] #form-experience .side-note{display:none}
+  html[data-theme]:root .review-dialog .dialog-body{padding:16px}
+  html[data-theme]:root .review-dialog .review-section{padding:14px 14px 10px}
+}

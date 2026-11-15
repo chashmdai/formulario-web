@@ -29,11 +29,12 @@ import '../prototipo/prototipo.css';
 import '../prototipo/inicio.css';
 import '../ui/experience.css';
 import '../ui/adult-polish.css';
+import '../ui/flow-polish.css';
 
-export default function AdultPage({initialJourney,mode='manual'}:{initialJourney?:Journey;mode?:'manual'|'cu'}){
+export default function AdultPage({initialJourney,initialSession,mode='manual'}:{initialJourney?:Journey;initialSession?:Session;mode?:'manual'|'cu'}){
   const [mediaEnabled,setMediaEnabled]=useState(false);
   const [dirty,setDirty]=useState(false),[exit,setExit]=useState(false);
-  const [journey,setJourney]=useState<Journey|null>(null),[session,setSession]=useState<Session|null>(null),[available,setAvailable]=useState(false);
+  const [journey,setJourney]=useState<Journey|null>(null),[session,setSession]=useState<Session|null>(initialSession??null),[available,setAvailable]=useState(false);
   const [full,setFull]=useState(false),[step,setStep]=useState(1),[retry,setRetry]=useState(0),[loading,setLoading]=useState(true);
   const [privacy,setPrivacy]=useState(false),[fatal,setFatal]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[locked,setLocked]=useState(false);
   const [review,setReview]=useState<AdultReview|null>(null),[receipt,setReceipt]=useState<SubmissionState|null>(null),[initialFiles,setInitialFiles]=useState<Attachment[]>([]);
@@ -44,7 +45,8 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
   const files=useMemo(()=>journey?attachmentPort(journey.id):null,[journey]);
   useEffect(()=>{
     let active=true;document.title='Formulario para personas adultas | Defensoría de la Niñez';
-    void Promise.all([getSession(),getReceptionCapabilities(),initialJourney?Promise.resolve(initialJourney):getCurrentJourney().catch(e=>{if(!(e instanceof ApiError)||e.status!==404)throw e;return null;})]).then(async([s,c,j])=>{
+    // La sesión consultada al abrir el sitio se reutiliza en la primera carga; un reintento vuelve a consultarla.
+    void Promise.all([initialSession&&retry===0?Promise.resolve(initialSession):getSession(),getReceptionCapabilities(),initialJourney?Promise.resolve(initialJourney):getCurrentJourney().catch(e=>{if(!(e instanceof ApiError)||e.status!==404)throw e;return null;})]).then(async([s,c,j])=>{
       if(!j||j.tipo!==kind){if(active){setSession(s);setAvailable(c.adultos);setMediaEnabled(c.multimedia===true);setPrivacy(true);setLoading(false);}return;}
       if(!j.aceptaCanal)throw new ApiError(409);
       const restored=j.estado==='RECIBIDO'?await getJourneySubmission(j.id):null;
@@ -52,7 +54,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
       if(active){setSession(s);setAvailable(c.adultos);setMediaEnabled(c.multimedia===true);setJourney(j);setReceipt(restored);setInitialFiles(attached);setFatal('');setLoading(false);}
     }).catch(()=>{if(active){setFatal('No pudimos abrir tu formulario. Inténtalo nuevamente.');setLoading(false);}});
     return()=>{active=false;};
-  },[initialJourney,kind,retry]);
+  },[initialJourney,kind,retry]); // initialSession solo siembra la primera carga; no es dependencia del efecto.
   useEffect(()=>{
     if(kind!=='ADULTO_CU'||!session?.authenticated)return;
     let active=true;void getCsrf().then(c=>{if(active)setCsrf(c);}).catch(()=>{});
@@ -83,7 +85,7 @@ export default function AdultPage({initialJourney,mode='manual'}:{initialJourney
   async function check(){const id=receipt?.id||attempt.current?.key;if(!id||sending.current)return;sending.current=true;setBusy(true);try{setReceipt(await getSubmission(id));setReview(null);setError('');}catch{setError(receipt?'No pudimos actualizar el estado. Volveremos a intentarlo automáticamente. Puedes guardar tu comprobante de recepción; no necesitas enviar nuevamente tu comunicación.':'No pudimos recuperar una recepción confirmada. Puedes reintentar el mismo envío.');}finally{sending.current=false;setBusy(false);}}
   const authenticated=journey?.tipo!=='ADULTO_CU'||session?.authenticated;
   return <>
-    <a className="skip" href="#principal">Saltar al formulario</a><InstitutionalHeader {...preferences} title="Formulario para personas adultas" sessionAction={session?.authenticated&&kind==='ADULTO_CU'&&csrf&&<form action="/auth/logout" method="post" className="session-action"><input type="hidden" name={csrf.parameterName} value={csrf.token} /><button className="btn btn-secondary" type="submit">Cerrar sesión</button></form>} onHome={()=>{if(dirty&&!receipt)setExit(true);else window.location.assign('/?vista=inicio');}} />
+    <a className="skip" href="#principal">Saltar al formulario</a><InstitutionalHeader {...preferences} title="Formulario para personas adultas" sessionAction={session?.authenticated&&kind==='ADULTO_CU'&&<form action="/auth/logout" method="post" className="session-action">{csrf&&<input type="hidden" name={csrf.parameterName} value={csrf.token} />}<button className="btn btn-secondary" type="submit" disabled={!csrf}>Cerrar sesión</button></form>} onHome={()=>{if(dirty&&!receipt)setExit(true);else window.location.assign('/?vista=inicio');}} />
     <div className="shell" id="form-experience"><section className="hero" aria-labelledby="titulo"><div className="hero-text"><p className="eyebrow"><span className="accent-line" aria-hidden="true" /> Comunícate con la Defensoría</p><h1 id="titulo">¿En qué podemos ayudarte?</h1><p id="hero-description">En tres pasos: tus datos, el motivo y tu mensaje. Antes de enviar podrás revisarlo todo.</p></div></section>
       <FormToolbar title={kind==='ADULTO_CU'?'Persona adulta · ClaveÚnica':'Persona adulta · Identificación declarada'} full={full} step={step} total={3} onView={setFull} />
       <div className="page-layout" id="public-surface"><FormProgress step={step} full={full} disabled={loading||!journey||!!receipt||!!fatal||!authenticated} onNavigate={target=>navigation.current?.go(target)} />

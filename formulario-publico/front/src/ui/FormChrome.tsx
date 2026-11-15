@@ -1,7 +1,22 @@
+import type {CSSProperties} from 'react';
 import logo from '../prototipo/assets/logo.svg';
 export function Icon({name,small=false}:{name:string;small?:boolean}){return <svg aria-hidden="true" className={`icon${small?' small':''}`}><use href={`#i-${name}`}/></svg>;}
+/**
+ * Espera de apertura. En la de página, el indicador y su texto aparecen con retardo (una carga rápida no destella un
+ * indicador); la del formulario reserva el espacio de la tarjeta para que el contenido real ocupe su lugar sin saltos.
+ */
 export function LoadingState({label='Estamos abriendo tu formulario…',full=false}:{label?:string;full?:boolean}){
- return <div className={full?'page-loading':'loading-state'} role="status" aria-live="polite">{full&&<img src={logo} alt="Defensoría de la Niñez" width="200"/>}<span className="ui-spinner" aria-hidden="true"/><p>{label}</p></div>;
+ if(full){
+  // Retardo medido desde la navegación: si el cargador se vuelve a montar (sesión → código de la vista) no reinicia
+  // su aparición ni parpadea.
+  const wait=Math.max(0,Math.round(350-performance.now()));
+  const timing={'--loading-delay':wait+'ms','--loading-fade':wait?'.3s':'0s'} as CSSProperties;
+  return <div className="page-loading" role="status" aria-live="polite" style={timing}><img src={logo} alt="Defensoría de la Niñez" width="200"/><span className="ui-spinner" aria-hidden="true"/><p>{label}</p></div>;
+ }
+ return <div className="loading-state" role="status" aria-live="polite">
+  <div className="skeleton-paper" aria-hidden="true"><div className="skeleton-top"><span className="skeleton-num"/><span className="skeleton-lines"><span/><span/></span></div><div className="skeleton-body"><span/><span/><span/><span/></div></div>
+  <p className="loading-label"><span className="ui-spinner" aria-hidden="true"/>{label}</p>
+ </div>;
 }
 export function FormToolbar({title,full,step,total,onView}:{title:string;full:boolean;step:number;total:number;onView:(full:boolean)=>void}){
  return <div className="form-toolbar" aria-label="Presentación del formulario"><div className="toolbar-title"><span className="toolbar-overline">Tu comunicación</span><strong id="view-current">{title}</strong><small>Los campos con * son obligatorios.</small></div><div className="toolbar-controls"><span className="step-info" id="step-info" aria-live="polite">{full?'Formulario completo':`Paso ${step} de ${total}`}</span><div className="view-toggle" role="group" aria-label="Forma de visualizar el formulario"><button type="button" aria-pressed={!full} onClick={()=>onView(false)}>Por pasos</button><button type="button" aria-pressed={full} onClick={()=>onView(true)}>Completo</button></div></div></div>;

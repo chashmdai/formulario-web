@@ -15,6 +15,7 @@ import { usePreferences } from '../formulario/preferences';
 import './prototipo.css';
 import './inicio.css';
 import '../ui/experience.css';
+import '../ui/flow-polish.css';
 
 /** Portada institucional: registra el aviso y el recorrido antes de abrir el formulario o ClaveÚnica. */
 export default function StartPage({navigate=(url:string)=>window.location.assign(url)}:{navigate?:(url:string)=>void}={}) {

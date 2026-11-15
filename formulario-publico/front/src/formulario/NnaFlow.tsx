@@ -4,6 +4,7 @@ import type { ChangeEvent, RefObject } from 'react';
 import type { Session } from '../api';
 import type { IdentityView, Journey } from './api';
 import type { IdentificationHandle } from './IdentificationControls';
+import { useCommitFocus } from '../ui/reveal';
 import { NnaStepOne } from './NnaStepOne';
 import { NnaStepTwo } from './NnaStepTwo';
 import { nnaRequired, nnaValues, validateNna } from './nnaRules';
@@ -43,6 +44,9 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
   const form = useRef<HTMLFormElement>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const focusAfterCommit = useCommitFocus(working || uploading);
+  const focusStep = (target: number) => focusAfterCommit(() => ({section: document.getElementById(target === 1 ? 'nna-step-one' : 'nna-step-two'),
+    target: document.getElementById(target === 1 ? 'nna-ident-title' : 'nna-story-title')}));
   const value = (id: string) => values[id] || '';
   const required = nnaRequired(values);
   function changed(id: string, next: string) {
@@ -72,13 +76,7 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
   }
   function focusErrors(next: FormErrors) {
     setErrors(next);
-    if (Object.keys(next).length) requestAnimationFrame(() => form.current?.querySelector<HTMLElement>('#nna-errors')?.focus());
-  }
-  function focusStep(target: number) {
-    requestAnimationFrame(()=>{
-      document.getElementById(target===1?'nna-step-one':'nna-step-two')?.scrollIntoView?.({block:'start',behavior:'auto'});
-      document.getElementById(target===1?'nna-ident-title':'nna-story-title')?.focus({preventScroll:true});
-    });
+    if (Object.keys(next).length) focusAfterCommit(() => {const summary = form.current?.querySelector<HTMLElement>('#nna-errors') ?? null;return {section: summary, target: summary};});
   }
   async function action(id: string) {
     if (working || uploading) return;
@@ -93,7 +91,8 @@ export function NnaFlow({journey, session, full, filePort, onStep, onReview, nav
     const next = {...validateNna(values, id === 'nna-review'), ...(errors['nna-files'] ? {'nna-files': errors['nna-files']} : {})};focusErrors(next);
     setWorking(true);
     try {
-      const identity = await identityRef.current?.save();
+      // Pasar al relato valida igual, sin reenviar una identificación idéntica; la revisión final siempre confirma.
+      const identity = await identityRef.current?.save({reuse: id === 'nna-next'});
       if (!mounted.current) return;
       if (!identity) {setStep(1);onStep?.(1);focusStep(1);return;}
       if (Object.keys(next).length) return;
